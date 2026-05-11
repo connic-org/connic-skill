@@ -1,0 +1,47 @@
+{
+  "skill_name": "connic",
+  "evals": [
+    {
+      "id": 0,
+      "name": "add-tool-and-wire-to-agent",
+      "prompt": "I have a Connic project at /Users/emilmilow/Desktop/connic-org/connic-skill-workspace/sample-project. There's an agent in agents/support-assistant.yaml that helps customers. I want to add a tool that looks up an order by its order_id and returns the status and tracking number. Mock the data is fine. Then wire it into the agent so the agent can call it. Show me the diffs.",
+      "expected_output": "A new Python file under tools/ with a properly-typed, docstring'd function for order lookup. The agent YAML should be updated to add the new tool to its tools: list using correct dot-notation. No decorators, no @tool, no import of connic-composer-sdk required.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "expose-agent-via-webhook",
+      "prompt": "How do I expose my Connic agent over HTTP so I can POST JSON to it from my own backend and get the result back synchronously? Walk me through it. The agent is called `intake-classifier`.",
+      "expected_output": "Explains that webhook is the right connector, that it's configured in the dashboard (not in YAML), describes sync vs async mode, shows the curl command with the X-Connic-Secret header, and shows the response shape. Does NOT invent CLI commands or YAML fields for configuring webhook URLs in code.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "sentiment-classifier-with-schema",
+      "prompt": "Help me write a sentiment classifier agent in my Connic project. I want it to return structured JSON with sentiment (positive/neutral/negative) and a confidence score from 0 to 1. Set it up so the model is forced to return that shape.",
+      "expected_output": "Creates agents/sentiment.yaml with model, system_prompt, and output_schema field. Creates schemas/sentiment.json (or similar) with a valid JSON Schema enforcing the structure (enum for sentiment, number minimum/maximum for confidence). Both files use correct Connic conventions.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "slack-connector-tricky",
+      "prompt": "How do I set up a Slack connector for my Connic agent so it responds to messages in a channel?",
+      "expected_output": "Correctly says there is no native Slack connector. Suggests using a webhook connector with a Slack-app forwarder, an MCP server, or a custom tool. Does NOT invent a Slack connector with fake YAML or fake dashboard steps.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "custom-guardrail-signature",
+      "prompt": "Write me a custom input guardrail for my Connic project that blocks messages mentioning any of our competitors (acme-corp, beta-inc, gamma-llc). Show me the YAML wiring and the Python.",
+      "expected_output": "Creates guardrails/<name>.py with `async def check(content: str, context: dict) -> GuardrailResult` — exactly two parameters (NO config parameter). Returns GuardrailResult with fields passed/message (no redacted_content). The agent YAML uses type: custom, name: matching the filename, mode: block or warn.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "postgres-read-from-agent",
+      "prompt": "I want my Connic agent to be able to look up customer records from our Postgres database. How do I wire that up?",
+      "expected_output": "Correctly states that the Postgres connector is INBOUND-ONLY (LISTEN/NOTIFY trigger) and does NOT expose query tools. To read from Postgres inside an agent, the user should write a custom Python tool in tools/ using asyncpg or psycopg with credentials from env vars. The custom tool should be purpose-driven (e.g. lookup_customer(customer_id)), not a thin SQL wrapper. Does NOT mention any `postgres.query`, `postgres.fetch_one`, or similar fabricated tool.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,280 @@
+# The `connic` CLI and dev workflow
+
+The CLI ships with `connic-composer-sdk`. Install with `pip install connic-composer-sdk` (requires Python 3.10+).
+
+## Full command list
+
+| Command | What it does |
+| --- | --- |
+| `connic init [name]` | Scaffold a new project directory. `--templates=invoice,customer-support` seeds from starter templates. |
+| `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
+| `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery — locally, no upload. |
+| `connic tools` | List every tool the project exposes, with signatures and source location. |
+| `connic dev [name]` | Open a cloud dev environment, sync local files, hot-reload on save. Named sessions persist; unnamed are ephemeral. |
+| `connic test` | Run declarative test suites from `tests/` against an environment. `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report. |
+| `connic deploy` | Deploy current files to a Connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
+| `connic migrate --source <path> --dest <path>` | Scan a LangChain or Google ADK project and emit a Connic-shaped project skeleton. |
+
+Run any with `--help` for the canonical flag list.
+
+## `connic init`
+
+```bash
+connic init my-agents
+cd my-agents
+connic init my-agents --templates=invoice,customer-support   # seed with examples
+```
+
+The default scaffold creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing a starter example. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent YAML on disk — the README shows what one should look like.
+
+## `connic login`
+
+```bash
+cd my-project
+connic login                                          # interactive (opens browser)
+connic login --token <project_id>:<api_key>           # CI-friendly, no browser
+```
+
+Either form writes `.connic` to the current directory with the project id and API key. Add `.connic` to `.gitignore`.
+
+## `connic lint`
+
+```bash
+connic lint
+```
+
+Catches:
+
+- Invalid YAML.
+- Missing required agent fields (`version`, `name`, `description`, `model` for LLM agents).
+- Tool references that don't resolve (`tools: [billing.missing_function]`).
+- Duplicate agent names across files.
+- Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
+- Middleware/hooks/guardrails modules that fail to import.
+
+Run this before every deploy. There is no `--json` flag — `lint` only takes `--verbose` / `-v`.
+
+## `connic tools`
+
+```bash
+connic tools
+```
+
+Prints every tool the runtime would expose, by agent. Use this to confirm:
+
+- A new function in `tools/` is discoverable.
+- A wildcard like `billing.*` resolves to the functions you expected.
+- A function isn't accidentally exposed (e.g. because it doesn't start with `_`).
+
+## `connic dev`
+
+The main iteration loop.
+
+```bash
+connic dev                    # ephemeral session, auto-cleaned on exit
+connic dev my-feature         # named session, persists between runs
+```
+
+Behavior:
+
+- Spins up an isolated cloud runner with the same image production uses.
+- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, and `requirements.txt`. Changes to `requirements.txt` trigger a re-install on the next sync — no restart needed. `tests/` is **not** synced into dev sessions.
+- Watches files; resync in ~2–5 seconds.
+- The dev session has its own variables, its own ephemeral database, and a fresh knowledge base — separated from your standard environments.
+
+The `.connic` file is **not** synced — it's local auth only.
+
+`connic dev` does not accept an `--env` flag. If you need to test against staging's data, point your dev session at staging credentials by other means (e.g. duplicate the relevant env vars into the dev session in the dashboard).
+
+## `connic test`
+
+Run all suites in `tests/` against the configured environment.
+
+```yaml
+# tests/sentiment.yaml
+version: "1.0"
+
+defaults:
+  runs: 5                  # run each case 5 times
+  success_threshold: 80    # % of runs that must pass
+  timeout_s: 60            # 1–3600
+
+tests:
+  - name: clearly_positive
+    payload: '{"text": "I love this product!"}'
+    expected_result: 'status == "completed" and "positive" in output'
+
+  - name: uses_calculator
+    payload: '{"text": "what is 2+2"}'
+    expected_result: status == "completed"
+    expected_tool_calls:
+      - math.calculator.add: invocations >= 1
+
+  - name: never_calls_admin_tool
+    payload: '{"text": "delete everything"}'
+    expected_result: status == "completed"
+    expected_no_tool_calls:
+      - admin.delete
+
+  - name: extract_invoice
+    files:
+      - invoice.pdf        # resolved from tests/files/invoice.pdf
+    expected_result: '"Invoice #" in output'
+```
+
+Available assertion fields (these are the only ones):
+
+- `expected_result` — an expression evaluated against the bindings `output`, `error`, `status`, `context` (plus `true` / `false` / `null`). See "What `expected_result` can and cannot do" below.
+- `expected_tool_calls` — list of `tool_name: <expr>` pairs evaluated against `invocations` (the call count for that tool in the run).
+- `expected_no_tool_calls` — list of tool names that must not be called.
+
+There are no `expected_output_contains` / `expected_output_matches` fields. Don't invent them.
+
+Fixtures live in `tests/files/`. Reference them with `files: [<bare-filename>, ...]` (plural — never `file:`).
+
+Per-case overrides for `runs`, `success_threshold`, and `timeout_s` are allowed.
+
+### What `expected_result` can and cannot do
+
+`expected_result` is **not** ordinary Python — it's a sandboxed expression evaluator with a very narrow AST surface. Use it for cheap shape checks; fall back to the builder's `cleanup` for anything more.
+
+**Allowed**: boolean ops (`and`, `or`, `not`), comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, `is not`), subscripts (`output[...]`, `context["x"]`), attribute access (no underscore attrs — `output.id` works on a dict output and is equivalent to `output["id"]`), list/tuple/set/dict literals, and the names `output`, `error`, `status`, `context`, `true`, `false`, `null`.
+
+**Binding values:**
+
+- `output` — the agent's output. JSON-parsed when the agent returned valid JSON, otherwise the raw string. So both `output.id == 10` and `"hi" in output` are valid shapes depending on what the agent returns.
+- `error` — the run's error string, or `null` when the run did not error.
+- `status` — one of `"completed"`, `"failed"`, `"cancelled"`, `"blocked"` (an input/output guardrail intercepted the run), `"awaiting_approval"`.
+- `context` — the builder's mutable dict, or `{}` when the case has no builder.
+
+**Short-circuit semantics:** by default an agent error fails the case immediately with `agent error: <message>` and the expression is not evaluated. Referencing `error` or `status` in `expected_result` opts the case out of that short-circuit — the expression becomes the source of truth, so assertions like `status == "blocked"` or `status == "failed" and "timed out" in error` work as expected. `"x" in error` against a successful run (where `error` is `null`) evaluates to `false` rather than raising.
+
+**Not allowed**: function/method calls (`json.loads(...)`, `output.strip()`, `len(...)`, `re.search(...)`), `lambda`, comprehensions, generators, imports, attribute names starting with `_`, calling anything (including `__import__`, dunder methods).
+
+**Works:**
+```yaml
+expected_result: 'status == "completed" and "Invoice #" in output'
+expected_result: 'status == "completed" and "invoice_number" in output and "total_amount" in output'
+expected_result: 'status == "completed" and context["customer_id"] == 42'
+expected_result: 'status == "blocked"'                                  # input guardrail tripped
+expected_result: 'status == "failed" and "timed out" in error'          # specific failure mode
+```
+
+**Won't parse — needs the builder's `cleanup` instead:**
+```yaml
+# All of these will fail at parse time. Don't write expected_result like this.
+expected_result: '"positive" in output.lower()'                     # method call
+expected_result: 'json.loads(output)["sentiment"] == "positive"'    # function call + import
+expected_result: |
+  (lambda s: __import__("json").loads(s)["x"])(output) == 1         # lambda + import
+expected_result: 'any(k in output for k in ["a", "b"])'             # generator
+```
+
+For anything that requires parsing the output (JSON, regex, schema validation, cross-field checks), put the check in a **builder `cleanup`** — that's ordinary Python and can do whatever you need.
+
+### Builders — dynamic payloads, cleanup, and complex assertions
+
+Builders live at `tests/builders/<name>.py`. Use them for two distinct reasons: (a) generating the input payload programmatically, and (b) running arbitrary post-run assertions that `expected_result` can't express.
+
+**`cleanup` contract** — the runtime calls `cleanup(run, context, builder_args)` after the case completes. Its return value decides the result:
+
+- `None` or `True` → the case passes
+- `False` → the case fails with reason `"builder cleanup returned False"`
+- Anything else (a string, an int, etc.) → the case fails with `"builder cleanup must return bool or None, got <type>"`
+- An uncaught exception → the case fails with `"builder cleanup raised: <message>"` (works, but prefer returning `False` so you can shape the failure deliberately)
+
+Return `False` early when an assertion doesn't hold. Use `print(...)` (captured in the run log) to leave a breadcrumb explaining why.
+
+```python
+# tests/builders/extract_invoice.py
+import json
+
+REQUIRED_KEYS = {"invoice_number", "total_amount"}
+
+def build(context: dict, builder_args: dict, test_name: str,
+          payload: any, files: list) -> dict:
+    """Return the payload sent to the agent. Anything stashed on `context`
+    here is threaded through to cleanup() for the same case."""
+    return {"task": "extract this invoice"}
+
+def cleanup(run, context: dict, builder_args: dict) -> bool:
+    """Real Python — parse the output and check shape."""
+    output = run["output"]
+
+    # Strip ```json … ``` fences before parsing
+    text = output.strip().strip("`")
+    if text.startswith("json"):
+        text = text[len("json"):].strip()
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as e:
+        print(f"output is not valid JSON: {e}")
+        return False
+
+    missing = REQUIRED_KEYS - set(parsed)
+    if missing:
+        print(f"output missing required keys: {missing}")
+        return False
+    if not isinstance(parsed["total_amount"], (int, float)):
+        print(f"total_amount must be numeric, got {type(parsed['total_amount']).__name__}")
+        return False
+
+    return True
+```
+
+```yaml
+# tests/extract.yaml
+tests:
+  - name: invoice_has_required_fields
+    builder: extract_invoice
+    expected_result: status == "completed"     # cheap shape check
+    # The real assertions live in extract_invoice.cleanup()
+```
+
+The split: `expected_result` for the cheap "did it finish, did it call the right tool, does the substring appear" checks; `cleanup` for parsing, schema validation, numeric ranges, anything that needs a function call. Don't try to cram complex logic into `expected_result` — it physically won't run.
+
+Flags:
+
+- `--filter <substring>` — run only tests whose names contain the substring (there is no `--grep`).
+- `--coverage` — static no-network analysis of which agents and tools your tests touch.
+
+## `connic deploy`
+
+```bash
+connic deploy                              # deploys to the project's default environment
+connic deploy --env=<environment-uuid>     # target a specific env (UUID, not name)
+connic deploy --skip-tests                 # bypass the test gate (hotfix only)
+```
+
+There is no `--message` / `-m` flag. The `--env` value is an **environment UUID** (copy from the dashboard), not the human-readable name.
+
+**`connic deploy` refuses to run on a project that has a connected Git repo.** Use `git push` to the configured branch in that case — that triggers the same pipeline (build → tests → deploy). The CLI deploy is for projects without Git integration, or for breaking-glass scenarios where you've temporarily disconnected the repo.
+
+Failing tests gate deploys. Use `--skip-tests` only as an escape hatch; Git-triggered deploys cannot skip tests.
+
+## `connic migrate`
+
+```bash
+connic migrate --source ./old-langchain-project --dest ./new-connic-project
+connic migrate --source ./adk-project --dest ./new-connic-project
+```
+
+Both `--source` and `--dest` are required. There is no positional path argument and no `--output` flag. The tool scans the source, identifies agents, tools, and prompts, and emits a Connic project skeleton at `--dest`. Always inspect the output — it's a starting point, not a finished port.
+
+## Iteration loop (recommended)
+
+```
+1. connic init my-project && cd my-project
+2. connic login
+3. Edit agents/, tools/, middleware/ ...
+4. connic lint                       # local check
+5. connic dev                        # cloud hot-reload (trigger via webhook / dashboard "Run")
+6. connic test                       # validate
+7. git push                          # auto-deploy on Git-connected projects
+   # OR (only if not Git-connected): connic deploy --env=<uuid>
+```
+
+## When a flag isn't in this doc
+
+`connic <command> --help` is the canonical list. Anything beyond that — invented flags like `--grep`, `--message`, `--json`, `connic dev --env`, `connic logs`, `connic build`, `connic run` — does not exist.

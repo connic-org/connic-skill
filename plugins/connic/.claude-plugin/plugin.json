@@ -1,0 +1,12 @@
+{
+  "name": "connic",
+  "description": "Teach Claude Code how to work with Connic projects — agents, tools, connectors, composer SDK, platform. Bundles the connic skill plus the on-disk reference set.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Connic"
+  },
+  "homepage": "https://connic.co",
+  "repository": "https://github.com/connic-org/connic-skill",
+  "license": "Apache-2.0",
+  "keywords": ["connic", "agents", "composer", "ai-agents"]
+}

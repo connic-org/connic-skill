@@ -2,38 +2,44 @@
 
 A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, the composer SDK, and the platform.
 
-This skill follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: Claude Code, Cursor, Codex CLI, GitHub Copilot, Windsurf, Gemini, and others — not just Claude.
+This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: Claude Code, Cursor, Codex CLI, GitHub Copilot, Windsurf, Gemini, and others. The same `skills/connic/` directory is the source of truth for all distribution channels below.
 
 ## Install
 
-The fastest way, for any supported agent:
+### Any agent (recommended)
+
+The [`npx skills` CLI](https://github.com/vercel-labs/skills) installs the skill for whichever agents you have configured locally:
 
 ```bash
 npx skills add connic-org/connic-skill
 ```
 
-The [`npx skills` CLI](https://github.com/vercel-labs/skills) auto-discovers `SKILL.md` at the repo root and installs it for whichever agents you have configured locally. Run `npx skills add --help` for per-agent install flags.
+Run `npx skills add --help` for per-agent install flags and CI-friendly options.
 
-### Manual install (Claude Code)
+### Claude Code (plugin marketplace)
 
-If you'd rather drop the files in by hand:
+This repo is also a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Inside Claude Code:
 
-```bash
-git clone https://github.com/connic-org/connic-skill ~/.claude/skills/connic
+```
+/plugin marketplace add connic-org/connic-skill
+/plugin install connic@connic
 ```
 
-Restart Claude Code; the skill activates the next time you ask anything related to Connic.
+Update with `/plugin marketplace update connic` whenever a new version is released.
 
-### Manual install (other agents)
+### Manual install
 
-| Agent | Skills directory |
+If you'd rather drop the files in by hand, copy `plugins/connic/skills/connic/` into your agent's skills directory:
+
+| Agent | Destination |
 | --- | --- |
-| Claude Code | `~/.claude/skills/<name>/` or `.claude/skills/<name>/` (project) |
-| Cursor | `.cursor/skills/<name>/` |
-| Codex CLI | `.codex/skills/<name>/` |
-| Generic | `.agents/skills/<name>/` |
+| Claude Code (user) | `~/.claude/skills/connic/` |
+| Claude Code (project) | `.claude/skills/connic/` |
+| Cursor | `.cursor/skills/connic/` |
+| Codex CLI | `.codex/skills/connic/` |
+| Generic | `.agents/skills/connic/` |
 
-Copy the contents of this repo into the appropriate directory. The skill works the same regardless of host.
+The skill works the same regardless of host.
 
 ## What it does
 
@@ -50,20 +56,44 @@ Activates whenever a developer is working in a Connic project (anything with a `
 
 ## Why this exists
 
-Connic is niche, and most foundation models hallucinate when asked about it — they invent TypeScript SDKs, fictional CLI flags, `slack` connectors, and `postgres.query` tools. This skill is a tight reference written from the actual docs and SDK source so the agent stops guessing.
+Connic is a fast-moving, code-first agent platform — the SDK, the composer features, and the connector catalogue ship updates regularly. This skill is a tight, source-checked reference written directly from the live docs and the `connic-composer-sdk` source, so your AI agent always works against the **current** shape of Connic instead of a stale snapshot from its training data. The result is generated code that runs the first time: real YAML keys, real CLI flags, real predefined-tool signatures, and the conventions the Connic team actually recommends.
 
-Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta +44 pp) across six representative tasks: see [evals/](evals/) for the prompts and `connic-skill-workspace/` (sibling repo) for the iteration results.
+Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta +44 pp) across six representative tasks. See [evals/](evals/) for the prompts.
+
+## Repository layout
+
+```
+.
+├── README.md
+├── .claude-plugin/
+│   └── marketplace.json               # Claude Code marketplace catalog
+├── plugins/
+│   └── connic/                        # the plugin itself
+│       ├── .claude-plugin/
+│       │   └── plugin.json            # plugin manifest
+│       └── skills/
+│           └── connic/
+│               ├── SKILL.md           # entry point — always loaded
+│               └── references/        # eight on-demand topic files
+└── evals/
+    └── evals.json                     # the six prompts used to validate the skill
+```
+
+`npx skills` and the Claude Code plugin loader both read the same `plugins/connic/skills/connic/` directory — no content duplication.
 
 ## Updating
 
 ```bash
-npx skills update connic-skill          # update one
-npx skills update                       # interactive update of all
+# Cross-agent
+npx skills update connic
+
+# Claude Code
+/plugin marketplace update connic
 ```
 
 ## Contributing
 
-The skill lives in `SKILL.md` (the always-loaded entry point) plus eight reference files in `references/` that are loaded on demand. PRs welcome — please keep the existing style: terse, example-led, no marketing prose, every claim checked against the docs or SDK source.
+The entry point is `skills/connic/SKILL.md`; on-demand reference files are in `skills/connic/references/`. PRs welcome — please keep the existing style: terse, example-led, no marketing prose, every claim checked against the docs or SDK source.
 
 ## License
 
