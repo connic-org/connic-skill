@@ -127,6 +127,7 @@ Available assertion fields (these are the only ones):
 - `expected_result` — an expression evaluated against the bindings `output`, `error`, `status`, `context` (plus `true` / `false` / `null`). See "What `expected_result` can and cannot do" below.
 - `expected_tool_calls` — list of `tool_name: <expr>` pairs evaluated against `invocations` (the call count for that tool in the run).
 - `expected_no_tool_calls` — list of tool names that must not be called.
+- `expected_child_agents` — map of triggered agent name → assertions for that child run (`expected_payload`, `expected_result`, `expected_tool_calls`, `expected_no_tool_calls`, `expected_triggered`, plus a nested `expected_child_agents`). See "Asserting on triggered agents" below.
 
 There are no `expected_output_contains` / `expected_output_matches` fields. Don't invent them.
 
@@ -173,6 +174,69 @@ expected_result: 'any(k in output for k in ["a", "b"])'             # generator
 ```
 
 For anything that requires parsing the output (JSON, regex, schema validation, cross-field checks), put the check in a **builder `cleanup`** — that's ordinary Python and can do whatever you need.
+
+### Asserting on triggered agents
+
+When the agent under test calls `trigger_agent` (or `trigger_agent_at`), the deploy-gate container dispatches the child agent **in-process** instead of hitting the live deployment. That gives the testing framework a real, captured run for every triggered agent, so you can assert on it with `expected_child_agents`:
+
+```yaml
+tests:
+  - name: dispatches_to_summarizer
+    payload: '{"text": "..."}'
+    expected_child_agents:
+      summarizer:
+        expected_payload: payload.text != ""
+        expected_result: output.summary != ""
+        expected_tool_calls:
+          - llm.complete: invocations >= 1
+        expected_no_tool_calls:
+          - email.send
+
+  # Pin the trigger payload against builder context — fails if the agent
+  # forwards the wrong fixture id instead of the one it was given.
+  - name: forwards_charge_id_unchanged
+    builder: create_charge_then_refund
+    expected_child_agents:
+      billing-refunder:
+        expected_payload: payload.charge_id == context.charge_id
+
+  # Recursive: assert on a grandchild that summarizer triggers in turn.
+  - name: dispatches_summarizer_then_publisher
+    payload: '{"text": "..."}'
+    expected_child_agents:
+      summarizer:
+        expected_result: output.summary != ""
+        expected_child_agents:
+          publisher:
+            expected_tool_calls:
+              - kafka.publish: params.topic == "summaries"
+
+  # Fire-and-forget (wait_for_response=False) — output/tool calls aren't
+  # observable, but the payload IS captured at call time, so
+  # expected_payload + expected_triggered still apply.
+  - name: fans_out_telemetry
+    payload: '{"event": "checkout"}'
+    expected_child_agents:
+      telemetry-writer:
+        expected_triggered: 1
+        expected_payload: payload.event == "checkout"
+```
+
+Field shape — each entry under `expected_child_agents` takes:
+
+- `expected_triggered: <int>` — minimum trigger count (default `1`).
+- `expected_payload: <expr>` — expression over the input passed to `trigger_agent`. Bindings: `payload` (JSON-parsed when the parent passed a JSON string, else the raw value), `payload_raw` (the string form, `""` when N/A), `context` (the builder dict). Works on every trigger record regardless of mode.
+- `expected_result`, `expected_tool_calls`, `expected_no_tool_calls` — same grammar as the top-level fields, evaluated against the child run. Require at least one `wait_for_response=True` trigger.
+- `expected_child_agents` — recursive map for whatever this child triggers in turn.
+
+Two evaluation paths:
+
+- **`wait_for_response=True`** — the child runs synchronously in the test container with its own tool-call collector, so result/tool/nested assertions all apply. When the same child was triggered more than once, the assertion passes as soon as one waited trigger satisfies the spec.
+- **`wait_for_response=False`** — fire-and-forget. `expected_triggered` and `expected_payload` work; deeper assertions don't (the case fails with a clear reason telling you to wait for the response). `trigger_agent_at` is always treated as fire-and-forget in test mode.
+
+The builder `context` dict is shared across every depth — a fixture id stashed in `build()` is reachable via `context.<key>` inside any child's `expected_payload`, `expected_result`, or `expected_tool_calls`.
+
+In-process dispatch is exclusive to the deploy-gate container. Production `trigger_agent` calls still route through the API path.
 
 ### Builders — dynamic payloads, cleanup, and complex assertions
 

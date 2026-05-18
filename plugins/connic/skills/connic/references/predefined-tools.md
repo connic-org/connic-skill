@@ -34,6 +34,8 @@ result = await trigger_agent(
 
 When `wait_for_response=False`, it returns immediately with `status: "started"`.
 
+**Inside the deploy-gate test container**, `trigger_agent` runs the child agent in-process (instead of hitting the live deployment) so tests can assert on the chain via `expected_child_agents` in `tests/*.yaml`. See [cli-and-dev.md](cli-and-dev.md#asserting-on-triggered-agents). Production behaviour is unchanged.
+
 #### Passing files to the triggered agent
 
 `trigger_agent` has no `files` parameter, but the receiving agent's runtime recognises a specific dict shape in the payload and reconstructs binary file parts from it — the same shape that inbound multipart webhooks and Telegram media use, so it's stable and supported:
