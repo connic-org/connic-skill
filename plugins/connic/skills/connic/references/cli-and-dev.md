@@ -132,6 +132,8 @@ There are no `expected_output_contains` / `expected_output_matches` fields. Don'
 
 Fixtures live in `tests/files/`. Reference them with `files: [<bare-filename>, ...]` (plural — never `file:`).
 
+If `payload` is a JSON object (or comes from a `builder` that returns a dict), its keys sit at the top level of `context["payload"]`. Otherwise the string is delivered as `{message: <payload>}`. Attached `files` are added alongside, under a `files` list.
+
 Per-case overrides for `runs`, `success_threshold`, and `timeout_s` are allowed.
 
 ### What `expected_result` can and cannot do

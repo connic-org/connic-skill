@@ -56,7 +56,7 @@ result = await trigger_agent(
                 "name": "invoice.pdf",
             }
         ],
-        "fields": {"customer_id": "cus_123"},             # optional structured data
+        "customer_id": "cus_123",                         # optional structured data
     },
     wait_for_response=True,
 )
@@ -65,8 +65,8 @@ result = await trigger_agent(
 Shape rules:
 
 - `files` is a list. Each entry needs `data` (base64-encoded bytes as an ASCII string), `mime_type`, and `name`.
-- `message` (or `text` as a fallback) becomes the leading text part the receiving LLM sees. If neither is set and `files` is present, the runtime falls back to `"Please analyze the attached file(s)."`.
-- `fields` is optional structured context. When there's no `message`/`text`, `fields` is JSON-serialised into the text part.
+- The receiving agent keeps every non-`files` key at the top level of `context["payload"]`.
+- The receiving LLM sees the payload with only `files` removed. A `{message, files}` payload renders as the plain `message` string; any richer shape is JSON-serialised, so structured fields like `mode`, `data_points`, or `customer_id` are visible to the model.
 
 Base64 inflates the payload by ~33% and the whole thing travels as a JSON string through the trigger endpoint. For anything larger than a few MB, prefer a reference — a presigned S3 URL, a knowledge-base `entry_id`, a project-database doc ID — and let the downstream agent fetch the binary via a tool.
 

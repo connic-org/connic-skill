@@ -174,17 +174,18 @@ For multipart, `context["payload"]` is normalised to the same shape `trigger_age
 
 ```python
 {
-  "fields":  {"customer_id": "cus_123", "tag": ["a", "b"]},   # text parts; repeated keys become lists
+  "customer_id": "cus_123",   # multipart text fields sit at the top level
+  "tag": ["a", "b"],          # repeated keys are grouped into a list
+  "message": "...",
   "files":   [{"name": "invoice.pdf", "field_name": "file",
                "mime_type": "application/pdf",
-               "data": "<base64>", "size": 12345}],
-  "message": "..."  # copied from fields["message"] or fields["text"] if either was sent
+               "data": "<base64>", "size": 12345}]
 }
 ```
 
-If no supported file made it through, the payload collapses to just the `fields` dict (no `files`, no `message` key). File parts are filtered to a fixed allowlist (images, PDF, text/CSV/JSON/XML, Office, ODF, EPUB) and capped at 10 MB per file — anything else is silently dropped with a server-side log warning, not surfaced as a 4xx. Validate in `before` if you need to reject the request when an expected upload is missing.
+If no supported file made it through, the payload collapses to just the top-level form fields (no `files` key). File parts are filtered to a fixed allowlist (images, PDF, text/CSV/JSON/XML, Office, ODF, EPUB) and capped at 10 MB per file — anything else is silently dropped with a server-side log warning, not surfaced as a 4xx. Validate in `before` if you need to reject the request when an expected upload is missing.
 
-The LLM-facing `content` is reconstructed automatically: each `files[*]` entry becomes a binary part, with `message` (or `text`, or a synthesised "Please analyze the attached file(s).") as the leading text part.
+The LLM-facing `content` is reconstructed automatically: each `files[*]` entry becomes a binary part, and the leading text part is the payload with only `files` removed. A `{message, files}` payload renders as the plain `message` string; any richer shape is JSON-serialised.
 
 **Authentication** (Inbound / Sync) is controlled by a **Require Authentication** toggle on the connector. When on (the default), callers must present the connector secret as `X-Connic-Secret: <secret>`, `Authorization: Bearer <secret>`, or `?secret=<secret>` — requests without it are rejected at the edge. When off, the endpoint is open and authentication is your responsibility downstream: typically you verify a JWT or another credential inside `middleware/<agent>.py::before` and reject from there (see the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions)). Turn it off when the inbound payload already carries a stronger credential than a static shared secret — JWTs, OIDC tokens, signed webhooks from a known upstream — so you're not stacking two redundant secrets. Leave it on for the simple case where the caller is just another service of yours.
 

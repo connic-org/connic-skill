@@ -37,7 +37,7 @@ Environment variables are injected at deploy time. Changing a variable requires 
 - Inputs, outputs, every tool call with args and result.
 - Captured `print()` and `logging` calls. Python logger names must start with `tools.`, `middleware.`, `hooks.`, or `guardrails.` — the dashboard surfaces them as "Tool", "Middleware" (tagged `before`/`after`), "Hook", or "Guardrail" entries.
 - Token usage, latency, cost per run.
-- Reasoning traces (if `reasoning: true` in the agent).
+- Reasoning traces (whenever the provider returns them; controlled by `reasoning_effort` on the agent).
 - Unhandled exceptions are captured automatically with their tracebacks.
 
 There's a 500-log-lines-per-run cap. Logs view filters include Status, Date Range, Deployment, and Search.

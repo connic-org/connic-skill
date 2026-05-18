@@ -23,8 +23,8 @@ temperature: 0.1                   # 0 = deterministic, higher = more random
 timeout: 45                        # seconds for one run; minimum 5; no default
 max_iterations: 8                  # cap on LLM loop steps
 max_concurrent_runs: 20            # default 1; cap on parallel runs of this agent
-reasoning: true                    # default true; capture model thinking traces
-reasoning_budget: 4096             # 0 = disable reasoning, -1 = let the model choose
+reasoning_effort: medium           # auto (default) | off | minimal | low | medium | high | xhigh
+reasoning_budget: 4096             # explicit token budget; provider-dependent (rejected by Opus 4.7, Gemini 3, OpenAI)
 
 tools:                              # max 100 tools per agent
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
