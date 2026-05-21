@@ -39,6 +39,7 @@ my-project/
 ├── .connic                    # api_key + project_id (treat as secret)
 ├── requirements.txt           # only project-specific deps; SDK installed globally
 ├── agents/                    # *.yaml agent definitions (nesting OK)
+│   └── _defaults.yaml         # optional, at any depth — cascading defaults
 ├── tools/                     # *.py — functions auto-discovered as tools
 ├── middleware/                # *.py — file basename matches agent name
 ├── hooks/                     # *.py — file basename matches agent name
@@ -53,6 +54,7 @@ Discovery rules to keep in mind:
 - A tool reference like `tools: [- billing.lookup_invoice]` in an agent YAML resolves to `tools/billing.py::lookup_invoice`. Nested folders use dot-notation: `tools/math/calc.py::add` → `math.calc.add`.
 - `output_schema: invoice` resolves to `schemas/invoice.json` (no extension in the YAML reference).
 - Custom guardrail `name: my_check` resolves to `guardrails/my_check.py`.
+- A `_defaults.yaml` at any directory under `agents/` provides defaults inherited by every agent at that level and deeper. Scalars override, dicts deep-merge, lists concat with dedup-by-ref so children add to (rather than replace) inherited `tools`, `mcp_servers`, `guardrails`, etc. See [agent-yaml.md](references/agent-yaml.md#cascading-defaults-with-_defaultsyaml).
 
 ## Common workflows
 

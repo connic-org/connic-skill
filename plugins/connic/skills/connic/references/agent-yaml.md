@@ -244,11 +244,96 @@ approval:
 
 The run pauses at the gated tool call until a reviewer approves or rejects in **Dashboard → Approvals**. Approval conditions use `param.*` (the tool's arguments) and `context.*`; `input.*` is **not** valid here (unlike tool conditions in `tools:`).
 
+## Cascading defaults with `_defaults.yaml`
+
+Drop a `_defaults.yaml` into any directory under `agents/` to share configuration with every agent at that directory level and below. Use it to factor out the boring repetition — the same `model`, the same `guardrails`, a common set of `tools`, the same `database.collections` — across families of agents.
+
+```
+agents/
+├── _defaults.yaml              # applies to every agent in the project
+├── process/
+│   ├── _defaults.yaml          # adds/overrides for everything under process/
+│   ├── ingest/
+│   │   └── foo.yaml
+│   └── enrich/
+│       └── bar.yaml
+└── support-assistant.yaml
+```
+
+The loader collects the chain of `_defaults.yaml` files from `agents/` down to the agent's directory (shallowest first) and merges them; the agent's own YAML is applied last and wins on conflict.
+
+### What can live in `_defaults.yaml`
+
+The same fields as a normal agent YAML, but partial — only set what you want to share. Two exceptions:
+
+- `name` and `description` are **forbidden** in defaults (they're per-agent identity; sharing them would either be useless or collide).
+- `version` is allowed in defaults so you can pin `"1.0"` once project-wide. The agent file must still set it too (along with `name` and `description`).
+
+The linter rejects defaults files that contain `name` or `description`, pointing at the offending file.
+
+### Merge rules
+
+Applied recursively as the chain is folded together:
+
+- **Scalars** (`model`, `temperature`, `system_prompt`, `timeout`, `reasoning_effort`, …) — deeper layer replaces shallower; the agent file replaces all.
+- **Dicts** (`database`, `knowledge`, `retry_options`, `approval`, `session`, `concurrency`, `guardrails`, `database.collections`, `knowledge.namespaces`, …) — recursive deep merge, per-key. Defaults can supply some collections; an agent can add more without losing the inherited ones.
+- **Lists** — concat with dedup, so children **add to** rather than replace inherited lists:
+  - `tools`, `discoverable_tools`, `approval.tools` — dedup by tool ref. An agent re-declaring an inherited tool (e.g. with a different condition) overrides the inherited entry.
+  - `mcp_servers` — dedup by server `name`. An agent's full server config replaces the inherited one on collision.
+  - `guardrails.input`, `guardrails.output` — dedup by rule `name` if present; otherwise appended.
+  - Sequential `agents:` — dedup by string.
+
+Order in the final list: inherited entries first (root → deepest), then the agent's own, minus anything the agent re-declared.
+
+### Example
+
+`agents/_defaults.yaml`:
+
+```yaml
+version: "1.0"
+type: llm
+model: anthropic/claude-sonnet-4-6
+temperature: 0
+guardrails:
+  input:
+    - type: prompt_injection
+      mode: block
+  output:
+    - type: system_prompt_leakage
+      mode: block
+tools:
+  - audit.log_event
+```
+
+`agents/billing/refund-agent.yaml`:
+
+```yaml
+version: "1.0"
+name: refund-agent
+description: "Issues refunds against the billing system."
+system_prompt: "Refund only valid charges. Use the tools."
+tools:
+  - billing.lookup_charge
+  - billing.issue_refund
+approval:
+  tools:
+    - billing.issue_refund: param.amount > 50
+  timeout: 3600
+```
+
+Effective config for `refund-agent`: `model: anthropic/claude-sonnet-4-6`, `temperature: 0`, the two inherited guardrails, and `tools: [audit.log_event, billing.lookup_charge, billing.issue_refund]`. The agent didn't redeclare `audit.log_event`, so it's inherited as-is.
+
+### Tips
+
+- Each `_defaults.yaml` is parsed once per loader run, so adding shared config doesn't hurt cold-load time even with many agents.
+- Use `connic lint` to see the final shape if you're unsure what got merged — load errors point at the file whose values caused the rejection.
+- Test variants (`<base>-test-<name>.yaml`) inherit the same defaults as their base, since they live in the same directory.
+
 ## Common mistakes
 
 - Writing `tools/billing.py` and referencing `billing.lookup_invoice` but the function is named `lookupInvoice` — case and snake_case matter.
 - Using `tools: lookup_invoice` (string) instead of `tools: [lookup_invoice]` (list).
-- Omitting `version`, `name`, `description`, or `model` (LLM agents) — the linter rejects the file. `description` is required and often forgotten.
+- Omitting `version`, `name`, `description`, or `model` (LLM agents) — the linter rejects the file. `description` is required and often forgotten. None of `name`, `description`, or `version` can be supplied by a `_defaults.yaml`; `name` and `description` are forbidden there entirely.
 - Setting `session.key` to a literal string instead of a `context.*` / `input.*` path.
 - Listing the same tool both unconditionally and conditionally — not allowed.
 - Using `input.*` in an `approval.tools` condition — only `param.*` and `context.*` are valid there. Conversely, using `param.*` in a `tools:` conditional — that's only valid in approvals.
