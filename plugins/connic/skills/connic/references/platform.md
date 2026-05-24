@@ -30,6 +30,18 @@ A deploy bundles the local files (agents, tools, middleware, hooks, schemas, gua
 
 Environment variables are injected at deploy time. Changing a variable requires re-deploying for new runs to pick it up.
 
+### PR Testing
+
+Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When it's on, every pull request whose target branch matches the environment's branch runs the project's test suite — the same tests `connic test` runs — and the result is posted back to the PR as a commit status (`connic/pr-tests`).
+
+For new environments on git-connected projects with a branch set, PR Testing is on by default. CLI-only projects don't have it.
+
+Each PR only triggers tests in the one environment whose branch matches its target — branch-to-environment is 1:1. Tests run with that environment's variables, secrets, and connections; if the environment has a **Test environment** override set, the tests run there instead (useful for keeping PR traffic out of production).
+
+To require the check before merging, the repo owner adds `connic/pr-tests` to the GitHub branch protection rule for that branch. GitHub only lists check contexts it has already seen, so the first PR has to run before the check is selectable.
+
+GitHub only for now.
+
 ## Observability
 
 **Dashboard → Logs** and **Dashboard → Runs** show every agent invocation:
@@ -146,7 +158,7 @@ For the full endpoint catalogue and per-section permission scopes, fetch `https:
 | Database collections | Dashboard or via `db_*` tools |
 | Judges, A/B tests, approvals queue | Dashboard |
 | Team members and roles | Dashboard |
-| Deployment & branch mapping | Dashboard (Git settings) |
+| Deployment & branch mapping, PR Testing toggle | Dashboard (Git & Environments) |
 | Bridge tunnels and custom domains | Dashboard |
 
 Keep this split clear when answering "where do I configure X?" — connectors and secrets are common confusion points and they're dashboard-only.
