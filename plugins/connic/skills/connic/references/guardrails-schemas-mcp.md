@@ -83,7 +83,8 @@ guardrails:
     - type: custom
       name: domain_check             # guardrails/domain_check.py
       mode: block
-      fail_run: true                 # mark blocked runs as 'failed' instead of 'completed'
+      config:
+        fail_run: true               # mark blocked runs as 'failed' instead of 'completed'
 
   output:
     - type: moderation
@@ -108,7 +109,7 @@ guardrails:
 
 - `block` — stop the run and return a rejection message.
 - `warn` — log it and continue.
-- `redact` — replace detected content with `[REDACTED]` and continue. **Only valid for `pii` and `pii_leakage`** — all other types only support `block` and `warn`.
+- `redact` — replace each detected entity with a type-specific placeholder (`[EMAIL_REDACTED]`, `[SSN_REDACTED]`, `[CREDIT_CARD_REDACTED]`, …) and continue. **Only valid for `pii` and `pii_leakage`** — all other types only support `block` and `warn`.
 
 ### Built-in types
 
@@ -128,10 +129,10 @@ guardrails:
     - type: prompt_injection
       mode: block
       config:
-        provider: lakera         # default | openai | lakera | perspective
+        provider: lakera         # default | lakera (for prompt_injection)
 ```
 
-Available providers vary by type (`pii` supports `openai`; `moderation` supports `openai`, `perspective`; `prompt_injection` supports `lakera`). The default is Connic's built-in classifier — fast and free, but less accurate than the dedicated providers.
+Available providers vary by type: `moderation` and `pii_leakage` support `openai` and `perspective`; `prompt_injection` supports `lakera`. Other types (input `pii`, `topic_restriction`, `regex`, `system_prompt_leakage`, `relevance`, `data_exfiltration`) always use Connic's built-in detector — setting a `provider` on them has no effect. The default is Connic's built-in classifier — fast and free, but less accurate than the dedicated providers.
 
 ### Common config fields
 

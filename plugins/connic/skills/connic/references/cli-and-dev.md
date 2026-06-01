@@ -9,7 +9,7 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic init [name]` | Scaffold a new project directory. `--templates=invoice,customer-support` seeds from starter templates. |
 | `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
 | `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery — locally, no upload. |
-| `connic tools` | List every tool the project exposes, with signatures and source location. |
+| `connic tools` | List every tool the project exposes, with a one-line description and the source module path. |
 | `connic dev [name]` | Open a cloud dev environment, sync local files, hot-reload on save. Named sessions persist; unnamed are ephemeral. |
 | `connic test` | Run declarative test suites from `tests/` against an environment. `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report. |
 | `connic deploy` | Deploy current files to a Connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
@@ -60,7 +60,7 @@ Run this before every deploy. There is no `--json` flag — `lint` only takes `-
 connic tools
 ```
 
-Prints every tool the runtime would expose, by agent. Use this to confirm:
+Prints every tool the runtime would expose, grouped by `tools/` module (each with a one-line description, no signatures). Use this to confirm:
 
 - A new function in `tools/` is discoverable.
 - A wildcard like `billing.*` resolves to the functions you expected.
@@ -78,7 +78,7 @@ connic dev my-feature         # named session, persists between runs
 Behavior:
 
 - Spins up an isolated cloud runner with the same image production uses.
-- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, and `requirements.txt`. Changes to `requirements.txt` trigger a re-install on the next sync — no restart needed. `tests/` is **not** synced into dev sessions.
+- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, and `requirements.txt`. Changes to `requirements.txt` trigger a re-install on the next sync — no restart needed. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the live runner.
 - Watches files; resync in ~2–5 seconds.
 - The dev session has its own variables, its own ephemeral database, and a fresh knowledge base — separated from your standard environments.
 
@@ -347,6 +347,7 @@ Flags:
 
 - `--filter <substring>` — run only tests whose names contain the substring (there is no `--grep`).
 - `--coverage` — static no-network analysis of which agents and tools your tests touch.
+- `--json` — emit the test (or coverage) report as JSON for tooling/CI.
 
 ## `connic deploy`
 
@@ -386,4 +387,4 @@ Both `--source` and `--dest` are required. There is no positional path argument 
 
 ## When a flag isn't in this doc
 
-`connic <command> --help` is the canonical list. Anything beyond that — invented flags like `--grep`, `--message`, `--json`, `connic dev --env`, `connic logs`, `connic build`, `connic run` — does not exist.
+`connic <command> --help` is the canonical list. Anything beyond that — invented flags like `--grep` (it's `--filter` on `test`), `--message` on `deploy`, `--json` on `lint` (only `connic test` has `--json`), `connic dev --env`, `connic logs`, `connic build`, `connic run` — does not exist.

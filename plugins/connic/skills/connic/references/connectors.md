@@ -72,7 +72,7 @@ Inbound payload — the keys the agent sees:
 
 Attachments over 10 MB are listed as metadata only (no content). Field names are `filename`, `content_type`, `content` — not `name`, `mime_type`, `data`.
 
-Outbound: configure SMTP server / port / username / password / From address / From name. The agent's *output* must be JSON with required `to`, `subject`, `body`, and optional `cc`, `bcc`, `html_body`, `reply_to`. The connector does **not** automatically reply to the inbound sender — your agent must echo the right `to`. Returning a bare string from the agent does not work.
+Outbound: configure SMTP server / port / username / password / From address / From name, and optionally a Default Recipient. The agent's *output* is JSON with `to`, `subject`, `body`, and optional `cc`, `bcc`, `html_body`, `reply_to`. A recipient is required — it comes from the output's `to` or the connector's Default Recipient; with neither, the send fails. `subject` defaults to `"Agent Response"` when omitted. The connector does **not** automatically reply to the inbound sender — your agent must echo the right `to` (or rely on the Default Recipient). A bare (non-JSON) string is sent as the body, so it only delivers when a Default Recipient is configured.
 
 ## kafka
 
@@ -154,7 +154,7 @@ Telegram bot. **Inbound** and **Outbound** are separate connectors (different mo
 
   There is no top-level `user_id` — the sender id is `message.from_id`. Optional `Allowed User IDs` allowlist gates which users the bot responds to. Inbound auth is verified by Connic via the `X-Telegram-Bot-Api-Secret-Token` header that Telegram sends.
 
-- **Outbound**: the agent's output must be **JSON** with required `text` (and optionally `chat_id`, `parse_mode`). `chat_id` is **not** automatically resolved from the triggering run — either echo it from `input.chat_id` in the agent's output, or set a default Chat ID on the outbound connector. Returning a bare string from the agent does not send a message.
+- **Outbound**: the agent's output can be JSON with `text` (also accepts `message` or `body`) and optionally `chat_id`, or a bare string (sent as the message text). `chat_id` is **not** automatically resolved from the triggering run — either echo it from `input.chat_id` in the agent's output, or set a default Chat ID on the outbound connector; with neither, the send fails. Messages are always sent with `parse_mode: HTML` — the agent cannot override it.
 
 There are no `telegram.send_message` or `telegram.send_photo` predefined tools. Sending photos / files / richer messages isn't supported by the outbound connector itself — for that, write a custom tool that hits the Telegram Bot API directly.
 

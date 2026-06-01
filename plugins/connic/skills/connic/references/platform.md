@@ -120,7 +120,7 @@ Restrictions: **subdomains only** (no apex/wildcard); requires the Pro plan or h
 
 **Project Settings → Team** manages member roles. The three roles are **Owner**, **Admin**, and **Member** — there are no "Developer" or "Viewer" roles, and roles are not scoped per-environment.
 
-For finer-grained access, use **API keys** instead — keys are scoped per section (`agents`, `runs`, `knowledge`, `judges`, `budgets`, `audit-logs`, `deployments`) with read/write granularity.
+For finer-grained access, use **API keys** instead — keys are scoped per section (`agents`, `runs`, `knowledge`, `judges`, `approvals`, `budgets`, `audit-logs`, `deployments`) with read/write granularity.
 
 The audit log (under Team) records actions across categories: project, deployment, connector, environment, variable, API key, billing, member, invite, Git.
 
