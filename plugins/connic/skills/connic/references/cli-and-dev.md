@@ -137,6 +137,8 @@ If `payload` is a JSON object (or comes from a `builder` that returns a dict), i
 
 Per-case overrides for `runs`, `success_threshold`, and `timeout_s` are allowed.
 
+Two more case fields configure tool mocking (not assertions): `mocks` (a `tests/mocks/<name>.py` module that stands in for the agent's custom file tools) and `strict_mocks` (bool, also settable in `defaults`). See "Mocking tools" below.
+
 ### What `expected_result` can and cannot do
 
 `expected_result` is **not** ordinary Python — it's a sandboxed expression evaluator with a very narrow AST surface. Use it for cheap shape checks; fall back to the builder's `cleanup` for anything more.
@@ -299,6 +301,47 @@ tests:
 ```
 
 The split: `expected_result` for the cheap "did it finish, did it call the right tool, does the substring appear" checks; `cleanup` for parsing, schema validation, numeric ranges, anything that needs a function call. Don't try to cram complex logic into `expected_result` — it physically won't run.
+
+### Mocking tools
+
+Point a case at a `tests/mocks/<name>.py` module with the `mocks:` field to stand in for the agent's **custom file tools** during the run. The agent still decides to call the tool — your mock returns the result instead of the real implementation executing. Predefined tools (`db_find`, `web_search`, `trigger_agent`, …) and `api:` tools are never mocked; they always run for real.
+
+The module exposes hierarchical `mock_*` functions. For a tool ref like `data.customer.add_customer`, the runner uses the **most specific** one defined, trying in order:
+
+| Function | Stands in for |
+| --- | --- |
+| `mock_data_customer_add_customer` | that exact tool |
+| `mock_data_customer` | every tool in `tools/data/customer.py` |
+| `mock_data` | every tool under `tools/data/` |
+| `mock` | every custom file tool |
+
+Every mock has the same signature and returns the substituted result:
+
+```python
+# tests/mocks/customer_mocks.py
+def mock_data_customer_add_customer(tool_name, params, context):
+    # tool_name -> the full ref ("data.customer.add_customer")
+    # params    -> the args the agent passed to the tool
+    # context   -> the run context dict
+    return {"id": "cust_test_1", **params}
+```
+
+```yaml
+# tests/customer-agent.yaml
+defaults:
+  strict_mocks: true                 # also settable per-case
+tests:
+  - name: adds_without_touching_the_db
+    payload: '{"name": "Ada"}'
+    mocks: customer_mocks
+    expected_tool_calls:
+      - data.customer.add_customer: params.name == "Ada"
+```
+
+- **Calls are still recorded.** A mocked call shows up in the trace (tagged `mocked` in the run drawer) and counts toward `expected_tool_calls` / `expected_no_tool_calls` — so you assert the agent reached for the right tool with the right args while the real code never runs.
+- **The call contract is enforced.** A mock replaces the *result*, not the *signature*: mocked args are validated against the real tool's parameters (required args, types, unknown args), so a malformed call fails the case instead of being swallowed by the mock. Defaulted params stay optional.
+- **`strict_mocks`** (per-case, or in `defaults`) — when `true`, the case fails the moment the agent calls any tool that wasn't served by a mock, guaranteeing the run never touched a real tool. Since predefined / `api:` tools can't be mocked, calling one under `strict_mocks` also fails the case.
+- One fresh re-import per invocation, like builders — module-level state resets between runs. A typo in `mocks:` fails fast, before the test container starts.
 
 Flags:
 

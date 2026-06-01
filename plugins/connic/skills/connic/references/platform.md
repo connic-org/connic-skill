@@ -17,13 +17,13 @@ Each project has multiple environments (e.g. `staging`, `production`), plus a se
 - Separate database and knowledge base data.
 - Separate API keys for triggering agents externally.
 
-Configure under **Project Settings → Environments**. Map a Git branch to each environment for auto-deploy on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
+Configure under **Project Settings → Git & Environments**. Map a Git branch to each environment for auto-deploy on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
 
 ## Deployment
 
 Two paths:
 
-1. **Git-connected (preferred).** Configure a GitHub/GitLab/Bitbucket repo in **Project Settings → Git**. Each branch can map to one environment. Pushing runs a three-step pipeline: **Build → Tests → Deploy**. A failing test blocks promotion; git-triggered deploys cannot skip tests.
+1. **Git-connected (preferred).** Configure a GitHub/GitLab/Bitbucket repo in **Project Settings → Git & Environments**. Each branch can map to one environment. Pushing runs a three-step pipeline: **Build → Tests → Deploy**. A failing test blocks promotion; git-triggered deploys cannot skip tests.
 2. **CLI.** `connic deploy --env=<env-uuid>` from a directory with a valid `.connic`. The `--env` value is an environment UUID, not the human name. `connic deploy` refuses to run if the project has a Git connection — Git is single-source-of-truth in that case. `--skip-tests` is available as a breaking-glass option for non-Git deploys.
 
 A deploy bundles the local files (agents, tools, middleware, hooks, schemas, guardrails, tests, requirements.txt) and uploads them to Connic. The new bundle becomes the active version for that environment. Failed builds never replace the live deployment, and previous deployments remain available via an "Activate" action for instant rollback.
