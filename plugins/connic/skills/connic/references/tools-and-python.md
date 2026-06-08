@@ -63,7 +63,7 @@ async def get_user_orders(limit: int = 10, context: dict = {}) -> list:
     return await fetch_orders(user_id, limit)
 ```
 
-`context` carries system fields (`run_id`, `agent_name`, `timestamp`, `token_usage`, `duration_ms`) plus whatever middleware put there.
+`context` carries system fields (`run_id`, `agent_name`, `connector_id`, `timestamp`), the original connector `payload`, and — added after the run completes, so only readable in `after()` — `token_usage` and `duration_ms`, plus whatever middleware put there.
 
 ### Special control flow
 

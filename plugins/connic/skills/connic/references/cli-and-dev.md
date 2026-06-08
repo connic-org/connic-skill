@@ -11,7 +11,7 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery — locally, no upload. |
 | `connic tools` | List every tool the project exposes, with a one-line description and the source module path. |
 | `connic dev [name]` | Open a cloud dev environment, sync local files, hot-reload on save. Named sessions persist; unnamed are ephemeral. |
-| `connic test` | Run declarative test suites from `tests/` against an environment. `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report. |
+| `connic test` | Run declarative test suites from `tests/` against an environment. `--env <id>` picks the environment; `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report. |
 | `connic deploy` | Deploy current files to a Connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
 | `connic migrate --source <path> --dest <path>` | Scan a LangChain or Google ADK project and emit a Connic-shaped project skeleton. |
 
@@ -340,11 +340,12 @@ tests:
 
 - **Calls are still recorded.** A mocked call shows up in the trace (tagged `mocked` in the run drawer) and counts toward `expected_tool_calls` / `expected_no_tool_calls` — so you assert the agent reached for the right tool with the right args while the real code never runs.
 - **The call contract is enforced.** A mock replaces the *result*, not the *signature*: mocked args are validated against the real tool's parameters (required args, types, unknown args), so a malformed call fails the case instead of being swallowed by the mock. Defaulted params stay optional.
-- **`strict_mocks`** (per-case, or in `defaults`) — when `true`, the case fails the moment the agent calls any tool that wasn't served by a mock, guaranteeing the run never touched a real tool. Since predefined / `api:` tools can't be mocked, calling one under `strict_mocks` also fails the case.
+- **`strict_mocks`** (per-case, or in `defaults`) — when `true`, the run aborts the moment the agent calls a custom file tool that wasn't served by a mock, guaranteeing the real implementation never executed. Predefined (`db_find`, `web_search`, …) and `api:` tools can't be mocked, so they're exempt — calling one under `strict_mocks` is allowed and runs for real.
 - One fresh re-import per invocation, like builders — module-level state resets between runs. A typo in `mocks:` fails fast, before the test container starts.
 
 Flags:
 
+- `--env <environment-id>` — run the tests against a specific environment (defaults to the env's `test_environment_id`, falling back to itself).
 - `--filter <substring>` — run only tests whose names contain the substring (there is no `--grep`).
 - `--coverage` — static no-network analysis of which agents and tools your tests touch.
 - `--json` — emit the test (or coverage) report as JSON for tooling/CI.

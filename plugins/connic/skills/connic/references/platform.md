@@ -85,7 +85,7 @@ Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (
 
 ## A/B testing
 
-Compare agent configurations side-by-side. Variants are declared as YAML files following the `{base-agent}-test-{variant}.yaml` naming convention (the loader auto-recognises them — see [agent-yaml.md](agent-yaml.md#ab-test-variants)). Configure traffic percentages and metrics in **Project → A/B Testing**. Multiple concurrent tests are supported as long as total traffic across them is ≤100%. Judges typically supply the win-rate metric.
+Compare agent configurations side-by-side. Variants are declared as YAML files following the `{base-agent}-test-{variant}.yaml` naming convention (the loader auto-recognises them — see [agent-yaml.md](agent-yaml.md#ab-test-variants)). Configure traffic percentages and metrics in **Project → A/B Testing**. Multiple concurrent tests are supported as long as total traffic across them is ≤100%. Connic tracks cost, latency, and success rate automatically; judges supply the quality (score) metric.
 
 ## Bridge
 
@@ -136,7 +136,7 @@ Architectural recommendations in this skill should be made on the basis of fit, 
 
 `https://api.connic.co/v1/...`. Auth via API key (create under **Project Settings → CLI / API Keys**). Rate limit: 60 requests/minute per project — 429 responses include `Retry-After`.
 
-The REST API is for **admin and tooling work**: listing runs, reading logs, managing connectors, managing deployments, pulling usage data, managing knowledge entries. **It is not the path for triggering agents from external callers** — for that you create a connector.
+The REST API is for **admin and tooling work**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing knowledge entries, approvals, and judges (the permission-scoped sections are `agents`, `runs`, `knowledge`, `judges`, `approvals`, `budgets`, `audit-logs`, `deployments`). It *can* trigger an agent via `POST .../agents/{name}/trigger` for first-party backend or testing calls, but **it is not the path for triggering agents from external event sources** — for that you create a connector.
 
 If a user is wiring an external service to a Connic agent and reaches for the REST API, redirect them: the right answer is a **`webhook` connector** (or `kafka`, `sqs`, `email`, `telegram`, etc. depending on the transport). Connectors give you per-agent URLs with their own secrets, signed payloads, sync vs async modes, replay safety, and a clear audit trail — none of which the REST API provides as a first-class feature. The platform models "things that trigger agents" as connectors on purpose; routing inbound traffic through the REST API bypasses the model.
 

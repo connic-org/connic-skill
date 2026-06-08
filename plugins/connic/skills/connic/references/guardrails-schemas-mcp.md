@@ -74,8 +74,9 @@ guardrails:
     - type: regex
       mode: block                    # block | warn (no redact)
       config:
-        patterns: ["secret.*"]
-        rejection_message: "Request blocked."  # optional override
+        patterns:
+          - pattern: "secret.*"
+            message: "Request blocked."
     - type: moderation
       mode: block
       config:
@@ -102,7 +103,9 @@ guardrails:
     - type: regex
       mode: block
       config:
-        patterns: ["internal-only"]
+        patterns:
+          - pattern: "internal-only"
+            message: "Output contains internal-only content"
 ```
 
 ### Modes

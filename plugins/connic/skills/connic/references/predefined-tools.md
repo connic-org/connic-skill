@@ -32,7 +32,7 @@ result = await trigger_agent(
 # {"run_id": "...", "status": "completed"|"failed"|"timeout", "response": ...}
 ```
 
-When `wait_for_response=False`, it returns immediately with `status: "started"`.
+When `wait_for_response=False`, it returns immediately with just `run_id` (no `status` or `response`).
 
 **Inside the deploy-gate test container**, `trigger_agent` runs the child agent in-process (instead of hitting the live deployment) so tests can assert on the chain via `expected_child_agents` in `tests/*.yaml`. See [cli-and-dev.md](cli-and-dev.md#asserting-on-triggered-agents). Production behaviour is unchanged.
 
@@ -211,7 +211,7 @@ await db_count("orders", filter={"status": "pending"})
 
 # List collections with size info
 await db_list_collections()
-# [{"name": "orders", "document_count": 100, "size_bytes": 50000}, ...]
+# {"collections": [{"name": "orders", "document_count": 100, "size_bytes": 50000}, ...], "total": 1}
 ```
 
 System fields on every document (read-only): `_id` (UUID), `_created_at`, `_updated_at`.
