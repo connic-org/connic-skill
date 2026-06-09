@@ -144,6 +144,22 @@ Available providers vary by type: `moderation` and `pii_leakage` support `openai
 - `fail_run`: `true` to mark a blocked run as `status: failed` instead of `completed`. Default `false`.
 - `off_topic_message` (topic_restriction only): the canned response.
 
+### Blocking and the `after` middleware
+
+When an **input** guardrail blocks, the agent and `middleware/<agent>.py::before` are skipped and the rejection message is returned. The `after` middleware still runs on that rejection message by default — so it post-processes every response, blocked or not. To skip it on a block (matching how `before` and output guardrails are skipped), set the top-level `run_after_on_block` key under `guardrails:`:
+
+```yaml
+guardrails:
+  run_after_on_block: false   # default true — skip `after` middleware when an input guardrail blocks
+  input:
+    - type: topic_restriction
+      mode: block
+      config:
+        allowed_topics: [support, billing]
+```
+
+`run_after_on_block` is a top-level guardrails key (a sibling of `input`/`output`), not a per-rule `config` field.
+
 ### Custom guardrails
 
 The filename must match `name:` exactly.

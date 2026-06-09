@@ -45,6 +45,7 @@ retry_options:
   rerun_middleware: true            # re-run before() on each retry
 
 guardrails:
+  run_after_on_block: true          # default; set false to skip the `after` middleware when an input guardrail blocks
   input:
     - type: prompt_injection
       mode: block                   # block | warn (redact only valid for pii / pii_leakage)
