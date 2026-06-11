@@ -110,7 +110,7 @@ agents:
 
 ## Tool agent
 
-Wraps a single Python tool with no LLM. The trigger payload is passed as kwargs. The run still appears in the dashboard with its inputs, outputs, and timing, but no model is invoked.
+Wraps a single Python tool with no LLM. The tool function **must declare a `payload` parameter and may declare `context`** — it's called as `func(payload=<dict>)`, plus `context=<dict>` if declared; any other parameter needs a default. Load/deploy validation rejects other signatures (the payload is never splatted into individual kwargs). A JSON-object trigger payload arrives as-is in `payload`, connector metadata keys included (a Kafka tombstone arrives as `{"message": None, "_kafka": ...}`); non-dict payloads are wrapped as `{"input": <value>}`. The run still appears in the dashboard with its inputs, outputs, and timing, but no model is invoked.
 
 ```yaml
 version: "1.0"

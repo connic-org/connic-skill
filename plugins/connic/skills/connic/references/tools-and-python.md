@@ -77,7 +77,7 @@ def gated(resource: str, context: dict) -> str:
     return f"Edited {resource}"
 ```
 
-- `StopProcessing(msg)` — raise from a tool, middleware, or hook. Ends the *entire run* gracefully (status `completed`, the message becomes the run's output). Used when a precondition isn't met but it's not an error.
+- `StopProcessing(msg, publish_outbound=True)` — raise from a tool, middleware, or hook. Ends the *entire run* gracefully (status `completed`, the message becomes the run's output). Used when a precondition isn't met but it's not an error. Pass `publish_outbound=False` to keep outbound connectors from publishing this completed run.
 - `AbortTool(result)` — **only** valid inside a `hooks/<agent>.py::before()`. Aborts just *this* tool call, returns `result` to the LLM in place of the real result, and the agent continues. Not for use from inside tool functions.
 - Any other unhandled exception → tool call fails, LLM sees the error and may retry or give up.
 

@@ -87,7 +87,7 @@ await trigger_agent_at(
 
 ## Knowledge base (vector store)
 
-Per-environment vector store, optionally divided into namespaces. Namespaces are **dot-separated** (e.g. `policies.hr.leave`, `products.pricing`), max depth 10. Don't use slashes — they aren't valid namespace characters.
+Per-environment vector store, optionally divided into namespaces. Namespaces are **dot-separated** (e.g. `policies.hr.leave`, `products.pricing`), max depth 10. Don't use slashes — they aren't valid namespace characters. Namespace scoping always covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
 
 ```python
 # Semantic search
@@ -120,7 +120,7 @@ await delete_knowledge(namespace="meetings.q1")                                 
 await kb_list_namespaces(parent=None, depth=1)
 ```
 
-Knowledge entries become searchable only after the async indexing job finishes — don't query immediately after `store_knowledge`.
+Knowledge entries become searchable only after the async indexing job finishes — don't query immediately after `store_knowledge`. The same applies to metadata-filter deletes: a delete fired while ingestion jobs are pending only sees already-indexed entries, and re-ingested entries keep their *previous* metadata until their job commits. Re-storing an existing `entry_id` + namespace atomically replaces that entry's content when the job lands — there's never mixed old/new state per entry, but there's no in-agent way to poll a `job_id`, so schedule dependent cleanup as a later run (e.g. via `trigger_agent_at`) rather than inline.
 
 ### Metadata filters on `query_knowledge` and `delete_knowledge`
 
@@ -148,7 +148,7 @@ await query_knowledge(
 The signature is now `delete_knowledge(entry_id=None, namespace=None, metadata_filter=None)`. You must supply either `entry_id` or `namespace`. Three patterns:
 
 1. **Single entry by id** — `entry_id` (optionally with `namespace` to disambiguate same-id-in-different-namespaces). The legacy shape.
-2. **Bulk by namespace + filter** — `namespace` + `metadata_filter`. Deletes every entry inside `namespace` (and its sub-namespaces) whose metadata matches. The canonical "orphan cleanup" pattern: re-ingest with the current `run_id`, then delete everything in scope where `run_id != current_run_id`.
+2. **Bulk by namespace + filter** — `namespace` + `metadata_filter`. Deletes every entry inside `namespace` (and its sub-namespaces) whose metadata matches. The canonical "orphan cleanup" pattern: re-ingest with the current `run_id`, then delete everything in scope where `run_id != current_run_id`. Sequencing matters: run the delete only after the re-ingest jobs have finished — entries still being indexed keep their previous `run_id` and would match the delete filter (see the async-indexing note above).
 3. **Whole-subtree wipe** — `namespace` only (no `metadata_filter`). Deletes every entry under `namespace` and its sub-namespaces. Be careful — this is the bluntest tool here.
 
 Rules:

@@ -79,8 +79,9 @@ Outbound: configure SMTP server / port / username / password / From address / Fr
 Inbound (Consumer) and Outbound (Producer) modes.
 
 - **Connection** (per env-vars): bootstrap servers, SASL credentials, topic name, consumer group (inbound).
-- **Inbound payload**: the parsed message value. Metadata is exposed at `_kafka` inside the payload: `{topic, partition, offset, timestamp, key}` — not in `context`.
+- **Inbound payload**: the parsed message value. Metadata is exposed at `_kafka` inside the payload: `{topic, partition, offset, timestamp, key}` — not in `context`. JSON-object values are dispatched with their top-level fields plus `_kafka`; anything else is wrapped under a `message` key — non-JSON values as `{"message": "<raw text>", "_kafka": ...}`, null values (compaction tombstones) as `{"message": null, "_kafka": ...}`. Tombstones DO trigger runs; use `_kafka.key` to identify the deleted entity.
 - **Outbound**: agent emits a JSON object; the connector publishes it to the configured topic. If the run was triggered by an inbound Kafka message, the inbound message's key is preserved on the outbound for partition ordering.
+- **Outbound delivery gating** (applies to every outbound connector, not just Kafka): only runs that end `completed` are delivered — failed and cancelled runs are skipped. A run ended via `StopProcessing` counts as completed and IS published (the stop message becomes `output`) unless raised with `publish_outbound=False` — see [StopProcessing](tools-and-python.md). Returning `None`/empty output does not suppress delivery.
 
 ## mcp (server mode)
 
@@ -231,6 +232,7 @@ A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each c
 
 - **Auth**: governed by the same **Require Authentication** toggle as the webhook connector (default on). When on, send `{"secret": "<connector secret>"}` as the first message after connecting, or pass `X-Connic-Secret` as a query param / header during the handshake. When off, the WS endpoint is open and authentication is your responsibility — typically a JWT in the first message that you verify in `middleware/<agent>.py::before`. Turn it off when each connection already carries a stronger per-user credential than a shared secret would provide.
 - **Message protocol**: client sends `{type: "message", id, payload: {message, context}}`. Server replies `ack` → `stream_start` → `stream_chunk` (multiple) → `stream_end` (with `full_response`, `token_usage`) when streaming is on; or a single `response` message when streaming is off.
+- **Files / multimodal**: the payload may carry a top-level `files` array in the same shape as the [webhook multipart normalization](#webhook) (`{name, mime_type, data: "<base64>", size}`); each entry becomes a binary part of the LLM-facing `content` automatically. Unlike webhook multipart, this path has no server-side MIME allowlist or per-file size cap — files go straight to the model (provider limits apply), so validate in `before` if you need to reject uploads.
 - **Config**: streaming toggle, session timeout (default 1 h), max messages per session (default 100).
 - **`connector_run_id`** is returned on connect and identifies the session.
 
