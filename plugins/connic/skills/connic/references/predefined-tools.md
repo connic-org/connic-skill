@@ -128,6 +128,13 @@ Both tools accept an optional `metadata_filter: dict` that narrows the operation
 
 Supported operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`, `$regex`, `$contains` (array contains), `$elemMatch`, `$and`, `$or`, `$nor`, `$not`.
 
+Operator semantics worth knowing (same engine as `db_find`):
+
+- Multiple operators on one field AND together: `{"article_id": {"$exists": True, "$nin": dead_ids}}`.
+- Negation operators (`$ne`, `$nin`) also match entries where the field is **missing** — add `"$exists": True` to restrict to entries that have the field. (The orphan-cleanup `run_id $ne` pattern relies on this: entries never stamped with a `run_id` also match.)
+- `$in`/`$nin` compare values as text — keep ids as strings.
+- No length limit on `$in`/`$nin` lists; the list binds as one array parameter, so thousands of ids are fine.
+
 ```python
 # Narrow semantic search to entries with specific metadata
 await query_knowledge(
@@ -244,7 +251,7 @@ await web_search(query="connic.co pricing", max_results=5, country=None, include
 # {"results": [{"title": "...", "url": "...", "content": "..."}]}
 
 await web_read_page(url="https://example.com", follow_redirects=True)
-# {"markdown": "...", "url": "..."}
+# {"markdown": "...", "url": "..."}  # url = the actually-scraped page (final URL after redirects)
 # With follow_redirects=False, a redirect returns an error instead of the target page:
 # {"markdown": None, "error": "URL redirected. Set follow_redirects=true to follow the redirect.", "redirect_url": "https://..."}
 ```
