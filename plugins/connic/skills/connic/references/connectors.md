@@ -119,7 +119,8 @@ Inbound (Consumer) and Outbound (Producer).
 
 - **Inbound config**: queue URL, AWS credentials, **visibility timeout** (default 300 s), **max messages** (1–10, default 10), **wait time** (long-polling, 0–20 s, default 20).
 - **Inbound payload**: the message body (JSON-parsed when possible), plus `_sqs: {message_id, receipt_handle, queue_url, approximate_receive_count, sent_timestamp}`.
-- **Delivery semantics**: successful runs delete the message; failed runs leave it for retry. FIFO queues are supported via a Message Group ID.
+- **IAM**: inbound consumers need `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`; outbound producers need `sqs:SendMessage` and `sqs:GetQueueAttributes`.
+- **Delivery semantics**: successful runs delete the message; failed runs leave it for retry. Connic tracks dispatched runs and extends message visibility while they are still running. FIFO queues are supported via a Message Group ID.
 - **Outbound**: agent emits a JSON object; the connector sends it to the configured queue.
 
 ## stripe
@@ -231,7 +232,7 @@ For sync, the agent's response (string or — if `output_schema` is set — stru
 A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each connection is a session through which messages flow.
 
 - **Auth**: governed by the same **Require Authentication** toggle as the webhook connector (default on). When on, send `{"secret": "<connector secret>"}` as the first message after connecting, or pass `X-Connic-Secret` as a query param / header during the handshake. When off, the WS endpoint is open and authentication is your responsibility — typically a JWT in the first message that you verify in `middleware/<agent>.py::before`. Turn it off when each connection already carries a stronger per-user credential than a shared secret would provide.
-- **Message protocol**: client sends `{type: "message", id, payload: {message, context}}`. Server replies `ack` → `stream_start` → `stream_chunk` (multiple) → `stream_end` (with `full_response`, `token_usage`) when streaming is on; or a single `response` message when streaming is off.
+- **Message protocol**: client sends `{type: "message", id, payload: {message, context}}`. Server replies `ack` → `stream_start` → `stream_chunk` (multiple) → `stream_end` (with `full_response`, `token_usage`) when streaming is on; or a single `response` message when streaming is off. Agents with output guardrails still use the streaming event contract, but send one `stream_chunk` after the run completes so guardrails can inspect the full response before any text is released.
 - **Files / multimodal**: the payload may carry a top-level `files` array in the same shape as the [webhook multipart normalization](#webhook) (`{name, mime_type, data: "<base64>", size}`); each entry becomes a binary part of the LLM-facing `content` automatically. Unlike webhook multipart, this path has no server-side MIME allowlist or per-file size cap — files go straight to the model (provider limits apply), so validate in `before` if you need to reject uploads.
 - **Config**: streaming toggle, session timeout (default 1 h), max messages per session (default 100).
 - **`connector_run_id`** is returned on connect and identifies the session.

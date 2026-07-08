@@ -186,6 +186,8 @@ async def check(content: str, context: dict) -> GuardrailResult:
 
 The `check` signature is **exactly** `(content: str, context: dict)` — no `config` argument is passed in. `GuardrailResult` fields are `passed: bool`, `message: Optional[str]`, `details: Optional[dict]`. For output guardrails, `content` is the agent's response text. For redaction, use the built-in `pii`/`pii_leakage` types (they handle replacement internally) — there's no custom redact path.
 
+If a custom guardrail raises, Connic logs the traceback under `guardrail.<name>` and handles it as a guardrail violation according to the rule's mode: `warn` continues processing, while `block` stops processing and returns the configured rejection message.
+
 ## MCP servers
 
 Connect external MCP (Model Context Protocol) servers to expose their tools to the agent. Tools from a configured server are **auto-loaded** into the agent — you do **not** list them again under `tools:`.

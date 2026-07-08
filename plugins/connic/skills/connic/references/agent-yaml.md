@@ -71,6 +71,14 @@ session:
   key: context.chat_id              # dot-path into context or input; min ttl 60s
   ttl: 86400                        # seconds (omit = never expire)
 
+context_compression:                # LLM agents only; omitted = compression off
+  enabled: true                     # default true when block is present
+  keep_recent_messages: 12          # default 8; recent messages kept verbatim
+  session_history:                  # optional; off unless set
+    interval: 4                     # compact stored session history every N runs
+    keep_recent_runs: 1             # default 1; recent runs kept unsummarized
+  max_prompt_tokens: 100000         # optional; early compression from model-reported prompt usage
+
 concurrency:
   key: input.process_id             # serialize runs by this key
   on_conflict: queue                # queue | drop
@@ -205,6 +213,19 @@ session:
 ```
 
 Each unique value of the key gets its own conversation history. Useful for chat-style agents triggered by webhooks where each user keeps state.
+
+For long-running LLM sessions, add `context_compression` to keep prompts within the model context window:
+
+```yaml
+context_compression:
+  enabled: true
+  keep_recent_messages: 12
+  max_prompt_tokens: 100000
+```
+
+Compression is off unless the block is configured. Once configured, provider context-window errors trigger compression and an automatic retry. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. `context_compression` is only valid on `type: llm` agents.
+
+Active sessions can be viewed and deleted in the dashboard under **Storage > Sessions**. Sessions are scoped per environment.
 
 The key has to resolve to a non-empty value before the run starts, so `context.chat_id` needs to be populated in middleware (or come from `input.*` directly). Pull it from the raw connector payload — don't try to parse it out of the user's text message:
 

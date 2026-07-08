@@ -348,7 +348,7 @@ Flags:
 - `--env <environment-id>` — run the tests against a specific environment (defaults to the env's `test_environment_id`, falling back to itself).
 - `--filter <substring>` — run only tests whose names contain the substring (there is no `--grep`).
 - `--coverage` — static no-network analysis of which agents and tools your tests touch.
-- `--json` — emit the test (or coverage) report as JSON for tooling/CI.
+- `--json` — emit the test (or coverage) report as JSON for tooling/CI. Coverage JSON is shaped like `{overall, agents: [{name, type, has_tests, tools_total, tools_covered, uncovered_tools, percent, parse_error}]}`; fail CI on `parse_error` if any local suite cannot be parsed.
 
 ## `connic deploy`
 
