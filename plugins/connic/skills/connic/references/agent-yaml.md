@@ -24,7 +24,7 @@ timeout: 45                        # seconds for one run; minimum 5; no default
 max_iterations: 8                  # cap on LLM loop steps
 max_concurrent_runs: 20            # default 1; cap on parallel runs of this agent
 reasoning_effort: medium           # auto (default) | off | minimal | low | medium | high | xhigh
-reasoning_budget: 4096             # explicit token budget; provider-dependent (rejected by Opus 4.7, Gemini 3, OpenAI)
+# reasoning_budget: 4096           # DEPRECATED; legacy Claude 3.7/Sonnet 4 and Gemini 2.5 only; use reasoning_effort
 
 tools:                              # max 100 tools per agent
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
