@@ -208,7 +208,7 @@ Use `content` when you want to **change what the agent sees** — attach a docum
 
 ### When middleware re-runs
 
-By default `before` runs once. If the agent retries (due to `retry_options`), `before` only re-runs if `retry_options.rerun_middleware: true`. `after` always runs once, after all retries.
+By default `before` runs once. On `type: tool` and `type: sequential` operation retries, it only re-runs when `retry_options.rerun_middleware: true`; `after` runs once after all attempts. LLM model-request and tool-reflection retries stay inside the existing run, so they never re-run middleware and the option is ignored for `type: llm`.
 
 To reject a request from middleware:
 

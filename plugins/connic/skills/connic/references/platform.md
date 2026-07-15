@@ -26,21 +26,26 @@ Two paths:
 1. **Git-connected (preferred).** Configure a GitHub/GitLab/Bitbucket repo in **Project Settings → Git & Environments**. Each branch can map to one environment. Pushing runs a three-step pipeline: **Build → Tests → Deploy**. A failing test blocks promotion; git-triggered deploys cannot skip tests.
 2. **CLI.** `connic deploy --env=<env-uuid>` from a directory with a valid `.connic`. The `--env` value is an environment UUID, not the human name. `connic deploy` refuses to run if the project has a Git connection — Git is single-source-of-truth in that case. `--skip-tests` is available as a breaking-glass option for non-Git deploys.
 
+GitLab.com accounts connect with OAuth. For Self-Managed GitLab, first add the public HTTPS instance under **Account → Git Accounts** with a personal access token that has the `api` scope, then select that account when connecting the project repository. The GitLab user must be an administrator or have the Maintainer or Owner role on each repository so Connic can manage its webhook.
+
 A deploy bundles the local files (agents, tools, middleware, hooks, schemas, guardrails, tests, requirements.txt) and uploads them to Connic. The new bundle becomes the active version for that environment. Failed builds never replace the live deployment, and previous deployments remain available via an "Activate" action for instant rollback.
 
 Environment variables are injected at deploy time. Changing a variable requires re-deploying for new runs to pick it up.
 
 ### PR Testing
 
-Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When it's on, every pull request whose target branch matches the environment's branch runs the project's test suite — the same tests `connic test` runs — and the result is posted back to the PR as a commit status (`connic/pr-tests`).
+Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When it's on, every GitHub pull request or GitLab merge request whose target branch matches the environment's branch runs the project's test suite — the same tests `connic test` runs — and the result is posted back as `connic/pr-tests`.
 
 For new environments on git-connected projects with a branch set, PR Testing is on by default. CLI-only projects don't have it.
 
 Each PR only triggers tests in the one environment whose branch matches its target — branch-to-environment is 1:1. Tests run with that environment's variables, secrets, and connections; if the environment has a **Test environment** override set, the tests run there instead (useful for keeping PR traffic out of production).
 
-To require the check before merging, the repo owner adds `connic/pr-tests` to the GitHub branch protection rule for that branch. GitHub only lists check contexts it has already seen, so the first PR has to run before the check is selectable.
+To require the result before merging:
 
-GitHub only for now.
+- **GitHub:** Add `connic/pr-tests` to the branch protection rule. GitHub only lists contexts it has already seen, so run the first PR before selecting it.
+- **GitLab:** Connic adds `connic/pr-tests` as an external job in the source branch pipeline. Enable **Settings → Merge requests → Merge checks → Pipelines must succeed**.
+
+PR Testing is supported on GitHub and GitLab.
 
 ## Observability
 

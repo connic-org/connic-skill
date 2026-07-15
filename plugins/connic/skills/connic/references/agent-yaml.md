@@ -40,9 +40,10 @@ discoverable_tools:                 # indexed for on-demand search, not loaded u
 output_schema: invoice              # schemas/invoice.json
 
 retry_options:
-  attempts: 5                       # max 10
-  max_delay: 60                     # max 300 seconds (capped exponential backoff)
-  rerun_middleware: true            # re-run before() on each retry
+  attempts: 3                       # attempts per selected model/operation, including first; max 10
+  initial_delay: 10                 # exponential backoff starts here
+  max_delay: 30                     # backoff cap; max 300 seconds
+  rerun_middleware: false           # tool/sequential operation retries only; ignored for LLM agents
 
 guardrails:
   run_after_on_block: true          # default; set false to skip the `after` middleware when an input guardrail blocks
@@ -100,6 +101,10 @@ knowledge:
   prevent_delete: true              # block delete_knowledge
   prevent_write: false              # block store_knowledge
 ```
+
+For `type: llm`, `attempts` is the total request budget for the selected model and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. A configured fallback is an additional availability path: one eligible primary failure can switch immediately to the fallback, whose request budget is then `attempts`. Transient 429, timeout, connection, and provider 5xx failures retry the exact pending request. Tool failures are returned to the LLM inside the current run rather than blindly re-invoked. Backoff is cancellable and counts against the agent's overall `timeout`; no retry or fallback occurs after streaming output has begun.
+
+For `type: tool` and `type: sequential`, the same fields control operation-level attempts. `attempts` always includes the first attempt.
 
 ## Sequential agent
 
