@@ -74,6 +74,7 @@ session:
 
 context_compression:                # LLM agents only; omitted = compression off
   enabled: true                     # default true when block is present
+  model: gemini/gemini-2.5-flash    # optional; compression summaries only; default = agent model
   keep_recent_messages: 12          # default 8; recent messages kept verbatim
   session_history:                  # optional; off unless set
     interval: 4                     # compact stored session history every N runs
@@ -224,11 +225,12 @@ For long-running LLM sessions, add `context_compression` to keep prompts within 
 ```yaml
 context_compression:
   enabled: true
+  model: gemini/gemini-2.5-flash
   keep_recent_messages: 12
   max_prompt_tokens: 100000
 ```
 
-Compression is off unless the block is configured. Once configured, provider context-window errors trigger compression and an automatic retry. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. `context_compression` is only valid on `type: llm` agents.
+Compression is off unless the block is configured. Once configured, provider context-window errors trigger compression and an automatic retry. `model` is optional and is used only to generate context and stored-history compression summaries; when omitted, summaries use the agent model. Normal agent calls and the automatic retry always use the agent model. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. `context_compression` is only valid on `type: llm` agents.
 
 Active sessions can be viewed and deleted in the dashboard under **Storage > Sessions**. Sessions are scoped per environment.
 
