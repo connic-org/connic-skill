@@ -137,7 +137,7 @@ If `payload` is a JSON object (or comes from a `builder` that returns a dict), i
 
 Per-case overrides for `runs`, `success_threshold`, and `timeout_s` are allowed.
 
-Two more case fields configure tool mocking (not assertions): `mocks` (a `tests/mocks/<name>.py` module that stands in for the agent's custom file tools) and `strict_mocks` (bool, also settable in `defaults`). See "Mocking tools" below.
+Case execution controls (not assertions) include `mocks` (a `tests/mocks/<name>.py` module that stands in for custom file tools), `strict_mocks` (bool, also settable in `defaults`), `approval_decisions` (scripted HITL responses), and `strict_approval_decisions` (bool, also settable in `defaults`). See "Testing approvals" and "Mocking tools" below.
 
 ### What `expected_result` can and cannot do
 
@@ -302,9 +302,31 @@ tests:
 
 The split: `expected_result` for the cheap "did it finish, did it call the right tool, does the substring appear" checks; `cleanup` for parsing, schema validation, numeric ranges, anything that needs a function call. Don't try to cram complex logic into `expected_result` — it physically won't run.
 
+### Testing approvals (HITL)
+
+Use `approval_decisions` to supply responses to pending approvals:
+
+```yaml
+tests:
+  - name: approves_the_exact_refund
+    builder: create_charge_then_refund
+    approval_decisions:
+      - tool: billing.refund
+        params: params.charge_id == context.charge_id
+        decision: approve
+        reason: Approved by this test
+    expected_result: status == "completed"
+```
+
+- `tool` is the canonical tool ref. Optional `params` is a safe expression with `params`, builder `context`, `true`, `false`, and `null` bindings; omit it to match any parameters for that tool.
+- `decision` is `approve`, `reject`, or `timeout`; `reason` is optional. Rejections and timeouts honor the approval's `on_rejection` setting, so they either terminate the run or resume it with rejection context.
+- Each entry is consumed at most once per invocation.
+- With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored.
+- Set `strict_approval_decisions: true` per case or in `defaults` to fail on unmatched pending approvals and unused entries.
+
 ### Mocking tools
 
-Point a case at a `tests/mocks/<name>.py` module with the `mocks:` field to stand in for the agent's **custom file tools** during the run. The agent still decides to call the tool — your mock returns the result instead of the real implementation executing. Predefined tools (`db_find`, `web_search`, `trigger_agent`, …) and `api:` tools are never mocked; they always run for real.
+Point a case at a `tests/mocks/<name>.py` module with the `mocks:` field to stand in for the agent's **custom file tools** during the run. The agent selects the tool, and the mock returns its result. Predefined tools (`db_find`, `web_search`, `trigger_agent`, …) and `api:` tools run for real.
 
 The module exposes hierarchical `mock_*` functions. For a tool ref like `data.customer.add_customer`, the runner uses the **most specific** one defined, trying in order:
 
@@ -338,8 +360,9 @@ tests:
       - data.customer.add_customer: params.name == "Ada"
 ```
 
-- **Calls are still recorded.** A mocked call shows up in the trace (tagged `mocked` in the run drawer) and counts toward `expected_tool_calls` / `expected_no_tool_calls` — so you assert the agent reached for the right tool with the right args while the real code never runs.
-- **The call contract is enforced.** A mock replaces the *result*, not the *signature*: mocked args are validated against the real tool's parameters (required args, types, unknown args), so a malformed call fails the case instead of being swallowed by the mock. Defaulted params stay optional.
+- **Tool lifecycle.** Automatic context injection and before/after hooks apply to mocked calls.
+- **Tracing and assertions.** A mocked call appears in the trace (tagged `mocked` in the run drawer) and counts toward `expected_tool_calls` / `expected_no_tool_calls`.
+- **Parameter validation.** Mocked arguments are validated against the real tool's signature (required arguments, types, and unknown arguments), so a malformed call fails. Defaulted parameters are optional.
 - **`strict_mocks`** (per-case, or in `defaults`) — when `true`, the run aborts the moment the agent calls a custom file tool that wasn't served by a mock, guaranteeing the real implementation never executed. Predefined (`db_find`, `web_search`, …) and `api:` tools can't be mocked, so they're exempt — calling one under `strict_mocks` is allowed and runs for real.
 - One fresh re-import per invocation, like builders — module-level state resets between runs. A typo in `mocks:` fails fast, before the test container starts.
 
