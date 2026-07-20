@@ -30,7 +30,7 @@ my-project/
     ├── support-assistant.yaml
     ├── files/                  # binary fixtures referenced by files:
     ├── builders/               # *.py — dynamic-payload builders referenced by builder:
-    └── mocks/                  # *.py — tool mocks referenced by mocks:
+    └── mocks/                  # *.py — custom-code replacements referenced by mocks:
 ```
 
 `connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `hooks/`, `guardrails/`, `tests/` as you need them.

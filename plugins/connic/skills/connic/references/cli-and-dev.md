@@ -137,7 +137,7 @@ If `payload` is a JSON object (or comes from a `builder` that returns a dict), i
 
 Per-case overrides for `runs`, `success_threshold`, and `timeout_s` are allowed.
 
-Case execution controls (not assertions) include `mocks` (a `tests/mocks/<name>.py` module that stands in for custom file tools), `strict_mocks` (bool, also settable in `defaults`), `approval_decisions` (scripted HITL responses), and `strict_approval_decisions` (bool, also settable in `defaults`). See "Testing approvals" and "Mocking tools" below.
+Case execution controls (not assertions) include `mocks` (a `tests/mocks/<name>.py` module that can replace custom file tools and lifecycle phases), the independent `strict_mocks`, `strict_hook_mocks`, `strict_middleware_mocks`, and `strict_guardrail_mocks` booleans (all also settable in `defaults`), `approval_decisions` (scripted HITL responses), and `strict_approval_decisions` (bool, also settable in `defaults`). See "Testing approvals" and "Mocking tools" below.
 
 ### What `expected_result` can and cannot do
 
@@ -326,7 +326,9 @@ tests:
 
 ### Mocking tools
 
-Point a case at a `tests/mocks/<name>.py` module with the `mocks:` field to stand in for the agent's **custom file tools** during the run. The agent selects the tool, and the mock returns its result. Predefined tools (`db_find`, `web_search`, `trigger_agent`, …) and `api:` tools run for real.
+Point a case at a `tests/mocks/<name>.py` module with the `mocks:` field to replace selected custom file tool results or lifecycle phases. A matching function replaces the real function for an existing phase; it does not add a missing phase. Without a match, the real project code runs by default. Custom guardrail files must still load successfully.
+
+#### Tool result replacements
 
 The module exposes hierarchical `mock_*` functions. For a tool ref like `data.customer.add_customer`, the runner uses the **most specific** one defined, trying in order:
 
@@ -348,10 +350,47 @@ def mock_data_customer_add_customer(tool_name, params, context):
     return {"id": "cust_test_1", **params}
 ```
 
+Only custom file tool implementations are eligible. Predefined tools (`db_find`, `web_search`, `trigger_agent`, …) and `api:` tool implementations always run for real.
+
+#### Middleware replacements
+
+Use the real middleware signatures and return contracts:
+
+| Function | Replaces |
+| --- | --- |
+| `middleware_before(content, context) -> content` | `middleware/<agent>.py::before` |
+| `middleware_after(response, context) -> response` | `middleware/<agent>.py::after` |
+
+#### Tool hook replacements
+
+Hook replacements use the same tool hierarchy with the phase appended. For `data.customer.add_customer`, before-hook resolution is:
+
+1. `mock_data_customer_add_customer_hook_before`
+2. `mock_data_customer_hook_before`
+3. `mock_data_hook_before`
+4. `mock_hook_before`
+
+The after-hook ladder uses the same prefixes ending in `_hook_after`. Non-alphanumeric runs in each tool-ref segment normalize to `_`, so `api:weather-v2.lookup` resolves `mock_api_weather_v2_lookup_hook_before`. Before handlers have the signature `(tool_name, params, context) -> params`; after handlers use `(tool_name, params, result, context) -> result`.
+
+Hook replacement is independent of tool-result replacement: either, both, or neither may match. A missing hook replacement runs the real hook by default; `strict_hook_mocks` fails before it executes instead. Replacements follow normal hook scope; remote MCP tools do not run agent hooks, so they never resolve hook replacements.
+
+#### Custom guardrail replacements
+
+Only `type: custom` guardrails are eligible. For an input guardrail named `domain_check`, resolution is:
+
+1. `guardrail_input_domain_check`
+2. `guardrail_input`
+3. `guardrail`
+
+Output guardrails use the equivalent `guardrail_output_<name>` → `guardrail_output` → `guardrail` ladder. Each handler mirrors the real `(content, context) -> GuardrailResult` contract. Non-alphanumeric runs in a guardrail name normalize to `_`, so `domain-check` resolves `guardrail_input_domain_check`. Built-in guardrails always run for real.
+
 ```yaml
 # tests/customer-agent.yaml
 defaults:
-  strict_mocks: true                 # also settable per-case
+  strict_mocks: true
+  strict_hook_mocks: true
+  strict_middleware_mocks: true
+  strict_guardrail_mocks: true       # every flag is also settable per-case
 tests:
   - name: adds_without_touching_the_db
     payload: '{"name": "Ada"}'
@@ -360,10 +399,10 @@ tests:
       - data.customer.add_customer: params.name == "Ada"
 ```
 
-- **Tool lifecycle.** Automatic context injection and before/after hooks apply to mocked calls.
 - **Tracing and assertions.** A mocked call appears in the trace (tagged `mocked` in the run drawer) and counts toward `expected_tool_calls` / `expected_no_tool_calls`.
 - **Parameter validation.** Mocked arguments are validated against the real tool's signature (required arguments, types, and unknown arguments), so a malformed call fails. Defaulted parameters are optional.
-- **`strict_mocks`** (per-case, or in `defaults`) — when `true`, the run aborts the moment the agent calls a custom file tool that wasn't served by a mock, guaranteeing the real implementation never executed. Predefined (`db_find`, `web_search`, …) and `api:` tools can't be mocked, so they're exempt — calling one under `strict_mocks` is allowed and runs for real.
+- **`strict_mocks` is tool-only.** Set it per case or in `defaults` to abort before an unmocked custom file tool executes. It does not govern middleware, hook, or guardrail replacements. Predefined and `api:` tools are exempt.
+- **Lifecycle strictness is independent.** `strict_hook_mocks`, `strict_middleware_mocks`, and `strict_guardrail_mocks` each default to `false` and can be set per case or in `defaults`, independently of `strict_mocks` and one another. Each aborts before a configured eligible real phase of that kind executes without a matching replacement. Hook and middleware phases that are not configured are exempt, as are missing guardrail phases and all built-in guardrails.
 - One fresh re-import per invocation, like builders — module-level state resets between runs. A typo in `mocks:` fails fast, before the test container starts.
 
 Flags:
