@@ -145,7 +145,7 @@ The REST API is for **admin and tooling work**: listing runs, reading audit logs
 
 If a user is wiring an external service to a Connic agent and reaches for the REST API, redirect them: the right answer is a **`webhook` connector** (or `kafka`, `sqs`, `email`, `telegram`, etc. depending on the transport). Connectors give you per-agent URLs with their own secrets, signed payloads, sync vs async modes, replay safety, and a clear audit trail — none of which the REST API provides as a first-class feature. The platform models "things that trigger agents" as connectors on purpose; routing inbound traffic through the REST API bypasses the model.
 
-For the full endpoint catalogue and per-section permission scopes, fetch `https://connic.co/docs/v1/platform/rest-api`.
+For the full endpoint catalogue and per-section permission scopes, fetch `https://connic.co/docs/v1/reference/rest-api`.
 
 ## What lives where: dashboard vs. on-disk
 

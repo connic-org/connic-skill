@@ -30,7 +30,7 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [cli-and-dev.md](references/cli-and-dev.md) | The `connic` CLI, `connic dev` hot-reload, `connic test` declarative test suites, `connic lint`, `connic migrate` |
 | [platform.md](references/platform.md) | Dashboard concepts: environments, deployment, observability, knowledge base, database, judges, approvals, A/B testing, bridge, domains, team, usage, REST API |
 
-For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/composer/write-tools`). Fetch with WebFetch when needed. The user also has a local copy at `connic/dashboard/app/docs/v1/` if you happen to be inside the `connic-org` mono-repo.
+For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed. The user also has a local copy at `connic/dashboard/app/docs/v1/` if you happen to be inside the `connic-org` mono-repo.
 
 ## Project layout cheatsheet (most-used reference, inlined)
 
