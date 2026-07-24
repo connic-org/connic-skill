@@ -114,6 +114,8 @@ guardrails:
 - `warn` — log it and continue.
 - `redact` — replace each detected entity with a type-specific placeholder (`[EMAIL_REDACTED]`, `[SSN_REDACTED]`, `[CREDIT_CARD_REDACTED]`, …) and continue. **Only valid for `pii` and `pii_leakage`** — all other types only support `block` and `warn`.
 
+Every guardrail evaluation is recorded as a trace span. Violations appear in the trace timeline with the rule name, status, direction, provider, and detection details. A guardrail span has status `passed`, `blocked`, `warned`, or `redacted` and direction `input` or `output`.
+
 ### Built-in types
 
 **Input**: `prompt_injection`, `pii`, `moderation`, `topic_restriction`, `regex`, `custom`.

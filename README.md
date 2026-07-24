@@ -48,10 +48,10 @@ Activates whenever a developer is working in a Connic project (anything with a `
 - The on-disk project layout (`agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`)
 - How agent YAML works — every field, every default, every gotcha
 - How to write Python tools, middleware, hooks, and custom guardrails — with the **exact** signatures the runtime expects (so generated code actually runs)
-- The full predefined-tool catalogue (`db_*`, `query_knowledge`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
+- The full predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
 - All eleven connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) with correct directions and payload shapes
 - The `connic` CLI — real flags only, no fabricated ones
-- The dashboard concepts (environments, deployment, observability, KB, DB, judges, approvals, A/B testing, Bridge, REST API)
+- The dashboard concepts (environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, Bridge, REST API)
 - Best practices the docs recommend: wrap predefined tools, ship with guardrails, write tests as deploy gates
 
 ## Why this exists

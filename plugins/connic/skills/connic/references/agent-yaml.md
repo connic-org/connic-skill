@@ -30,7 +30,7 @@ tools:                              # max 100 tools per agent
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
   - math.calculator.*               # all public funcs in tools/math/calculator.py
   - search.web_*                    # prefix wildcard (fnmatch)
-  - query_knowledge                 # predefined Connic tool
+  - retrieval_query                # predefined Connic tool
   - trigger_agent                   # predefined: call another agent
   - premium.refund: context.tier == 'pro'   # conditional tool — context.* or input.*
 
@@ -94,13 +94,13 @@ approval:
   message: "Confirm this action"
   on_rejection: fail                # fail (default) | continue (skip the tool and keep going)
 
-# Access control for the predefined db_* and knowledge tools
+# Access control for the predefined db_* and retrieval tools
 database:
   prevent_delete: true              # block db_delete project-wide for this agent
   prevent_write: false              # block db_insert / db_update / db_upsert (per-collection rules also available)
-knowledge:
-  prevent_delete: true              # block delete_knowledge
-  prevent_write: false              # block store_knowledge
+retrieval:
+  prevent_delete: true              # block retrieval_delete
+  prevent_write: false              # block retrieval_store
 ```
 
 For `type: llm`, `attempts` is the total request budget for the selected model and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. A configured fallback is an additional availability path: one eligible primary failure can switch immediately to the fallback, whose request budget is then `attempts`. Transient 429, timeout, connection, and provider 5xx failures retry the exact pending request. Tool failures are returned to the LLM inside the current run rather than blindly re-invoked. Backoff is cancellable and counts against the agent's overall `timeout`; no retry or fallback occurs after streaming output has begun.
@@ -167,7 +167,7 @@ tools:
   - math.calculator.add            # nested: tools/math/calculator.py::add
   - api:stripe.charges_create      # API-spec tool (see guardrails-schemas-mcp.md)
   - api:stripe.*                   # all tools from an API spec
-  - query_knowledge                # predefined tool (no module prefix)
+  - retrieval_query               # predefined tool (no module prefix)
   - admin.nuke: context.role == 'admin'      # conditional — only available when expr is true
   - web_search: input.internet_enabled       # conditional on payload field
   - alerts.page: context.urgent              # truthy check on a context value
@@ -183,7 +183,7 @@ A tool cannot appear in both the unconditional list and a conditional entry — 
 
 Reference by bare name in `tools:`:
 
-`trigger_agent`, `trigger_agent_at`, `query_knowledge`, `store_knowledge`, `delete_knowledge`, `kb_list_namespaces`, `web_search`, `web_read_page`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`.
+`trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`.
 
 See [predefined-tools.md](predefined-tools.md) for full signatures. Per [SKILL.md](../SKILL.md#best-practices-apply-these-by-default) best practice 1, prefer wrapping these in purpose-driven custom tools rather than handing them to the LLM raw.
 
@@ -305,7 +305,7 @@ The linter rejects defaults files that contain `name` or `description`, pointing
 Applied recursively as the chain is folded together:
 
 - **Scalars** (`model`, `temperature`, `system_prompt`, `timeout`, `reasoning_effort`, …) — deeper layer replaces shallower; the agent file replaces all.
-- **Dicts** (`database`, `knowledge`, `retry_options`, `approval`, `session`, `concurrency`, `guardrails`, `database.collections`, `knowledge.namespaces`, …) — recursive deep merge, per-key. Defaults can supply some collections; an agent can add more without losing the inherited ones.
+- **Dicts** (`database`, `retrieval`, `retry_options`, `approval`, `session`, `concurrency`, `guardrails`, `database.collections`, `retrieval.namespaces`, …) — recursive deep merge, per-key. Defaults can supply some collections; an agent can add more without losing the inherited ones.
 - **Lists** — concat with dedup, so children **add to** rather than replace inherited lists:
   - `tools`, `discoverable_tools`, `approval.tools` — dedup by tool ref. An agent re-declaring an inherited tool (e.g. with a different condition) overrides the inherited entry.
   - `mcp_servers` — dedup by server `name`. An agent's full server config replaces the inherited one on collision.

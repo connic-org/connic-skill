@@ -1,8 +1,8 @@
 # Connectors
 
-Connectors are how external systems **trigger** an agent and how an agent reaches out to the world. They are the canonical (and, in practice, the only) way to fire a Connic agent from anything outside the platform — your backend, a queue, a scheduled job, a third-party webhook, an email. There are exactly **eleven** built-in connectors. There is **no** Slack, Discord, GitHub, Notion, etc. connector — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
+Connectors define how agents are triggered, what input they receive, and where results go. Each connector can link to one or more agents; one trigger dispatches its input to every linked agent. There are exactly **eleven** built-in connectors. There is **no** native Slack, Discord, GitHub, or Notion connector — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
 
-The REST API's `/v1/projects/<id>/agents/<name>/trigger` endpoint exists for internal admin and testing scenarios; it is **not** the production path for external integrations and should not be proposed as one. When someone asks "how does my backend call an agent?", the answer is "create a webhook connector and POST to its URL," not "use the REST API."
+Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide per-agent URLs, signing secrets, sync/async modes, replay safety, and fan-out. The REST `/trigger` endpoint is only for first-party testing, not wiring up agent runs.
 
 Connectors are configured in the **Dashboard**, not in YAML. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's `input` (the `content` passed to `middleware/<agent>.py::before`). For outbound modes, the agent's *output* (usually structured JSON) is consumed by the connector.
 

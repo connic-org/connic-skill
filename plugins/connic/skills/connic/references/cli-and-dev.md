@@ -80,7 +80,7 @@ Behavior:
 - Spins up an isolated cloud runner with the same image production uses.
 - Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, and `requirements.txt`. Changes to `requirements.txt` trigger a re-install on the next sync — no restart needed. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the live runner.
 - Watches files; resync in ~2–5 seconds.
-- The dev session has its own variables, its own ephemeral database, and a fresh knowledge base — separated from your standard environments.
+- The dev session has its own variables, its own ephemeral database, and fresh Retrieval data — separated from your standard environments.
 
 The `.connic` file is **not** synced — it's local auth only.
 

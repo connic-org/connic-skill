@@ -222,7 +222,7 @@ async def before(content, context):
 
 ### End-user authentication and per-run permissions
 
-This is a distinct concept from Connic's **team roles** (Owner / Admin / Member). Team roles control **who can sign in to the Connic dashboard and manage the project**. They have nothing to do with authenticating the end users whose requests trigger agents.
+This is distinct from Connic's project **membership and permission groups**, which control who can sign in to the dashboard and manage the project. They do not authenticate the end users whose requests trigger agents.
 
 Authenticating end users — and propagating their identity, permissions, customer scope, etc. into the run — is done in `middleware/<agent>.py::before`. The connector secret authenticates the *caller* (your gateway, your app); the middleware authenticates the *end user* whose data is in the payload.
 
@@ -272,7 +272,7 @@ The conditional-tool expressions are plain Python evaluated against `context.*` 
 
 Notes:
 
-- **Don't try to map end users to Connic team roles.** Owner/Admin/Member exists for the humans who develop, deploy, and audit the project; there is no API to create a Connic "Member" per end user, and you wouldn't want one.
+- **Don't map end users to Connic project membership or permission groups.** The Owner, Members, and their groups are for the humans who develop, deploy, and audit the project; there is no API to create a Connic Member per end user.
 - **Cache external auth lookups in module scope, not in `context`.** A Redis client or a JWKS client should be a module-level singleton — `context` is per-run.
 - **Identity gets recorded.** Once `context["user_id"]` is set in `before`, it shows up in run logs and traces — that's how every run becomes attributable for audit purposes (relevant for EU AI Act and similar regimes).
 - **Forward identity to downstream MCP servers.** When a downstream MCP server gates on the end-user (compliance, per-tenant data, audit-trail), use `${context.<key>}` interpolation inside `mcp_servers[].headers` so each MCP call carries the right user. Connic substitutes the value per run from the same `context` you populated in `before`; missing values fail the run rather than silently sending an unauthenticated request. See the [MCP header interpolation section](guardrails-schemas-mcp.md#header-interpolation-deploy-time-vs-per-run).

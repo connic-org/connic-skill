@@ -4,7 +4,7 @@ Built-in tools that ship with the SDK. Reference them in an agent's `tools:` lis
 
 ```yaml
 tools:
-  - query_knowledge
+  - retrieval_query
   - trigger_agent
   - db_find
   - web_search
@@ -13,7 +13,7 @@ tools:
 You can also call them from your own Python tools by importing from `connic.tools`:
 
 ```python
-from connic.tools import query_knowledge, db_find, trigger_agent, web_search
+from connic.tools import retrieval_query, db_find, trigger_agent, web_search
 ```
 
 ## Agent orchestration
@@ -70,7 +70,7 @@ Shape rules:
 - The receiving agent keeps every non-`files` key at the top level of `context["payload"]`.
 - The receiving LLM sees the payload with only `files` removed. A `{message, files}` payload renders as the plain `message` string; any richer shape is JSON-serialised, so structured fields like `mode`, `data_points`, or `customer_id` are visible to the model.
 
-Base64 inflates the payload by ~33% and the whole thing travels as a JSON string through the trigger endpoint. For anything larger than a few MB, prefer a reference — a presigned S3 URL, a knowledge-base `entry_id`, a project-database doc ID — and let the downstream agent fetch the binary via a tool.
+Base64 inflates the payload by ~33% and the whole thing travels as a JSON string through the trigger endpoint. For anything larger than a few MB, prefer a reference — a presigned S3 URL, a Retrieval `entry_id`, a project-database doc ID — and let the downstream agent fetch the binary via a tool.
 
 ### `trigger_agent_at(agent_name, payload, delay=None, unix_timestamp=None)`
 
@@ -85,13 +85,13 @@ await trigger_agent_at(
 # {"run_id": "...", "scheduled_at": "...", "status": "scheduled"}
 ```
 
-## Knowledge base (vector store)
+## Retrieval
 
-Per-environment vector store, optionally divided into namespaces. Namespaces are **dot-separated** (e.g. `policies.hr.leave`, `products.pricing`), max depth 10. Don't use slashes — they aren't valid namespace characters. Namespace scoping always covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
+Managed semantic retrieval for each environment, optionally divided into namespaces. Namespaces are **dot-separated** (e.g. `policies.hr.leave`, `products.pricing`), max depth 10. Don't use slashes — they aren't valid namespace characters. Namespace scoping always covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
 
 ```python
 # Semantic search
-result = await query_knowledge(
+result = await retrieval_query(
     query="refund policy",
     namespace="policies",        # optional; omit for the default namespace
     min_score=0.7,               # default 0.7
@@ -101,7 +101,7 @@ result = await query_knowledge(
 # {"results": [{"score": 0.95, "content": "...", "metadata": {...}, "entry_id": "..."}, ...]}
 
 # Insert or update — indexing is async
-await store_knowledge(
+await retrieval_store(
     content="Refunds are issued within 7 days.",
     entry_id="refund-policy",    # optional; auto-generated if omitted
     namespace="policies",
@@ -110,19 +110,19 @@ await store_knowledge(
 # {"entry_id": "...", "job_id": "...", "status": "pending", "queued": true, "success": true}
 
 # Delete — three modes (see below)
-await delete_knowledge(entry_id="refund-policy", namespace="policies")            # single entry
-await delete_knowledge(namespace="confluence",                                    # bulk by metadata
+await retrieval_delete(entry_id="refund-policy", namespace="policies")            # single entry
+await retrieval_delete(namespace="confluence",                                    # bulk by metadata
                        metadata_filter={"root_page_id": page_id,
                                         "run_id": {"$ne": current_run_id}})
-await delete_knowledge(namespace="meetings.q1")                                   # wipe a subtree
+await retrieval_delete(namespace="meetings.q1")                                   # wipe a subtree
 
 # List namespaces — default depth=1; depth=0 returns all descendants (max depth 10)
-await kb_list_namespaces(parent=None, depth=1)
+await retrieval_list_namespaces(parent=None, depth=1)
 ```
 
-Knowledge entries become searchable only after the async indexing job finishes — don't query immediately after `store_knowledge`. The same applies to metadata-filter deletes: a delete fired while ingestion jobs are pending only sees already-indexed entries, and re-ingested entries keep their *previous* metadata until their job commits. Re-storing an existing `entry_id` + namespace atomically replaces that entry's content when the job lands — there's never mixed old/new state per entry, but there's no in-agent way to poll a `job_id`, so schedule dependent cleanup as a later run (e.g. via `trigger_agent_at`) rather than inline.
+Retrieval entries become searchable only after the async indexing job finishes — don't query immediately after `retrieval_store`. The same applies to metadata-filter deletes: a delete fired while ingestion jobs are pending only sees already-indexed entries, and re-ingested entries keep their *previous* metadata until their job commits. Re-storing an existing `entry_id` + namespace atomically replaces that entry's content when the job lands — there's never mixed old/new state per entry, but there's no in-agent way to poll a `job_id`, so schedule dependent cleanup as a later run (e.g. via `trigger_agent_at`) rather than inline.
 
-### Metadata filters on `query_knowledge` and `delete_knowledge`
+### Metadata filters on `retrieval_query` and `retrieval_delete`
 
 Both tools accept an optional `metadata_filter: dict` that narrows the operation to entries whose `metadata` matches. The filter uses the same MongoDB-style syntax as `db_find` — shorthand `{"field": value}` is equality, operators are explicit, dot-notation works for nested keys.
 
@@ -137,22 +137,22 @@ Operator semantics worth knowing (same engine as `db_find`):
 
 ```python
 # Narrow semantic search to entries with specific metadata
-await query_knowledge(
+await retrieval_query(
     query="status update",
     namespace="products",
     metadata_filter={"product_id": "X", "status": {"$ne": "archived"}},
 )
 
 # Compound conditions
-await query_knowledge(
+await retrieval_query(
     query="incident timeline",
     metadata_filter={"$or": [{"priority": "high"}, {"score": {"$gte": 0.9}}]},
 )
 ```
 
-### `delete_knowledge` modes
+### `retrieval_delete` modes
 
-The signature is now `delete_knowledge(entry_id=None, namespace=None, metadata_filter=None)`. You must supply either `entry_id` or `namespace`. Three patterns:
+The signature is `retrieval_delete(entry_id=None, namespace=None, metadata_filter=None)`. You must supply either `entry_id` or `namespace`. Three patterns:
 
 1. **Single entry by id** — `entry_id` (optionally with `namespace` to disambiguate same-id-in-different-namespaces). The legacy shape.
 2. **Bulk by namespace + filter** — `namespace` + `metadata_filter`. Deletes every entry inside `namespace` (and its sub-namespaces) whose metadata matches. The canonical "orphan cleanup" pattern: re-ingest with the current `run_id`, then delete everything in scope where `run_id != current_run_id`. Sequencing matters: run the delete only after the re-ingest jobs have finished — entries still being indexed keep their previous `run_id` and would match the delete filter (see the async-indexing note above).
@@ -162,11 +162,11 @@ Rules:
 
 - `metadata_filter` requires a `namespace`. There's no project-wide metadata-only delete.
 - `metadata_filter` must be a dict; non-dict values are rejected.
-- Wipe operations include sub-namespaces by default — `delete_knowledge(namespace="meetings")` also clears `meetings.q1`, `meetings.q2.standup`, etc.
+- Wipe operations include sub-namespaces by default — `retrieval_delete(namespace="meetings")` also clears `meetings.q1`, `meetings.q2.standup`, etc.
 
 ```python
 # Orphan cleanup pattern — re-ingested with run_id = current_run_id, now drop stale entries
-await delete_knowledge(
+await retrieval_delete(
     namespace="confluence",
     metadata_filter={
         "root_page_id": page_id,

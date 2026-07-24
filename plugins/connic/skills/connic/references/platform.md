@@ -6,7 +6,7 @@ The dashboard at `connic.co` is where projects, environments, deployments, and o
 
 The top-level container in Connic. Every dashboard URL is scoped to a project. **Always call it a "project", never "workspace".**
 
-A project has: a set of environments, its own API keys, its own connectors, its own Git connection, its own team membership. The knowledge base and the database are **per-environment**, not per-project (so staging and production have separate data).
+A project has: a set of environments, its own API keys, its own connectors, its own Git connection, its own team membership. Retrieval and the database are **per-environment**, not per-project (so staging and production have separate data).
 
 ## Environments
 
@@ -14,8 +14,8 @@ Each project has multiple environments (e.g. `staging`, `production`), plus a se
 
 - Separate environment variables / secrets.
 - Separate connector configurations.
-- Separate database and knowledge base data.
-- Separate API keys for triggering agents externally.
+- Separate database and Retrieval data.
+- Separate run history.
 
 Configure under **Project Settings → Git & Environments**. Map a Git branch to each environment for auto-deploy on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
 
@@ -59,13 +59,13 @@ PR Testing is supported on GitHub and GitLab.
 
 There's a 500-log-lines-per-run cap. Logs view filters include Status, Date Range, Deployment, and Search.
 
-## Knowledge base
+## Retrieval
 
-**Per-environment** vector store. Used via the predefined tools `query_knowledge`, `store_knowledge`, `delete_knowledge`, `kb_list_namespaces` (see [predefined-tools.md](predefined-tools.md)).
+**Managed semantic retrieval** for each environment. Used via the predefined tools `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces` (see [predefined-tools.md](predefined-tools.md)).
 
-Dashboard view: **Project → Knowledge Base** (scoped to the active environment). Inspect entries, edit content, drop namespaces, bulk-import via CSV or file upload.
+Dashboard view: **Project → Retrieval** (scoped to the active environment). Inspect entries, edit content, drop namespaces, bulk-import via CSV or file upload.
 
-Namespaces are **dot-separated**, hierarchical, max depth 10 — e.g. `policies.hr.leave`, `products.pricing`. Don't use slashes. Ingestion is asynchronous: `store_knowledge` returns a job ID and entries only become searchable once indexing completes.
+Namespaces are **dot-separated**, hierarchical, max depth 10 — e.g. `policies.hr.leave`, `products.pricing`. Don't use slashes. Ingestion is asynchronous: `retrieval_store` returns a job ID and entries only become searchable once indexing completes.
 
 ## Database
 
@@ -87,10 +87,6 @@ Automated evaluators that score runs after the fact (correctness, helpfulness, s
 ## Approvals
 
 Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (`approval:` block — see [agent-yaml.md](agent-yaml.md)). When an agent hits a gated tool, the run pauses and appears in **Project → Approvals**. A reviewer approves or rejects; the run resumes (or fails / skips the tool depending on `on_rejection`). Conditions on `param.*` and `context.*` let you gate only some calls. An approval webhook can POST decisions to your own endpoint.
-
-## A/B testing
-
-Compare agent configurations side-by-side. Variants are declared as YAML files following the `{base-agent}-test-{variant}.yaml` naming convention (the loader auto-recognises them — see [agent-yaml.md](agent-yaml.md#ab-test-variants)). Configure traffic percentages and metrics in **Project → A/B Testing**. Multiple concurrent tests are supported as long as total traffic across them is ≤100%. Connic tracks cost, latency, and success rate automatically; judges supply the quality (score) metric.
 
 ## Bridge
 
@@ -117,19 +113,29 @@ r = await httpx.AsyncClient().get(url)
 
 ## Domains
 
-Bring your own subdomain for inbound connectors (custom webhook URL, custom MCP server endpoint). Configure DNS records as shown in **Project Settings → Domains**; Connic provisions TLS automatically.
+Serve connector URLs from a subdomain you own while Connic handles TLS. The connector keeps the same ID, signing secret, and configuration; only the hostname changes. Custom domains are available on Pro, Ultimate, and Enterprise.
 
-Restrictions: **subdomains only** (no apex/wildcard); requires the Pro plan or higher; only Owners and Admins can manage domains.
+Add the domain under **Project Settings → Domains**. Apex domains and wildcards are unsupported; use an ASCII subdomain or punycode for an internationalized name. Configure the provided CNAME to `connect.connic.co` and TXT ownership record. DNS propagation can take up to an hour.
+
+Choose the domain in a connector's create or edit dialog. No redeploy or URL rotation is required, and the default `connect.connic.co` URL remains active. Domains are project-scoped and can serve connectors in any project environment. Deleting a domain returns its connectors to the default host; callers using the removed hostname receive 404 responses.
 
 ## Team
 
-**Project Settings → Team** manages member roles. The three roles are **Owner**, **Admin**, and **Member** — there are no "Developer" or "Viewer" roles, and roles are not scoped per-environment.
+**Project Settings → Team & Permissions** manages members, reusable permission groups, and the project security policy. Every project has exactly one **Owner** and any number of **Members**:
 
-For finer-grained access, use **API keys** instead — keys are scoped per section (`agents`, `runs`, `knowledge`, `judges`, `approvals`, `budgets`, `audit-logs`, `deployments`) with read/write granularity.
+- The Owner always has full access. Group assignments cannot narrow it. Only the Owner can delete the project or transfer ownership.
+- A Member must belong to at least one permission group. Their effective access is the union of every assigned group.
+- New projects include editable **Admin** and **User** groups. Admin starts with every permission; User starts with read-and-operate access. These are groups, not fixed roles.
+- Custom groups bundle action-level permissions across agents, runs, deployments, connectors, environments, Retrieval, billing, team management, and other areas.
+- A group cannot be deleted while a member or pending invite uses it.
 
-The audit log (under Team) records actions across categories: project, deployment, connector, environment, variable, API key, billing, member, invite, Git.
+The project security policy can require 2FA for every member. Enable 2FA on your own account first; changing the policy requires the **Edit project settings** permission.
 
-> **Team roles ≠ end-user authentication.** Owner/Admin/Member governs **who can sign in to the dashboard and manage the project**. It is not a model for authenticating the end users whose requests trigger agents. End-user auth (JWTs, OIDC tokens, per-user permissions) belongs in `middleware/<agent>.py::before`, with conditional tools gating actions on the hydrated `context.permissions`. See the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions).
+API key permissions are separate from team permission groups. Keys can have full access or per-section `read` and `write` access to the REST API.
+
+The immutable audit log under **Project Settings → Audit Log** records the actor, timestamp, action, and before/after values where applicable, with secrets masked. It can be filtered by time, action, resource, or user; retention depends on the plan.
+
+> **Project permissions ≠ end-user authentication.** Permission groups govern who can sign in to the dashboard and manage the project. They do not authenticate the end users whose requests trigger agents. End-user auth (JWTs, OIDC tokens, per-user permissions) belongs in `middleware/<agent>.py::before`, with conditional tools gating actions on the hydrated `context.permissions`. See the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions).
 
 ## Usage
 
@@ -141,9 +147,9 @@ Architectural recommendations in this skill should be made on the basis of fit, 
 
 `https://api.connic.co/v1/...`. Auth via API key (create under **Project Settings → CLI / API Keys**). Rate limit: 60 requests/minute per project — 429 responses include `Retry-After`.
 
-The REST API is for **admin and tooling work**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing knowledge entries, approvals, and judges (the permission-scoped sections are `agents`, `runs`, `knowledge`, `judges`, `approvals`, `budgets`, `audit-logs`, `deployments`). It *can* trigger an agent via `POST .../agents/{name}/trigger` for first-party backend or testing calls, but **it is not the path for triggering agents from external event sources** — for that you create a connector.
+The REST API is for **managing and observing a project**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing Retrieval entries, approvals, and judges. Its `POST .../agents/{name}/trigger` endpoint exists only for first-party testing, not for wiring up agent runs.
 
-If a user is wiring an external service to a Connic agent and reaches for the REST API, redirect them: the right answer is a **`webhook` connector** (or `kafka`, `sqs`, `email`, `telegram`, etc. depending on the transport). Connectors give you per-agent URLs with their own secrets, signed payloads, sync vs async modes, replay safety, and a clear audit trail — none of which the REST API provides as a first-class feature. The platform models "things that trigger agents" as connectors on purpose; routing inbound traffic through the REST API bypasses the model.
+To run an agent in response to an HTTP request, queue message, email, schedule, or call from a backend, use the matching connector. Connectors provide per-agent URLs, signing secrets, sync/async modes, and replay safety.
 
 For the full endpoint catalogue and per-section permission scopes, fetch `https://connic.co/docs/v1/reference/rest-api`.
 
@@ -159,10 +165,10 @@ For the full endpoint catalogue and per-section permission scopes, fetch `https:
 | Environment variables / secrets | Dashboard (per environment) |
 | Connector configuration | Dashboard (linked to agents) |
 | API spec imports | Dashboard |
-| Knowledge base content | Dashboard or via `store_knowledge` tool |
+| Retrieval content | Dashboard or via `retrieval_store` tool |
 | Database collections | Dashboard or via `db_*` tools |
 | Judges, A/B tests, approvals queue | Dashboard |
-| Team members and roles | Dashboard |
+| Team members and permission groups | Dashboard |
 | Deployment & branch mapping, PR Testing toggle | Dashboard (Git & Environments) |
 | Bridge tunnels and custom domains | Dashboard |
 

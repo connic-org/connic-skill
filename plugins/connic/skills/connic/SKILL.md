@@ -1,6 +1,6 @@
 ---
 name: connic
-description: Use this skill whenever the user is working in a Connic project or asks anything about Connic — building agents, writing tools, configuring connectors, the composer SDK, the `connic` CLI, the dashboard, deployment, environments, observability, knowledge base, the database, judges, approvals, A/B tests, the Bridge, REST API, or migrating from LangChain/ADK. Trigger on phrases like "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", or when you see a `.connic` file, an `agents/*.yaml` file, or `connic-composer-sdk` in requirements. Also trigger when the user is clearly in a Connic project (an `agents/` directory next to `tools/` and `middleware/` with YAML agent definitions) even if they don't say the word "Connic" — they may just say "add a tool that..." or "this agent should also...". Connic ships updates regularly, so always consult this skill rather than rely on training data — the references here are written directly from the current docs and SDK.
+description: Use this skill when the user is working in a Connic project or asks anything about Connic — building agents, writing tools, configuring connectors, Composer SDK, the `connic` CLI, the dashboard, deployment, environments, observability, Retrieval, the database, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or migrating from LangChain/ADK. Trigger on phrases like "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", or when you see a `.connic` file, an `agents/*.yaml` file, or `connic-composer-sdk` in requirements. Also trigger when the user is clearly in a Connic project (an `agents/` directory next to `tools/` and `middleware/` with YAML agent definitions) even if they don't say the word "Connic" — they may just say "add a tool that..." or "this agent should also...". Connic ships updates regularly, so always consult this skill rather than rely on training data — the references here are written directly from the current docs and SDK.
 ---
 
 # Connic
@@ -24,13 +24,15 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [project-anatomy.md](references/project-anatomy.md) | Project layout, where files go, how things are auto-discovered, `requirements.txt`, `.connic` |
 | [agent-yaml.md](references/agent-yaml.md) | Writing or editing `agents/*.yaml` — agent types, models, tools field, sessions, concurrency, retries, approvals, conditional tools |
 | [tools-and-python.md](references/tools-and-python.md) | Writing `tools/*.py`, middleware, hooks, the `context` dict, `StopProcessing` / `AbortTool`, logging, env vars |
-| [predefined-tools.md](references/predefined-tools.md) | Built-in tools: `trigger_agent`, `query_knowledge`, `db_find`, `web_search`, etc. — including filter operators |
+| [predefined-tools.md](references/predefined-tools.md) | Built-in tools: `trigger_agent`, `retrieval_query`, `db_find`, `web_search`, etc. — including filter operators |
 | [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) | Input/output guardrails, JSON output schemas, MCP server integration, API spec tools |
 | [connectors.md](references/connectors.md) | The eleven connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) — how they trigger or receive from agents |
 | [cli-and-dev.md](references/cli-and-dev.md) | The `connic` CLI, `connic dev` hot-reload, `connic test` declarative test suites, `connic lint`, `connic migrate` |
-| [platform.md](references/platform.md) | Dashboard concepts: environments, deployment, observability, knowledge base, database, judges, approvals, A/B testing, bridge, domains, team, usage, REST API |
+| [ab-testing.md](references/ab-testing.md) | A/B test variants, Confidence and Exploratory modes, traffic assignment, safety rules, results, and lifecycle |
+| [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
+| [platform.md](references/platform.md) | Dashboard concepts: environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
 
-For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed. The user also has a local copy at `connic/dashboard/app/docs/v1/` if you happen to be inside the `connic-org` mono-repo.
+For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed.
 
 ## Project layout cheatsheet (most-used reference, inlined)
 
@@ -62,7 +64,7 @@ Discovery rules to keep in mind:
 
 **Adding a new tool.** Create the function in `tools/<module>.py` with type hints and a docstring (the LLM uses the docstring to decide when to call it). Reference it in an agent's `tools:` list. See [tools-and-python.md](references/tools-and-python.md).
 
-**Triggering an agent from an external service.** Always create a connector. This is the canonical (and only production) path — `webhook` for HTTP request/response, `webhook` (async mode) for fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, `cron` for schedules. Connectors are configured in the dashboard (point at the agent), not in YAML — the connector's payload becomes the agent's input. The REST API's `/trigger` endpoint exists for internal admin/testing only; do not propose it for production integrations. See [connectors.md](references/connectors.md). Only the eleven connectors listed there exist — there is no Slack, Discord, GitHub, etc. connector; for those, bridge through a `webhook` connector or a custom MCP server.
+**Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, and `cron` for schedules. Connectors provide per-agent URLs, secrets, sync/async modes, and replay safety. The REST `/trigger` endpoint is for first-party testing, not wiring up agent runs. See [connectors.md](references/connectors.md). Only the eleven connectors listed there exist — there is no native Slack, Discord, or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
 
 **Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. The connector payload is passed as kwargs into a single Python function — no model in the loop, no reasoning step, but still a full run in the dashboard with logs, retries, and judges. This is the right shape for Kafka consumers that just ingest, S3 events that just transform, webhooks that just route, etc. See the [tool-agent section](references/agent-yaml.md#tool-agent).
 
@@ -76,7 +78,7 @@ When you're helping build or change an agent, follow these unless the user expli
 
 ### 1. Wrap predefined tools — don't hand them to the LLM raw
 
-The predefined tools (`db_find`, `db_insert`, `query_knowledge`, `web_search`, etc.) are *infrastructure-shaped*: they take generic collections, raw filters, namespaces, queries. Exposing them directly forces the LLM to do two jobs at once — figuring out *what* it wants to do and *how* to express it as a Mongo-style query. It will sometimes get the second job wrong, and you've also leaked your internal data model into the prompt.
+The predefined tools (`db_find`, `db_insert`, `retrieval_query`, `web_search`, etc.) are *infrastructure-shaped*: they take generic collections, raw filters, namespaces, queries. Exposing them directly forces the LLM to do two jobs at once — figuring out *what* it wants to do and *how* to express it as a Mongo-style query. It will sometimes get the second job wrong, and you've also leaked your internal data model into the prompt.
 
 Wrap them in **purpose-driven** custom tools instead. Tools should read like verbs from your domain, not generic database verbs.
 
@@ -87,7 +89,7 @@ Don't do this:
 tools:
   - db_find
   - db_insert
-  - query_knowledge
+  - retrieval_query
 ```
 
 Do this:
@@ -126,7 +128,7 @@ tools:
   - orders.save_order
 ```
 
-Same for `query_knowledge` — wrap it as `search_handbook(topic)` or `find_refund_policy()`, not raw. Same for `web_search` if it has a single domain or query template it should usually use. The LLM gets simpler, safer, more focused tool descriptions; you get an enforcement point for filters, namespaces, and defaults.
+Same for `retrieval_query` — wrap it as `search_handbook(topic)` or `find_refund_policy()`, not raw. Same for `web_search` if it has a single domain or query template it should usually use. The LLM gets simpler, safer, more focused tool descriptions; you get an enforcement point for filters, namespaces, and defaults.
 
 The exception is throwaway prototypes — for a one-day spike it's fine to hand `db_find` to the agent. But the moment the project moves toward production, wrap them.
 
@@ -191,7 +193,7 @@ When you suggest an architecture, evaluate options on **fit, reliability, and ma
 ## Things to avoid
 
 - **Don't invent connectors.** The exhaustive list is in [connectors.md](references/connectors.md). If a user asks "how do I connect Slack?", say there's no native Slack connector — they can use a generic webhook, a custom MCP server, or a custom tool.
-- **Don't trigger agents via the REST API from external callers.** Production agent triggers always go through a **connector** — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, `cron` for schedules, etc. The REST API is for admin and tooling work (listing runs, reading logs, managing connectors). When a user is wiring an external service into a Connic agent, the right answer is "create a webhook connector," not "POST to /v1/.../agents/.../trigger". The connector model gives you per-agent URLs, secrets, signed payloads, sync vs async modes, and replay safety; the REST trigger does not.
+- **Don't wire event-driven agent runs through the REST API.** Use the connector matching the transport. The REST `/trigger` endpoint is only for first-party testing.
 - **Don't invent CLI commands or flags.** Check [cli-and-dev.md](references/cli-and-dev.md). There is no `connic build`, `connic run`, `connic logs`, no `--json` flag on `lint`, no `--grep` flag on `test` (it's `--filter`), no `--message` on `deploy`, no `--env` on `dev`.
 - **Don't invent test assertions.** The only top-level assertions in `tests/*.yaml` are `expected_result` (a sandboxed expression with `output`, `error`, `status`, `context` bindings — `status` is `"completed"`, `"failed"`, `"cancelled"`, `"blocked"`, or `"awaiting_approval"`), `expected_tool_calls`, `expected_no_tool_calls`, and `expected_child_agents` (a map keyed by triggered agent name; each entry can carry `expected_payload`, `expected_result`, `expected_tool_calls`, `expected_no_tool_calls`, `expected_triggered`, and its own nested `expected_child_agents` — see [cli-and-dev.md](references/cli-and-dev.md#asserting-on-triggered-agents)). There is no `expected_output_contains` or `expected_output_matches`. (`mocks`, the four independent `strict_*_mocks` flags, `approval_decisions`, and `strict_approval_decisions` are valid execution controls, not assertions. See [Mocking tools](references/cli-and-dev.md#mocking-tools) and [Testing approvals](references/cli-and-dev.md#testing-approvals-hitl).)
 - **Don't put function calls, lambdas, imports, or comprehensions in `expected_result`.** It's not real Python — it's a tight AST evaluator that allows only boolean ops, comparisons, subscripts, attribute access, and literals. `output.strip()`, `json.loads(...)`, `len(...)`, `re.search(...)`, `lambda ...`, `__import__(...)` all fail at parse time. For anything that needs to parse the output, normalize it, or check derived properties, write a **builder `cleanup`** function — it's ordinary Python, gets the full `run` dict, and can raise to fail the case. See [cli-and-dev.md](references/cli-and-dev.md#what-expected_result-can-and-cannot-do).
