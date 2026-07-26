@@ -94,7 +94,7 @@ A tunnel from Connic's cloud to a private network (your VPC, on-prem services). 
 
 1. **Connectors** — pick the Bridge in the connector config dropdown.
 2. **Custom LLM providers** — pick the Bridge in the provider config.
-3. **Custom tools / middleware** — reach private endpoints via the magic hostname `<target>.cnc-bridge-<bridge_id>` from inside your Python code.
+3. **Custom tools / middleware / hooks / guardrails** — reach private endpoints via the magic hostname `<target>.cnc-bridge-<bridge_id>` from inside your Python code.
 4. **MCP servers** — set the `bridge:` field on the `mcp_servers` entry.
 
 ```yaml
@@ -110,6 +110,35 @@ import httpx
 url = f"https://api.internal.cnc-bridge-{os.environ['INTERNAL_BRIDGE_ID']}/users"
 r = await httpx.AsyncClient().get(url)
 ```
+
+For protocols that discover another endpoint at runtime (for example Redis
+Sentinel returning its current master), configure automatic destination routes
+under **Project Settings → Bridge** or with the authenticated
+`GET/PUT /v1/projects/{project_id}/bridges/{bridge_id}/routes` API, which
+requires `read` for GET or `write` for PUT in the API key's `bridges` section:
+
+```json
+{
+  "routes": [
+    {"match_type": "exact", "target": "redis-sentinel.internal", "port": 26379},
+    {"match_type": "regex", "target": "^redis-[a-z0-9-]+\\.internal$", "port": 6379}
+  ]
+}
+```
+
+- A bridge supports up to 32 routes, with 256 routes total across a project.
+  Every route matches a hostname/IP and one required TCP port.
+- Regex routes must use the safe anchored `^...$` subset. Do not use groups,
+  lookarounds, backreferences, alternation, braces, unescaped dots, or broad
+  `.*` patterns. A regex may contain at most one quantified character class,
+  such as `[a-z0-9-]+`.
+- Precedence is explicit magic hostname, exact route, then regex route. Matches
+  across distinct bridge IDs fail closed.
+- A route selects a tunnel but does not grant access. The bridge agent's exact
+  `ALLOWED_HOSTS` must include the Sentinel and every possible master, such as
+  `redis-sentinel.internal:26379,redis-1.internal:6379,redis-2.internal:6379`.
+- Custom native resolvers and later background-thread connections are not
+  auto-routed; use `<target>.cnc-bridge-<bridge_id>` for those connections.
 
 ## Domains
 
