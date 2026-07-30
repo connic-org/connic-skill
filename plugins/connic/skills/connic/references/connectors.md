@@ -89,10 +89,10 @@ Exposes Connic agents *as* MCP tools to external clients (Claude Desktop, IDEs, 
 
 - The connector provisions an MCP endpoint URL.
 - Each agent linked to the connector becomes one MCP tool. The tool name is the agent name lowercased with underscores; the tool description is `"Invoke the <Agent Name> agent"`. The tool input schema is fixed: `{message: string (required), payload: object (optional)}`.
-- Modes: **Sync** (recommended; returns the agent's result as the MCP tool result, 5-minute timeout) or **Inbound** (returns a run ID immediately).
-- Supported JSON-RPC methods: `initialize`, `tools/list`, `tools/call`, `ping`.
+- Modes: **Sync** (recommended; returns the agent's result as the MCP tool result, 5-minute timeout) or **Inbound** (returns a run ID immediately; this is Connic fire-and-forget behavior, not MCP Tasks).
+- Protocols: the endpoint supports stateless MCP `2026-07-28` with `server/discover`, `tools/list`, and `tools/call`. It preserves prior Streamable HTTP revisions with `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, and `ping`, plus the original HTTP/SSE transport.
 
-**Don't confuse this with the `mcp_servers:` block in agent YAML** — that's the opposite direction (Connic agent as MCP *client*, calling external MCP tools).
+**Don't confuse this with the `mcp_servers:` block in agent YAML** — that's the opposite direction (Connic agent as MCP *client*, calling external MCP tools). That consuming path uses Streamable HTTP, supports MCP `2026-07-28`, and automatically falls back for legacy servers without changing the `mcp_servers:` configuration.
 
 ## postgres
 

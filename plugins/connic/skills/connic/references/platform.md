@@ -6,7 +6,16 @@ The dashboard at `connic.co` is where projects, environments, deployments, and o
 
 The top-level container in Connic. Every dashboard URL is scoped to a project. **Always call it a "project", never "workspace".**
 
-A project has: a set of environments, its own API keys, its own connectors, its own Git connection, its own team membership. Retrieval and the database are **per-environment**, not per-project (so staging and production have separate data).
+A project has: a set of environments, its own Project credit, its own API keys, its own connectors, its own Git connection, and its own team membership. Retrieval and the database are **per-environment**, not per-project (so staging and production have separate data).
+
+## Models
+
+Every deployed Project supports two equal model paths:
+
+- **Connic-managed:** use an exact `connic/*` ID from the [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). No separate provider credentials are needed. Inference runs in the EU and token usage draws from Project credit at the published catalog rate.
+- **BYOK:** configure provider credentials under **Project Settings → Model providers** and use that provider's prefix and model ID. The selected provider processes and bills the model call.
+
+Either path can be the primary or fallback model. Never invent a `connic/*` alias or infer an ID from the upstream model name.
 
 ## Environments
 
@@ -59,6 +68,8 @@ PR Testing is supported on GitHub and GitLab.
 
 There's a 500-log-lines-per-run cap. Logs view filters include Status, Date Range, Deployment, and Search.
 
+Token Usage shows USD model-cost estimates based on Project pricing rules. For `connic/*`, the authoritative EUR charge uses the published catalog rate and appears in Project Billing. For BYOK, the selected provider's bill remains authoritative.
+
 ## Retrieval
 
 **Managed semantic retrieval** for each environment. Used via the predefined tools `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces` (see [predefined-tools.md](predefined-tools.md)).
@@ -80,6 +91,7 @@ Production data is never visible from staging.
 Automated evaluators that score runs after the fact (correctness, helpfulness, safety, custom criteria). Configure in **Project → Judges**. A judge is itself an LLM evaluator that takes a completed run as input and emits a score + reason.
 
 - Judges are **per-agent only** — set one up against the specific agent you want graded.
+- Judges can use an exact `connic/*` model or any BYOK provider configured for the Project.
 - Triggers: automatic on every run, automatic on a sample (configurable rate), or manual.
 - Filter expressions over `context.*` let you grade only matching runs.
 - Score-alert thresholds with a rolling window send notifications when quality drops.
@@ -142,7 +154,7 @@ requires `read` for GET or `write` for PUT in the API key's `bridges` section:
 
 ## Domains
 
-Serve connector URLs from a subdomain you own while Connic handles TLS. The connector keeps the same ID, signing secret, and configuration; only the hostname changes. Custom domains are available on Pro, Ultimate, and Enterprise.
+Serve connector URLs from a subdomain you own while Connic handles TLS. The connector keeps the same ID, signing secret, and configuration; only the hostname changes. Custom domains are available on Pro and Enterprise.
 
 Add the domain under **Project Settings → Domains**. Apex domains and wildcards are unsupported; use an ASCII subdomain or punycode for an internationalized name. Configure the provided CNAME to `connect.connic.co` and TXT ownership record. DNS propagation can take up to an hour.
 
@@ -168,7 +180,9 @@ The immutable audit log under **Project Settings → Audit Log** records the act
 
 ## Usage
 
-**Project → Usage** breaks down LLM token spend and run counts by agent, environment, and period. Budget controls (hard limits, alerts, anomaly detection, scheduled reports) live in the same section.
+**Project → Usage** breaks down model-token analytics and run counts by agent, environment, and period. Its USD model-cost estimates power model-cost limits, alerts, anomaly detection, and scheduled reports; these are separate from the EUR Project credit balance.
+
+**Project → Billing** shows the complete Project credit balance and consumption across runs, compute, storage, retrieval, and `connic/*` model tokens. Standard Projects receive monthly plan credit and can add purchased credit manually or through capped auto-refill. New prepaid usage stops when available credit is insufficient. Approved Enterprise Projects can use monthly postpaid billing. Stripe handles payments, receipts, and invoices.
 
 Architectural recommendations in this skill should be made on the basis of fit, reliability, and maintainability — not cost. Use the dashboard's usage and budget tools to manage spend separately from design decisions.
 
@@ -192,6 +206,8 @@ For the full endpoint catalogue and per-section permission scopes, fetch `https:
 | JSON output schemas | On-disk (`schemas/`) |
 | Declarative tests | On-disk (`tests/`) |
 | Environment variables / secrets | Dashboard (per environment) |
+| BYOK model-provider credentials | Dashboard (Project Settings → Model providers) |
+| Project credit, top-ups, auto-refill, and Stripe documents | Dashboard (Project → Billing) |
 | Connector configuration | Dashboard (linked to agents) |
 | API spec imports | Dashboard |
 | Retrieval content | Dashboard or via `retrieval_store` tool |

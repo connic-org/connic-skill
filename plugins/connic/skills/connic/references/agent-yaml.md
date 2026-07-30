@@ -10,8 +10,8 @@ Required fields: `version`, `name`, `description`. For LLM agents, also `model`.
 version: "1.0"
 name: support-assistant            # kebab-case; filename should match but isn't required to
 type: llm                          # default; can be omitted
-model: gemini/gemini-2.5-pro       # provider/model-name
-fallback_model: gemini/gemini-2.5-flash   # used on primary provider failure
+model: connic/glm-5.2              # exact Connic catalog ID; no provider key
+fallback_model: anthropic/claude-sonnet-4-6   # BYOK fallback; uses Project credentials
 description: "Customer support agent with billing access"   # REQUIRED
 
 system_prompt: |
@@ -74,7 +74,7 @@ session:
 
 context_compression:                # LLM agents only; omitted = compression off
   enabled: true                     # default true when block is present
-  model: gemini/gemini-2.5-flash    # optional; compression summaries only; default = agent model
+  model: connic/qwen3.6-35b-a3b     # optional; compression summaries only; default = agent model
   keep_recent_messages: 12          # default 8; recent messages kept verbatim
   session_history:                  # optional; off unless set
     interval: 4                     # compact stored session history every N runs
@@ -144,8 +144,9 @@ When you need *some* deterministic logic alongside an LLM, you don't have to dro
 
 ## Models
 
-Format: `provider/model-name`. Examples:
+Format: `provider/model-name`. Deployed Projects support both model paths:
 
+- `connic/glm-5.2` — Connic-managed, EU-hosted, no separate provider key, funded from Project credit
 - `openai/gpt-4o`, `openai/gpt-5.2`
 - `gemini/gemini-2.5-pro`, `gemini/gemini-2.5-flash`
 - `anthropic/claude-opus-4-7`, `anthropic/claude-sonnet-4-6`
@@ -153,9 +154,9 @@ Format: `provider/model-name`. Examples:
 - `bedrock/us.anthropic.claude-opus-4-7-v1:0`
 - `vertex_ai/gemini-2.5-pro`
 - `openrouter/anthropic/claude-sonnet-4.5`
-- Custom prefix configured in **Project Settings → Models**: `<prefix>/<model-name>`
+- Custom prefix configured in **Project Settings → Model providers**: `<prefix>/<model-name>`
 
-Don't guess model IDs — if a user wants a model not listed here, check the dashboard's model selector or the live docs.
+Use only exact `connic/*` IDs from the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). For BYOK or custom providers, use an ID supported by the configured provider. Don't invent aliases or silently substitute one model for another.
 
 ## `tools:` list — patterns
 
@@ -225,7 +226,7 @@ For long-running LLM sessions, add `context_compression` to keep prompts within 
 ```yaml
 context_compression:
   enabled: true
-  model: gemini/gemini-2.5-flash
+  model: connic/qwen3.6-35b-a3b
   keep_recent_messages: 12
   max_prompt_tokens: 100000
 ```

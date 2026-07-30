@@ -1,11 +1,11 @@
 ---
 name: connic
-description: Use this skill when the user is working in a Connic project or asks anything about Connic — building agents, writing tools, configuring connectors, Composer SDK, the `connic` CLI, the dashboard, deployment, environments, observability, Retrieval, the database, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or migrating from LangChain/ADK. Trigger on phrases like "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", or when you see a `.connic` file, an `agents/*.yaml` file, or `connic-composer-sdk` in requirements. Also trigger when the user is clearly in a Connic project (an `agents/` directory next to `tools/` and `middleware/` with YAML agent definitions) even if they don't say the word "Connic" — they may just say "add a tool that..." or "this agent should also...". Connic ships updates regularly, so always consult this skill rather than rely on training data — the references here are written directly from the current docs and SDK.
+description: Use when the user works in a Connic project or asks about Connic agents, connic/* or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger inside an evident Connic project—an `agents/` directory beside `tools/` and `middleware/`—even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
 ---
 
 # Connic
 
-Connic is a code-first platform for building, testing, and deploying AI agents. Agents are defined declaratively in YAML, extended with Python (tools, middleware, hooks, guardrails), and run on Connic's managed cloud. The CLI is `connic` (from the `connic-composer-sdk` package). Public docs live at https://connic.co/docs/v1.
+Connic is a code-first platform for building, testing, and deploying AI agents. Agents are defined declaratively in YAML, extended with Python (tools, middleware, hooks, guardrails), and run on Connic's managed cloud. Every deployed Project can use EU-hosted `connic/*` models or configured BYOK providers. The CLI is `connic` (from the `connic-composer-sdk` package). Public docs live at https://connic.co/docs/v1.
 
 ## When and how to use this skill
 
@@ -30,7 +30,7 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [cli-and-dev.md](references/cli-and-dev.md) | The `connic` CLI, `connic dev` hot-reload, `connic test` declarative test suites, `connic lint`, `connic migrate` |
 | [ab-testing.md](references/ab-testing.md) | A/B test variants, Confidence and Exploratory modes, traffic assignment, safety rules, results, and lifecycle |
 | [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
-| [platform.md](references/platform.md) | Dashboard concepts: environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
+| [platform.md](references/platform.md) | Dashboard concepts: models, Project credit and billing, environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
 
 For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed.
 
@@ -193,6 +193,7 @@ When you suggest an architecture, evaluate options on **fit, reliability, and ma
 ## Things to avoid
 
 - **Don't invent connectors.** The exhaustive list is in [connectors.md](references/connectors.md). If a user asks "how do I connect Slack?", say there's no native Slack connector — they can use a generic webhook, a custom MCP server, or a custom tool.
+- **Don't invent model IDs or assume BYOK is required.** Every deployed Project supports exact `connic/*` catalog IDs without a separate provider key, and BYOK remains an equal option. Check the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models) before selecting a managed model.
 - **Don't wire event-driven agent runs through the REST API.** Use the connector matching the transport. The REST `/trigger` endpoint is only for first-party testing.
 - **Don't invent CLI commands or flags.** Check [cli-and-dev.md](references/cli-and-dev.md). There is no `connic build`, `connic run`, `connic logs`, no `--json` flag on `lint`, no `--grep` flag on `test` (it's `--filter`), no `--message` on `deploy`, no `--env` on `dev`.
 - **Don't invent test assertions.** The only top-level assertions in `tests/*.yaml` are `expected_result` (a sandboxed expression with `output`, `error`, `status`, `context` bindings — `status` is `"completed"`, `"failed"`, `"cancelled"`, `"blocked"`, or `"awaiting_approval"`), `expected_tool_calls`, `expected_no_tool_calls`, and `expected_child_agents` (a map keyed by triggered agent name; each entry can carry `expected_payload`, `expected_result`, `expected_tool_calls`, `expected_no_tool_calls`, `expected_triggered`, and its own nested `expected_child_agents` — see [cli-and-dev.md](references/cli-and-dev.md#asserting-on-triggered-agents)). There is no `expected_output_contains` or `expected_output_matches`. (`mocks`, the four independent `strict_*_mocks` flags, `approval_decisions`, and `strict_approval_decisions` are valid execution controls, not assertions. See [Mocking tools](references/cli-and-dev.md#mocking-tools) and [Testing approvals](references/cli-and-dev.md#testing-approvals-hitl).)

@@ -228,7 +228,7 @@ Authenticating end users — and propagating their identity, permissions, custom
 
 When the inbound payload already carries a per-user credential like a JWT, you can disable the connector-level secret too (the `Require Authentication` toggle on the webhook/websocket/mcp connector — default on, can be turned off). That collapses both layers into one middleware-side verification step instead of stacking a static shared secret on top of a JWT that already proves more. Leave the connector secret on when the caller is just another service of yours and there's no per-user credential to verify.
 
-A typical pattern: your backend (or a thin proxy in front of the connector) attaches a JWT / OIDC token to the payload. Middleware verifies it, looks up permissions, and hydrates them into `context`. Conditional tools then gate sensitive actions on `context.permissions` from the agent YAML — no glue code in tools.
+A typical pattern: your backend (or a thin proxy in front of the connector) attaches a JWT / OIDC token to the payload. Middleware verifies it, looks up permissions, and hydrates them into `context`. Conditional tools then gate sensitive actions on `context.permissions` from the agent YAML, without duplicating access checks inside tools.
 
 ```python
 # middleware/support-assistant.py

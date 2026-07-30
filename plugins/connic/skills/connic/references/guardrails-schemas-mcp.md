@@ -194,6 +194,8 @@ If a custom guardrail raises, Connic logs the traceback under `guardrail.<name>`
 
 Connect external MCP (Model Context Protocol) servers to expose their tools to the agent. Tools from a configured server are **auto-loaded** into the agent — you do **not** list them again under `tools:`.
 
+This consuming path uses Streamable HTTP. Connic uses MCP `2026-07-28` with current servers and automatically falls back when a server only supports a legacy revision. Existing `mcp_servers:` configuration remains unchanged.
+
 ```yaml
 mcp_servers:
   - name: docs

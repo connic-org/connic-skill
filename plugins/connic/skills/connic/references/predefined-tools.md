@@ -29,8 +29,10 @@ result = await trigger_agent(
     wait_for_response=True,
     timeout_seconds=60,
 )
-# {"run_id": "...", "status": "completed"|"failed"|"timeout", "response": ...}
+# {"run_id": "...", "status": "completed"|"failed"|"cancelled"|"awaiting_approval"|"timeout", "response": ...}
 ```
+
+Pass a dict or list for structured JSON. Plain-text and JSON-encoded strings are also supported for compatibility.
 
 When `wait_for_response=False`, it returns immediately with just `run_id` (no `status` or `response`).
 
@@ -84,6 +86,8 @@ await trigger_agent_at(
 )
 # {"run_id": "...", "scheduled_at": "...", "status": "scheduled"}
 ```
+
+`payload` accepts the same dict, list, and string forms as `trigger_agent`.
 
 ## Retrieval
 
