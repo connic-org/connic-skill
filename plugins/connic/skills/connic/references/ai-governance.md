@@ -18,7 +18,7 @@ AI Governance is an Enterprise documentation and evidence workspace for EU AI Ac
 
 ## Access and permissions
 
-AI Governance requires an Enterprise plan. Four project permissions control access:
+AI Governance requires an Enterprise plan; compliance API routes return `403` for other plans. Four project permissions control access:
 
 | Permission | Allows |
 | --- | --- |
@@ -72,7 +72,7 @@ Transparency applications record whether a disclosure was `applied`, `failed`, o
 
 ## Monitoring and incidents
 
-Each system can have a monitoring plan with an owner, review cadence, signals, thresholds, and next-review date. An active plan needs an owner, a next-review date, and either signals or a documented monitoring procedure.
+Each system can have a monitoring plan with an owner, review cadence, signals, thresholds, and next-review date. An active plan needs an owner, a next-review date, and either signals or a documented monitoring procedure. Plans whose review date is due surface on the governance overview.
 
 Incidents record awareness time, severity, causal-link and reportability status, corrective actions, notification history, and optional run, environment, or deployment references. Marking an incident `reported` or `closed` requires authority-notification evidence with timestamp, recipient or authority, channel, and external reference.
 
@@ -87,6 +87,7 @@ Snapshots are immutable, metadata-only captures of selected systems and environm
 - They exclude raw prompts and model outputs.
 - They include systems, latest assessments, controls, transparency records, monitoring plans, incidents, and scoped run, approval, and judge telemetry.
 - Environment-scoped exports mark project-only audit telemetry unavailable rather than substituting a project-wide count.
+- Coverage metadata records the environment and time scope, plan retention window, unavailable telemetry, and other missing evidence.
 
 Default limits when a plan does not override them:
 
@@ -94,7 +95,7 @@ Default limits when a plan does not override them:
 - 10 MiB per snapshot
 - 100 MiB total snapshot storage per project
 
-Downloads are ZIP archives with a human-readable report, canonical JSON, collection CSV/JSON files, and a manifest of per-file SHA-256 hashes. The checksums detect changes; they are not signatures or certifications.
+Downloads are streamed ZIP archives with a human-readable report, canonical JSON, collection CSV/JSON files, and a manifest of per-file SHA-256 hashes. Response headers also carry the snapshot content hash and archive hash for independent verification. The checksums detect changes; they are not signatures or certifications.
 
 ## REST API and workflow
 

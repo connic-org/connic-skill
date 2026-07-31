@@ -6,26 +6,37 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 
 | Command | What it does |
 | --- | --- |
-| `connic init [name]` | Scaffold a new project directory. `--templates=invoice,customer-support` seeds from starter templates. |
+| `connic init [name]` | Scaffold a new project directory. `--templates=invoice,customer-support` seeds from starter templates; `--skill` installs this skill. |
+| `connic skill` | Install or update the Connic skill under `.agents/skills/connic/` in the current project. |
 | `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
 | `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery — locally, no upload. |
-| `connic tools` | List every tool the project exposes, with a one-line description and the source module path. |
+| `connic tools` | List every tool discovered in the current project. |
 | `connic dev [name]` | Open a cloud dev environment, sync local files, hot-reload on save. Named sessions persist; unnamed are ephemeral. |
 | `connic test` | Run declarative test suites from `tests/` against an environment. `--env <id>` picks the environment; `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report. |
 | `connic deploy` | Deploy current files to a Connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
-| `connic migrate --source <path> --dest <path>` | Scan a LangChain or Google ADK project and emit a Connic-shaped project skeleton. |
+| `connic migrate [--source <path>] [--dest <path>]` | Scan a LangChain or Google ADK project and emit a Connic-shaped project skeleton; omitted paths are prompted for. |
 
 Run any with `--help` for the canonical flag list.
 
 ## `connic init`
 
 ```bash
-connic init my-agents
+connic init my-agents --skill
+# Or seed templates too:
+# connic init my-agents --templates=invoice,customer-support --skill
 cd my-agents
-connic init my-agents --templates=invoice,customer-support   # seed with examples
 ```
 
-The default scaffold creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing a starter example. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent YAML on disk — the README shows what one should look like.
+The default scaffold creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing a starter example. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent YAML on disk — the README shows what one should look like. `--skill` adds `.agents/skills/connic/`; omit it when the project should not carry the skill.
+
+## `connic skill`
+
+```bash
+cd my-project
+connic skill
+```
+
+Installs or updates the Connic skill in `.agents/skills/connic/`. It is the existing-project equivalent of `connic init --skill`.
 
 ## `connic login`
 
@@ -46,7 +57,7 @@ connic lint
 Catches:
 
 - Invalid YAML.
-- Missing required agent fields (`version`, `name`, `description`, `model` for LLM agents).
+- Missing required agent fields (`version`, `name`, `description`, plus `model` and `system_prompt` for LLM agents).
 - Tool references that don't resolve (`tools: [billing.missing_function]`).
 - Duplicate agent names across files.
 - Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
@@ -60,7 +71,7 @@ Run this before every deploy. There is no `--json` flag — `lint` only takes `-
 connic tools
 ```
 
-Prints every tool the runtime would expose, grouped by `tools/` module (each with a one-line description, no signatures). Use this to confirm:
+Prints every tool the runtime would expose, grouped by `tools/` module. Use this to confirm:
 
 - A new function in `tools/` is discoverable.
 - A wildcard like `billing.*` resolves to the functions you expected.
@@ -80,9 +91,13 @@ Behavior:
 - Spins up an isolated cloud runner with the same image production uses.
 - Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, and `requirements.txt`. Changes to `requirements.txt` trigger a re-install on the next sync — no restart needed. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the live runner.
 - Watches files; resync in ~2–5 seconds.
-- The dev session has its own variables, its own ephemeral database, and fresh Retrieval data — separated from your standard environments.
+- The dev environment has its own variables, database, Retrieval data, and connectors, separated from standard environments. Unnamed environments are deleted on exit; named environments and their data persist so you can reattach later.
+- In an interactive terminal, `r` uploads immediately, `t` runs `tests/` against the active dev environment, and `q` stops with normal cleanup (`Ctrl+C` is the fallback).
+- Only one process can attach to a given named dev environment at a time. Use another name or an unnamed session for parallel work.
 
 The `.connic` file is **not** synced — it's local auth only.
+
+For CI or shared shells, authentication can instead come from `CONNIC_API_KEY` and `CONNIC_PROJECT_ID` environment variables.
 
 `connic dev` does not accept an `--env` flag. If you need to test against staging's data, point your dev session at staging credentials by other means (e.g. duplicate the relevant env vars into the dev session in the dashboard).
 
@@ -90,13 +105,15 @@ The `.connic` file is **not** synced — it's local auth only.
 
 Run all suites in `tests/` against the configured environment.
 
+Suites are flat files at `tests/*.yaml`. The filename stem targets the agent (`tests/support.yaml` → `support`); a top-level `agent:` overrides that default so one agent can have multiple suite files. Suite `version` defaults to `"1.0"`. The execution defaults are `runs: 1` (range 1–100), `success_threshold: 100` (1–100), and `timeout_s: 120` (1–3600 seconds). Every case needs `payload` unless it sets `builder`.
+
 ```yaml
 # tests/sentiment.yaml
 version: "1.0"
 
 defaults:
-  runs: 5                  # run each case 5 times
-  success_threshold: 80    # % of runs that must pass
+  runs: 5                  # explicit stochastic-test override; default is 1
+  success_threshold: 80    # explicit pass-rate override; default is 100
   timeout_s: 60            # 1–3600
 
 tests:
@@ -116,6 +133,12 @@ tests:
     expected_no_tool_calls:
       - admin.delete
 
+  - name: looks_up_then_notifies
+    payload: '{"order_id": "ORD-1"}'
+    expected_tool_call_order:
+      - orders.lookup
+      - notifications.send
+
   - name: extract_invoice
     files:
       - invoice.pdf        # resolved from tests/files/invoice.pdf
@@ -125,13 +148,14 @@ tests:
 Available assertion fields (these are the only ones):
 
 - `expected_result` — an expression evaluated against the bindings `output`, `error`, `status`, `context` (plus `true` / `false` / `null`). See "What `expected_result` can and cannot do" below.
-- `expected_tool_calls` — list of `tool_name: <expr>` pairs evaluated against `invocations` (the call count for that tool in the run).
+- `expected_tool_calls` — bare tool names or `tool_name: <expr>` mappings. Names match either a local function name or its qualified ref. Expressions can use `invocations`, `params`, and builder `context`; repeat a tool in separate entries to require distinct argument matches.
+- `expected_tool_call_order` — tool names that must appear in this relative order in the trace; unrelated calls may occur between them.
 - `expected_no_tool_calls` — list of tool names that must not be called.
-- `expected_child_agents` — map of triggered agent name → assertions for that child run (`expected_payload`, `expected_result`, `expected_tool_calls`, `expected_no_tool_calls`, `expected_triggered`, plus a nested `expected_child_agents`). See "Asserting on triggered agents" below.
+- `expected_child_agents` — map of triggered agent name → assertions for that child run (`expected_payload`, `expected_result`, `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, `expected_triggered`, plus a nested `expected_child_agents`). See "Asserting on triggered agents" below.
 
 There are no `expected_output_contains` / `expected_output_matches` fields. Don't invent them.
 
-Fixtures live in `tests/files/`. Reference them with `files: [<bare-filename>, ...]` (plural — never `file:`).
+Fixtures live in `tests/files/`. Reference them with `files: [<bare-filename>, ...]` (plural — never `file:`). Only bare filenames are accepted: path separators and `..` are rejected. The total upload budget is 25 MB, of which code/config outside `tests/files/` remains capped at 5 MB. MIME type is inferred from the extension and falls back to `application/octet-stream`; a missing fixture fails before the test container starts.
 
 If `payload` is a JSON object (or comes from a `builder` that returns a dict), its keys sit at the top level of `context["payload"]`. Otherwise the string is delivered as `{message: <payload>}`. Attached `files` are added alongside, under a `files` list.
 
@@ -143,7 +167,7 @@ Case execution controls (not assertions) include `mocks` (a `tests/mocks/<name>.
 
 `expected_result` is **not** ordinary Python — it's a sandboxed expression evaluator with a very narrow AST surface. Use it for cheap shape checks; fall back to the builder's `cleanup` for anything more.
 
-**Allowed**: boolean ops (`and`, `or`, `not`), comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, `is not`), subscripts (`output[...]`, `context["x"]`), attribute access (no underscore attrs — `output.id` works on a dict output and is equivalent to `output["id"]`), list/tuple/set/dict literals, and the names `output`, `error`, `status`, `context`, `true`, `false`, `null`.
+**Allowed**: boolean ops (`and`, `or`, `not`), comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, `is not`), subscripts (`output[...]`, `context["x"]`), attribute access (no underscore attrs — `output.id` works on a dict output and is equivalent to `output["id"]`), list/tuple/set/dict literals, and the names `output`, `error`, `status`, `context`, `true`, `false`, `null`. Expressions are limited to 2,000 characters. Unknown root names, arithmetic, calls, imports, assignments, and private attributes are rejected.
 
 **Binding values:**
 
@@ -176,6 +200,8 @@ expected_result: 'any(k in output for k in ["a", "b"])'             # generator
 ```
 
 For anything that requires parsing the output (JSON, regex, schema validation, cross-field checks), put the check in a **builder `cleanup`** — that's ordinary Python and can do whatever you need.
+
+`expected_tool_calls` uses the same safe expression grammar with three bindings: `invocations` is the number of matching calls, `params` is one call's arguments, and `context` is the builder dict. A bare tool name means at least one call. Tool names match either the local function name or the qualified ref. Top-level `and` separates per-invocation `params` filters from `invocations` predicates over the filtered count; if an expression contains only params predicates, `invocations >= 1` is implied. Repeat the same tool in multiple list entries to require distinct argument patterns. Use `expected_tool_call_order` separately when relative order matters.
 
 ### Asserting on triggered agents
 
@@ -228,12 +254,12 @@ Field shape — each entry under `expected_child_agents` takes:
 
 - `expected_triggered: <int>` — minimum trigger count (default `1`).
 - `expected_payload: <expr>` — expression over the input passed to `trigger_agent`. Bindings: `payload` (JSON-parsed when the parent passed a JSON string, else the raw value), `payload_raw` (the string form, `""` when N/A), `context` (the builder dict). Works on every trigger record regardless of mode.
-- `expected_result`, `expected_tool_calls`, `expected_no_tool_calls` — same grammar as the top-level fields, evaluated against the child run. Require at least one `wait_for_response=True` trigger.
+- `expected_result`, `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls` — same grammar as the top-level fields, evaluated against the child run. Require at least one `wait_for_response=True` trigger.
 - `expected_child_agents` — recursive map for whatever this child triggers in turn.
 
 Two evaluation paths:
 
-- **`wait_for_response=True`** — the child runs synchronously in the test container with its own tool-call collector, so result/tool/nested assertions all apply. When the same child was triggered more than once, the assertion passes as soon as one waited trigger satisfies the spec.
+- **`wait_for_response=True`** — the child runs synchronously in the test container with its own tool-call collector, so result/tool/order/nested assertions all apply. When the same child was triggered more than once, the assertion passes as soon as one waited trigger satisfies the spec.
 - **`wait_for_response=False`** — fire-and-forget. `expected_triggered` and `expected_payload` work; deeper assertions don't (the case fails with a clear reason telling you to wait for the response). `trigger_agent_at` is always treated as fire-and-forget in test mode.
 
 The builder `context` dict is shared across every depth — a fixture id stashed in `build()` is reachable via `context.<key>` inside any child's `expected_payload`, `expected_result`, or `expected_tool_calls`.
@@ -242,7 +268,7 @@ In-process dispatch is exclusive to the deploy-gate container. Production `trigg
 
 ### Builders — dynamic payloads, cleanup, and complex assertions
 
-Builders live at `tests/builders/<name>.py`. Use them for two distinct reasons: (a) generating the input payload programmatically, and (b) running arbitrary post-run assertions that `expected_result` can't express.
+Builders live at `tests/builders/<name>.py`. Use them for two distinct reasons: (a) generating the input payload programmatically, and (b) running arbitrary post-run assertions that `expected_result` can't express. Each invocation freshly re-imports the module, and `build` / `cleanup` may be sync or async. They run inside the same test container with the agent's environment variables and network reachability. A missing builder fails before container startup. When a case also sets `files`, fixtures merge into the builder output; if a dict result already has a `files` list, the lists concatenate.
 
 **`cleanup` contract** — the runtime calls `cleanup(run, context, builder_args)` after the case completes. Its return value decides the result:
 
@@ -412,6 +438,8 @@ Flags:
 - `--coverage` — static no-network analysis of which agents and tools your tests touch.
 - `--json` — emit the test (or coverage) report as JSON for tooling/CI. Coverage JSON is shaped like `{overall, agents: [{name, type, has_tests, tools_total, tools_covered, uncovered_tools, percent, parse_error}]}`; fail CI on `parse_error` if any local suite cannot be parsed.
 
+Test exit codes are `0` when every case passes, `1` for an assertion/test failure, and `2` for infrastructure failure. Coverage is an equal-weight average of agent percentages, not one project-wide tool ratio. `expected_tool_calls` and `expected_tool_call_order` both count; `discoverable_tools` are included in the denominator; a tested tool-less agent scores 100%; agents without suites score 0%; and A/B test variants are excluded.
+
 ## `connic deploy`
 
 ```bash
@@ -429,16 +457,22 @@ Failing tests gate deploys. Use `--skip-tests` only as an escape hatch; Git-trig
 ## `connic migrate`
 
 ```bash
+connic migrate
 connic migrate --source ./old-langchain-project --dest ./new-connic-project
 connic migrate --source ./adk-project --dest ./new-connic-project
 ```
 
-Both `--source` and `--dest` are required. There is no positional path argument and no `--output` flag. The tool scans the source, identifies agents, tools, and prompts, and emits a Connic project skeleton at `--dest`. Always inspect the output — it's a starting point, not a finished port.
+With no flags, the CLI prompts for the source and destination paths; if one flag is omitted, it prompts only for the missing path. Source and destination cannot be the same, nested inside one another, or an already non-empty destination. There is no positional path argument and no `--output` flag. The tool emits a Connic project skeleton, runs `connic lint`, and writes `MIGRATION_REPORT.md`.
+
+- **LangChain:** automatically migrates top-level `create_agent` / `create_react_agent` calls, plain or `@tool` functions and their local dependencies, static prompts, common model constructors, and cross-file imports. LangGraph state graphs and handoffs, dynamic prompts, checkpointers, custom persistence, RAG chains, LangSmith integration, wrappers/subclasses, and non-top-level agents remain manual.
+- **Google ADK:** automatically migrates explicit `Agent`, `LlmAgent`, and `SequentialAgent` definitions, plain functions / `FunctionTool`, `AgentTool` to `trigger_agent`, static instructions, model names, YAML agents, and `google_search` to `web_search`. `ParallelAgent` / `LoopAgent` become sequential placeholders; callbacks, sessions/memory, MCPToolset, dynamic registration/instructions/tool lists, subclasses, and custom guardrails need manual work.
+
+Always inspect the report and generated code: migration is a starting point, not a finished port.
 
 ## Iteration loop (recommended)
 
 ```
-1. connic init my-project && cd my-project
+1. connic init my-project --skill && cd my-project
 2. connic login
 3. Edit agents/, tools/, middleware/ ...
 4. connic lint                       # local check

@@ -4,7 +4,7 @@ Every agent is one YAML file in `agents/`. There are three agent types: `llm` (d
 
 ## LLM agent — full schema
 
-Required fields: `version`, `name`, `description`. For LLM agents, also `model`. Everything else is optional with defaults noted inline.
+Required fields: `version`, `name`, `description`. LLM agents also require `model` and `system_prompt`; sequential agents require `agents`; tool agents require `tool_name`. Everything else is optional with defaults noted inline.
 
 ```yaml
 version: "1.0"
@@ -16,14 +16,14 @@ description: "Customer support agent with billing access"   # REQUIRED
 
 system_prompt: |
   You are a concise support agent.
-  User: {user_id} on {tier} tier.   # {var} resolves from `context`; truthy check via `{var}` substitution
+  User: {user_id} on {tier} tier.   # interpolated from context; unmatched placeholders stay literal
   Use tools when helpful.
 
-temperature: 0.1                   # 0 = deterministic, higher = more random
+temperature: 0.1                   # lower = more repeatable; higher = more random
 timeout: 45                        # seconds for one run; minimum 5; no default
 max_iterations: 8                  # cap on LLM loop steps
 max_concurrent_runs: 20            # default 1; cap on parallel runs of this agent
-reasoning_effort: medium           # auto (default) | off | minimal | low | medium | high | xhigh
+reasoning_effort: medium           # auto is the default; supported overrides are model-specific
 # reasoning_budget: 4096           # DEPRECATED; legacy Claude 3.7/Sonnet 4 and Gemini 2.5 only; use reasoning_effort
 
 tools:                              # max 100 tools per agent
@@ -82,7 +82,7 @@ context_compression:                # LLM agents only; omitted = compression off
   max_prompt_tokens: 100000         # optional; early compression from model-reported prompt usage
 
 concurrency:
-  key: input.process_id             # serialize runs by this key
+  key: process_id                   # dot-path into the raw trigger payload
   on_conflict: queue                # queue | drop
 
 approval:
@@ -103,7 +103,7 @@ retrieval:
   prevent_write: false              # block retrieval_store
 ```
 
-For `type: llm`, `attempts` is the total request budget for the selected model and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. A configured fallback is an additional availability path: one eligible primary failure can switch immediately to the fallback, whose request budget is then `attempts`. Transient 429, timeout, connection, and provider 5xx failures retry the exact pending request. Tool failures are returned to the LLM inside the current run rather than blindly re-invoked. Backoff is cancellable and counts against the agent's overall `timeout`; no retry or fallback occurs after streaming output has begun.
+For `type: llm`, `attempts` is the request budget for the selected model and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. A fallback-eligible primary error switches immediately to `fallback_model` instead of consuming the primary's remaining attempts, and the fallback then has its own request budget. A request whose outcome is unknown is never replayed onto the fallback. Request retries preserve tool results already produced in the run, tool failures are returned to the LLM instead of blindly re-invoked, backoff counts against the overall `timeout`, and no retry or fallback occurs after streaming output begins. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
 
 For `type: tool` and `type: sequential`, the same fields control operation-level attempts. `attempts` always includes the first attempt.
 
@@ -124,7 +124,7 @@ agents:
 
 ## Tool agent
 
-Wraps a single Python tool with no LLM. The tool function **must declare a `payload` parameter and may declare `context`** — it's called as `func(payload=<dict>)`, plus `context=<dict>` if declared; any other parameter needs a default. Load/deploy validation rejects other signatures (the payload is never splatted into individual kwargs). A JSON-object trigger payload arrives as-is in `payload`, connector metadata keys included (a Kafka tombstone arrives as `{"message": None, "_kafka": ...}`); non-dict payloads are wrapped as `{"input": <value>}`. The run still appears in the dashboard with its inputs, outputs, and timing, but no model is invoked.
+Wraps a single custom Python tool under `tools/` with no LLM. Predefined tools, `api:` tools, and wildcard references cannot be a tool agent's body. The tool function **must declare a `payload` parameter and may declare `context`** — it's called as `func(payload=<dict>)`, plus `context=<dict>` if declared; any other parameter needs a default. Load/deploy validation rejects other signatures (the payload is never splatted into individual kwargs). A JSON-object trigger payload arrives as-is in `payload`, connector metadata keys included (a Kafka tombstone arrives as `{"message": None, "_kafka": ...}`); non-dict payloads are wrapped as `{"input": <value>}`. The run still appears in the dashboard with its inputs, outputs, and timing, but no model is invoked.
 
 ```yaml
 version: "1.0"
@@ -144,9 +144,9 @@ When you need *some* deterministic logic alongside an LLM, you don't have to dro
 
 ## Models
 
-Format: `provider/model-name`. Deployed Projects support both model paths:
+Format: `provider/model-name`. Models can be Connic-managed or BYOK:
 
-- `connic/glm-5.2` — Connic-managed, EU-hosted, no separate provider key, funded from Project credit
+- `connic/glm-5.2` — Connic-managed, EU-hosted, billed against Project credit; no provider key
 - `openai/gpt-4o`, `openai/gpt-5.2`
 - `gemini/gemini-2.5-pro`, `gemini/gemini-2.5-flash`
 - `anthropic/claude-opus-4-7`, `anthropic/claude-sonnet-4-6`
@@ -154,9 +154,15 @@ Format: `provider/model-name`. Deployed Projects support both model paths:
 - `bedrock/us.anthropic.claude-opus-4-7-v1:0`
 - `vertex_ai/gemini-2.5-pro`
 - `openrouter/anthropic/claude-sonnet-4.5`
-- Custom prefix configured in **Project Settings → Model providers**: `<prefix>/<model-name>`
+- Custom OpenAI-compatible prefix configured in **Project Settings**: `<prefix>/<model-name>`
 
-Use only exact `connic/*` IDs from the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). For BYOK or custom providers, use an ID supported by the configured provider. Don't invent aliases or silently substitute one model for another.
+Use exact `connic/*` IDs from the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). For BYOK or custom providers, use an ID supported by the configured provider. Don't invent aliases or substitute another model.
+
+For a custom OpenAI-compatible provider, configure a unique lowercase prefix, the API base URL, and an optional API key. The `connic` prefix is reserved for managed models.
+
+An exact ID ending in `-fast` selects a latency-optimized execution profile and may use quantization. Some models only have a Fast ID; where both exist, switching from the standard ID can change output quality, accepted `reasoning_effort` values, context size, or input modalities. Treat it as a model change: check the catalog entry and re-run the agent's tests (or an A/B comparison) before using it for accuracy-critical work.
+
+Connic may route one managed ID across multiple EU inference providers, but the model identity named by the ID does not change. When a route fails and retrying is safe, Connic can move the request to other eligible capacity for that same ID. Managed and BYOK models can be paired as primary and fallback in either direction.
 
 ## `tools:` list — patterns
 
@@ -166,7 +172,7 @@ tools:
   - billing.*                      # all public funcs in billing.py
   - support.search_*               # fnmatch wildcard
   - math.calculator.add            # nested: tools/math/calculator.py::add
-  - api:stripe.charges_create      # API-spec tool (see guardrails-schemas-mcp.md)
+  - api:stripe.charge_create       # API-spec tool (see guardrails-schemas-mcp.md)
   - api:stripe.*                   # all tools from an API spec
   - retrieval_query               # predefined tool (no module prefix)
   - admin.nuke: context.role == 'admin'      # conditional — only available when expr is true
@@ -174,11 +180,13 @@ tools:
   - alerts.page: context.urgent              # truthy check on a context value
 ```
 
-**Tool conditions** use Python syntax with `context.*` and `input.*` accessors (validated at deploy time with `ast.parse` — names aren't resolved, only the syntax). Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `and`, `or`, `not`, `in`. A bare `context.foo` (no comparator) is a truthy check.
+**Tool conditions** use Connic's safe Python-like expression language with `context.*` and `input.*` accessors. Comparisons are `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, and `is not`; combine or group them with `and`, `or`, `not`, and parentheses. Dot access, subscripts, and string/number/boolean/null and list/tuple/set/object literals are allowed. A bare accessor is a truthy check. A missing field makes the condition false rather than exposing the tool. Expressions are limited to 2,000 characters; unknown root names, calls, imports, arithmetic, assignments, and private attributes are rejected during validation.
 
 **Approval conditions** are a different scope: they use `param.*` (the *tool arguments* about to be passed) and `context.*`. They do **not** support `input.*`. Don't confuse the two.
 
 A tool cannot appear in both the unconditional list and a conditional entry — no duplicates.
+
+Every exact tool reference must resolve, and a wildcard must match at least one eligible tool; a zero-match wildcard fails deployment rather than silently producing an empty set.
 
 ### Full predefined-tool list
 
@@ -251,11 +259,11 @@ Limit how many runs of this agent execute simultaneously for a given key.
 
 ```yaml
 concurrency:
-  key: input.tenant_id
+  key: data.tenant_id
   on_conflict: queue      # queue = wait; drop = discard the new run
 ```
 
-`max_concurrent_runs` is a hard cap on total parallelism; `concurrency.key` adds per-key serialization on top.
+`concurrency.key` is a dot-path into the **raw trigger payload**; unlike `session.key`, it does not use an `input.` prefix. If the path does not exist, per-key enforcement is skipped for that run. `max_concurrent_runs` is a hard cap on total parallelism; `concurrency.key` adds per-key serialization on top. Concurrency rules are supported on LLM and tool agents, not sequential agents.
 
 ## Approvals
 
@@ -272,7 +280,7 @@ approval:
   on_rejection: fail      # fail = stop run (default); continue = skip the tool and keep going
 ```
 
-The run pauses at the gated tool call until a reviewer approves or rejects in **Dashboard → Approvals**. Approval conditions use `param.*` (the tool's arguments) and `context.*`; `input.*` is **not** valid here (unlike tool conditions in `tools:`).
+The run pauses at the gated tool call until a reviewer approves or rejects in **Dashboard → Approvals**. Approval conditions use `param.*` (the tool's arguments) and `context.*`; `input.*` is **not** valid here (unlike tool conditions in `tools:`). If a condition cannot be evaluated because a parameter or context value is missing, Connic fails safe and requires approval.
 
 ## Cascading defaults with `_defaults.yaml`
 
@@ -363,7 +371,7 @@ Effective config for `refund-agent`: `model: anthropic/claude-sonnet-4-6`, `temp
 
 - Writing `tools/billing.py` and referencing `billing.lookup_invoice` but the function is named `lookupInvoice` — case and snake_case matter.
 - Using `tools: lookup_invoice` (string) instead of `tools: [lookup_invoice]` (list).
-- Omitting `version`, `name`, `description`, or `model` (LLM agents) — the linter rejects the file. `description` is required and often forgotten. None of `name`, `description`, or `version` can be supplied by a `_defaults.yaml`; `name` and `description` are forbidden there entirely.
+- Omitting `version`, `name`, or `description`, or omitting `model` / `system_prompt` from an LLM agent — the linter rejects the file. `description` is required and often forgotten. None of `name`, `description`, or `version` can be supplied by a `_defaults.yaml`; `name` and `description` are forbidden there entirely.
 - Setting `session.key` to a literal string instead of a `context.*` / `input.*` path.
 - Listing the same tool both unconditionally and conditionally — not allowed.
 - Using `input.*` in an `approval.tools` condition — only `param.*` and `context.*` are valid there. Conversely, using `param.*` in a `tools:` conditional — that's only valid in approvals.

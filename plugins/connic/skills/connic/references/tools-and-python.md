@@ -6,6 +6,8 @@ The Python side of a Connic project. All four file types (`tools/*.py`, `middlew
 
 Plain Python functions. The runtime introspects type hints and the docstring to build the schema shown to the LLM. The docstring is what the LLM reads to decide *when* to call the tool — write it for the model, not the developer.
 
+A type-hinted parameter without a default is required. A parameter with a default, including `Optional[T] = None`, is optional.
+
 ```python
 def lookup_invoice(invoice_id: str) -> dict:
     """Look up the status and amount of an invoice.
@@ -49,7 +51,7 @@ async def web_lookup(url: str, timeout: int = 10) -> dict:
 If a tool declares a parameter **named** `context`, the runtime fills it in and the LLM never sees it. Injection is by parameter *name*, not by type hint — `context` (no annotation) works the same as `context: dict`. Don't name an LLM-facing parameter `context` or it'll be hidden.
 
 ```python
-async def get_user_orders(limit: int = 10, context: dict = {}) -> list:
+async def get_user_orders(context: dict, limit: int = 10) -> list:
     """Return recent orders for the current user.
 
     Args:
@@ -63,7 +65,7 @@ async def get_user_orders(limit: int = 10, context: dict = {}) -> list:
     return await fetch_orders(user_id, limit)
 ```
 
-`context` carries system fields (`run_id`, `agent_name`, `connector_id`, `timestamp`), the original connector `payload`, and — added after the run completes, so only readable in `after()` — `token_usage` and `duration_ms`, plus whatever middleware put there.
+`context` carries system fields (`run_id`, `agent_name`, `connector_id`, `timestamp`), the original connector `payload`, and whatever middleware or tools put there. `token_usage` and `duration_ms` are added when agent execution completes and are available to middleware `after()`, not during earlier tool calls.
 
 ### Special control flow
 
@@ -81,9 +83,11 @@ def gated(resource: str, context: dict) -> str:
 - `AbortTool(result)` — **only** valid inside a `hooks/<agent>.py::before()`. Aborts just *this* tool call, returns `result` to the LLM in place of the real result, and the agent continues. Not for use from inside tool functions.
 - Any other unhandled exception → tool call fails, LLM sees the error and may retry or give up.
 
+These Python exceptions apply to project code. A remote MCP server cannot raise `StopProcessing` inside the Connic runtime; its protocol error is returned to the LLM as a tool failure. If parallel project tool calls raise `StopProcessing`, the first one observed ends the run.
+
 ### Logging
 
-`print(...)` is captured at INFO level. The `logging` stdlib is captured at whatever level you used. Both appear in **Dashboard → Logs** tagged with `tools.<tool_name>`. Don't log secrets — there's no automatic redaction here.
+`print(...)` is captured at INFO level, writes to `sys.stderr` at ERROR, and stdlib `logging` at the level you called. Logger names must start with `tools.`, `middleware.`, `hooks.`, or `guardrails.`; `logging.getLogger(__name__)` naturally does so for discovered project modules. Lines appear in **Dashboard → Logs** and the run detail with a source such as `tool.<tool_name>`, `middleware.before`, `hook.<tool_name>`, or `guardrail.<name>`. Connic retains up to 500 lines per run. Unhandled custom-code exceptions capture the traceback; intentional `StopProcessing` and `AbortTool` control flow does not log as an error. Don't log secrets — there is no automatic redaction for arbitrary log content.
 
 ### Environment variables
 
@@ -208,7 +212,7 @@ Use `content` when you want to **change what the agent sees** — attach a docum
 
 ### When middleware re-runs
 
-By default `before` runs once. On `type: tool` and `type: sequential` operation retries, it only re-runs when `retry_options.rerun_middleware: true`; `after` runs once after all attempts. LLM model-request and tool-reflection retries stay inside the existing run, so they never re-run middleware and the option is ignored for `type: llm`.
+By default `before` runs once. On `type: tool` and `type: sequential` operation retries, it only re-runs when `retry_options.rerun_middleware: true`; each retry rebuilds content from the original payload, while the same `context` accumulates state and exposes the zero-based attempt as `context.get("retry_attempt", 0)`. `after` runs once after all attempts, unless `before` raised `StopProcessing`. LLM model-request, fallback, and tool-reflection retries stay inside the existing run, so they never re-run middleware and the option is ignored for `type: llm`. Any ordinary middleware exception fails the entire request.
 
 To reject a request from middleware:
 
@@ -303,6 +307,8 @@ async def after(tool_name: str, params: dict, result, context: dict):
 
 Scope: hooks fire for local tools, predefined Connic tools, and API-spec tools. They **do not** fire for tools exposed via remote MCP servers.
 
+Both hook phases may be synchronous or asynchronous and may omit `context`. `before` returns the params dict passed to the tool. `after` returns the value passed back to the LLM; returning `None` preserves the original result. `AbortTool` skips execution but marks that tool trace as an error. An ordinary hook exception fails the tool call and is returned to the LLM.
+
 ## Custom guardrails (`guardrails/<name>.py`)
 
 Reference from an agent YAML — the **filename must match the `name:` value** (so `name: domain_check` → `guardrails/domain_check.py`):
@@ -315,7 +321,7 @@ guardrails:
       mode: block
 ```
 
-Implementation — the signature is **exactly** `check(content, context)`. No `config` argument is passed; if you need parameterization, read from `os.environ` or hard-code per-file:
+Implementation — `check` may be sync or async and its signature is **exactly** `check(content, context)`. No `config` argument is passed; if you need parameterization, read from `os.environ` or hard-code per-file:
 
 ```python
 from connic import GuardrailResult
@@ -328,7 +334,7 @@ async def check(content: str, context: dict) -> GuardrailResult:
     return GuardrailResult(passed=True)
 ```
 
-`GuardrailResult` has three fields: `passed: bool`, `message: Optional[str]`, `details: Optional[dict]`. There is no `redacted_content` field — for redact-style behavior use the built-in `pii` / `pii_leakage` types, which handle redaction themselves.
+`GuardrailResult` has three fields: `passed: bool`, `message: Optional[str]`, `details: Optional[dict]`. There is no `redacted_content` field — for redact-style behavior use the built-in `pii` / `pii_leakage` types, which handle redaction themselves. `print`, `sys.stderr`, and stdlib logging are captured under `guardrail.<name>`; an exception is auto-logged with its traceback and then handled as a violation according to the rule's mode.
 
 ## The `context` dict — full picture
 
@@ -341,10 +347,10 @@ System fields (auto-populated by the runtime, available from `before`, tools, ho
 - `connector_id` (str, if triggered via a connector)
 - `timestamp` (ISO 8601)
 - `payload` (dict) — the **original connector payload** (webhook JSON body, GET query params, form fields, Kafka message, etc.). This is the raw input before Connic shaped it into the LLM-facing `content`. Read it from anywhere — tools and `after` see the same `payload` middleware does.
-- `token_usage` (dict, available in `after` and after each LLM call)
-- `duration_ms` (int, available in `after`)
+- `token_usage` (dict, available in middleware `after`)
+- `duration_ms` (number, available in middleware `after`)
 
-Anything else (`user_id`, `is_admin`, `permissions`, etc.) is whatever middleware/tools put there. Document a project's expected context keys in a README so collaborators know what's available.
+Anything else (`user_id`, `is_admin`, `permissions`, etc.) is whatever middleware/tools put there. Keep custom values JSON-serializable and do not overwrite system keys. The full final context is persisted with the run and can be viewed in run details or retrieved through the API. Document a project's expected context keys in a README so collaborators know what's available.
 
 ## Common mistakes
 

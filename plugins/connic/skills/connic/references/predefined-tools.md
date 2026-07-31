@@ -20,7 +20,7 @@ from connic.tools import retrieval_query, db_find, trigger_agent, web_search
 
 ### `trigger_agent(agent_name, payload, wait_for_response=True, timeout_seconds=60)`
 
-Run another agent from within this one.
+Run another agent in the same project and environment.
 
 ```python
 result = await trigger_agent(
@@ -29,10 +29,10 @@ result = await trigger_agent(
     wait_for_response=True,
     timeout_seconds=60,
 )
-# {"run_id": "...", "status": "completed"|"failed"|"cancelled"|"awaiting_approval"|"timeout", "response": ...}
+# {"run_id": "...", "status": "completed"|"failed"|"cancelled"|"awaiting_approval"|"timeout", "response": ..., "error": ...?}
 ```
 
-Pass a dict or list for structured JSON. Plain-text and JSON-encoded strings are also supported for compatibility.
+Pass a dict or list for structured JSON. Strings can contain plain text or encoded JSON.
 
 When `wait_for_response=False`, it returns immediately with just `run_id` (no `status` or `response`).
 
@@ -89,6 +89,8 @@ await trigger_agent_at(
 
 `payload` accepts the same dict, list, and string forms as `trigger_agent`.
 
+Provide **exactly one** of `delay` or `unix_timestamp`. A delay uses only `d`, `h`, `m`, and `s`, must be positive, and the absolute timestamp must be a future Unix timestamp. Scheduling is limited to 30 days. The tool returns immediately; `scheduled_at` is ISO 8601 in UTC.
+
 ## Retrieval
 
 Managed semantic retrieval for each environment, optionally divided into namespaces. Namespaces are **dot-separated** (e.g. `policies.hr.leave`, `products.pricing`), max depth 10. Don't use slashes — they aren't valid namespace characters. Namespace scoping always covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
@@ -98,11 +100,11 @@ Managed semantic retrieval for each environment, optionally divided into namespa
 result = await retrieval_query(
     query="refund policy",
     namespace="policies",        # optional; omit for the default namespace
-    min_score=0.7,               # default 0.7
+    min_score=0.3,               # default 0.3
     max_results=3,               # default 3
     metadata_filter={"source": "handbook"},  # optional; see "Metadata filters" below
 )
-# {"results": [{"score": 0.95, "content": "...", "metadata": {...}, "entry_id": "..."}, ...]}
+# {"results": [{"score": 0.95, "content": "...", "metadata": {...}, "entry_id": "...", "namespace": "policies"}, ...]}
 
 # Insert or update — indexing is async
 await retrieval_store(
@@ -121,7 +123,10 @@ await retrieval_delete(namespace="confluence",                                  
 await retrieval_delete(namespace="meetings.q1")                                   # wipe a subtree
 
 # List namespaces — default depth=1; depth=0 returns all descendants (max depth 10)
-await retrieval_list_namespaces(parent=None, depth=1)
+top = await retrieval_list_namespaces(parent=None, depth=1)
+# {"namespaces": [{"name": "policies", "entry_count": N, "total_entry_count": N, "has_children": true}, ...]}
+children = await retrieval_list_namespaces(parent="policies", depth=1)
+# {"parent": {...}, "namespaces": [...]}
 ```
 
 Retrieval entries become searchable only after the async indexing job finishes — don't query immediately after `retrieval_store`. The same applies to metadata-filter deletes: a delete fired while ingestion jobs are pending only sees already-indexed entries, and re-ingested entries keep their *previous* metadata until their job commits. Re-storing an existing `entry_id` + namespace atomically replaces that entry's content when the job lands — there's never mixed old/new state per entry, but there's no in-agent way to poll a `job_id`, so schedule dependent cleanup as a later run (e.g. via `trigger_agent_at`) rather than inline.
@@ -167,6 +172,7 @@ Rules:
 - `metadata_filter` requires a `namespace`. There's no project-wide metadata-only delete.
 - `metadata_filter` must be a dict; non-dict values are rejected.
 - Wipe operations include sub-namespaces by default — `retrieval_delete(namespace="meetings")` also clears `meetings.q1`, `meetings.q2.standup`, etc.
+- A successful delete returns `{"ok": true, "deleted_chunks": N}`. Entry IDs are namespace-local, so supply `namespace` when the same ID may exist more than once.
 
 ```python
 # Orphan cleanup pattern — re-ingested with run_id = current_run_id, now drop stale entries
@@ -184,9 +190,10 @@ await retrieval_delete(
 Per-environment, MongoDB-like. Use it for state that needs to persist across runs.
 
 ```python
-# Insert (single or batch)
+# Insert (single or batch); the collection is auto-created on first write
 await db_insert("orders", {"order_id": "ORD-1", "amount": 99.0, "status": "pending"})
 await db_insert("orders", [{"order_id": "ORD-2"}, {"order_id": "ORD-3"}])
+# {"inserted": [{...full document plus system fields...}], "inserted_count": N}
 
 # Find — note `fields` is a list of field paths, not a mongo-style projection map
 result = await db_find(
@@ -200,8 +207,10 @@ result = await db_find(
 )
 # {"documents": [...], "count": N}
 # When distinct is set: {"values": [...], "count": N}
+# distinct ignores sort, limit, skip, and fields
 
-# Update — sets fields on all matching docs; set a field to None to remove it
+# Update — sets fields on all matching docs; an empty filter updates every document
+# Set a field to None to remove it.
 await db_update("orders", filter={"order_id": "ORD-1"}, update={"status": "shipped"})
 # {"updated_ids": [...], "updated_count": N}
 
@@ -216,9 +225,11 @@ await db_upsert(
 
 # Delete (filter MUST be non-empty — no accidental drop-all)
 await db_delete("orders", filter={"status": "cancelled"})
+# {"deleted_ids": [...], "deleted_count": N}
 
 # Count
 await db_count("orders", filter={"status": "pending"})
+# {"count": N}
 
 # List collections with size info
 await db_list_collections()
@@ -227,11 +238,13 @@ await db_list_collections()
 
 System fields on every document (read-only): `_id` (UUID), `_created_at`, `_updated_at`.
 
+Collection names are at most 50 characters, start with a lowercase letter, and contain only lowercase letters, digits, and underscores. `db_upsert` requires non-empty `filter` and `update` dicts and updates only the first match. On insert, it merges top-level equality fields from `filter`, then `update`, then `insert_only` (later values win). Operator, logical, and dotted filter fields are not copied into the inserted document. A `None` value removes a field only on the update branch; on insertion it is stored as JSON null.
+
 ### Filter operators and shorthand
 
 Field-equality shorthand: `{"status": "pending"}` is the same as `{"status": {"$eq": "pending"}}`. Use it for simple matches.
 
-Operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$and`, `$or`, `$not`, `$nor`, `$exists`, `$contains`, `$elemMatch`, `$regex`. For case-insensitive regex, use the inline flag: `{"$regex": "(?i)foo"}`.
+Operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$and`, `$or`, `$not`, `$nor`, `$exists`, `$contains`, `$elemMatch`, `$regex`. `$regex` matching is always case-insensitive.
 
 Nested fields use dot notation: `{"address.city": "Berlin"}`.
 
@@ -249,6 +262,8 @@ filter = {
 ## Web
 
 `max_results` is capped at 10.
+
+Every `web_search` or `web_read_page` call consumes one additional Project-credit run unit. A base agent run that makes two web-tool calls therefore counts as three run units.
 
 ```python
 await web_search(query="connic.co pricing", max_results=5, country=None, include_news=False)

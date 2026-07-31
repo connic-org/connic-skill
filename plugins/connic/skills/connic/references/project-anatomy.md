@@ -7,6 +7,7 @@ A Connic project is a directory of YAML and Python files. The CLI (`connic` from
 ```
 my-project/
 ├── .connic                    # api_key + project_id (DO NOT commit)
+├── .agents/skills/connic/     # optional — installed by `connic skill` or `connic init --skill`
 ├── requirements.txt           # extra Python deps (SDK installed globally)
 ├── README.md
 ├── agents/                    # *.yaml — agent definitions (nesting allowed)
@@ -33,7 +34,7 @@ my-project/
     └── mocks/                  # *.py — custom-code replacements referenced by mocks:
 ```
 
-`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `hooks/`, `guardrails/`, `tests/` as you need them.
+`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the current Connic skill under `.agents/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/` as you need them.
 
 ## Auto-discovery rules
 
@@ -101,7 +102,7 @@ If the project has no extra deps, the file can be empty or omitted.
 
 ## What about `pyproject.toml` / `setup.py`?
 
-A Connic project is *not* a Python package. Don't create one. The runtime imports modules by path; packaging machinery interferes with discovery.
+Connic deployment ignores Python packaging metadata. A larger repository may still use `pyproject.toml` or `setup.py` for its own tooling, but Connic installs runtime dependencies only from the project root's `requirements.txt`; do not rely on package metadata to deploy them.
 
 ## Naming conventions
 

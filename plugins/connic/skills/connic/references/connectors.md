@@ -2,9 +2,9 @@
 
 Connectors define how agents are triggered, what input they receive, and where results go. Each connector can link to one or more agents; one trigger dispatches its input to every linked agent. There are exactly **eleven** built-in connectors. There is **no** native Slack, Discord, GitHub, or Notion connector — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
 
-Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide per-agent URLs, signing secrets, sync/async modes, replay safety, and fan-out. The REST `/trigger` endpoint is only for first-party testing, not wiring up agent runs.
+Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST `/trigger` endpoint is only for first-party testing, not wiring up agent runs.
 
-Connectors are configured in the **Dashboard**, not in YAML. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's `input` (the `content` passed to `middleware/<agent>.py::before`). For outbound modes, the agent's *output* (usually structured JSON) is consumed by the connector.
+Connectors are configured per environment in the **Dashboard**, not in YAML. Sensitive connection fields are stored encrypted. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's input. Outbound email and Telegram connectors consume the agent output; outbound webhook, Kafka, and SQS publish a full run envelope instead.
 
 The full list and the modes each one supports:
 
@@ -22,33 +22,33 @@ The full list and the modes each one supports:
 | `webhook` | Inbound / Outbound / Sync | Generic HTTP. Sync = HTTP request/response; Inbound = fire-and-forget; Outbound = call out to your URL. |
 | `websocket` | Sync (real-time chat) | Persistent bidirectional session. |
 
-Common dashboard flow: open the agent's detail page → **+** on Connector Flow → **Create New Connector** → pick a type → configure → save. Some connectors (postgres, MCP server in inbound mode, etc.) can also reach private endpoints via **Connic Bridge** — set the Bridge in the connector config.
+Common dashboard flow: open the agent's detail page → **+** on Connector Flow → **Create New Connector** → pick a type → configure → save. Supported connectors such as Postgres and outbound webhook can also reach private endpoints via **Connic Bridge** — set the Bridge in the connector config. Private MCP servers that an agent consumes use `mcp_servers[].bridge` in agent YAML instead.
 
-Auth on `webhook`, `websocket`, and `mcp` (server-mode) connectors is governed by a **Require Authentication** toggle (default on). When on, callers must present the connector secret as:
+Auth on `webhook`, `websocket`, and `mcp` (server-mode) connectors is governed by a **Require Authentication** toggle (default on). Accepted secret forms differ by transport:
 
-- `X-Connic-Secret: <secret>` header (preferred)
-- `Authorization: Bearer <secret>` header
-- `?secret=<secret>` query parameter (last resort — leaks in logs)
+- **Webhook:** `X-Connic-Secret` header (preferred), `Authorization: Bearer`, or `?secret=` query parameter.
+- **WebSocket:** either header, `?secret=` / `?X-Connic-Secret=` during the handshake, or `{"secret": "..."}` as the first message.
+- **MCP:** `Authorization: Bearer` or `X-Connic-Secret` header; query-string secrets are not accepted.
 
 When off, the connector endpoint is open at the edge and authentication moves to your code — typically a JWT verified in `middleware/<agent>.py::before` (see the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions)). Use this when the inbound payload already carries a stronger per-user credential than a shared static secret would provide; leave the toggle on for the simple service-to-service case.
 
 ### Connectors don't have to fire an LLM
 
-Any inbound connector can be linked to a [tool-type agent](agent-yaml.md#tool-agent) instead of an LLM-type agent. The connector payload is passed straight to your Python function as kwargs — no model in the loop. You still get run logs, retries, judges, and the rest of the platform machinery; you just skip the reasoning step. Use this for non-LLM consumers (Kafka → ingestion, S3 → ETL, webhook → routing) where the work is deterministic and you only want the connector and observability layer.
+Any inbound connector can be linked to a [tool-type agent](agent-yaml.md#tool-agent) instead of an LLM-type agent. The normalized connector payload is passed as one dict to the function's required `payload` parameter, plus `context` when declared — payload keys are never splatted into kwargs. You still get run logs, retries, judges, and the rest of the platform machinery; you just skip the reasoning step. Use this for non-LLM consumers (Kafka → ingestion, S3 → ETL, webhook → routing) where the work is deterministic and you only want the connector and observability layer.
 
 ## cron
 
 Schedule a recurring run.
 
 - **Schedule**: standard cron syntax. **All schedules are evaluated in UTC** — convert local time before configuring. There's no per-connector timezone.
-- **Prompt**: the dashboard takes a single text **prompt** (not arbitrary JSON). That prompt is what the agent receives as input.
-- **Inbound payload shape**: `{"trigger": "cron", "schedule": "<cron expr>", "triggered_at": "<iso>", "prompt": "<your prompt>"}`.
+- **Prompt**: optional single text prompt (not arbitrary JSON). When configured, it is included in every scheduled payload.
+- **Inbound payload shape**: `{"trigger": "cron", "schedule": "<cron expr>", "triggered_at": "<iso>"}`; `prompt` is added only when configured.
 
 ## email
 
 IMAP inbound + SMTP outbound. **You bring your own mailbox credentials** — Connic does not provision an email address. Inbound and outbound are configured as **separate connectors** (different mode), both linked to the same agent.
 
-Inbound config: IMAP server / port / username / password (per env-vars), plus optional filters (unread-only, by sender/subject, mark-as-read).
+Inbound config: IMAP server / port / username / password, mailbox (default `INBOX`), plus optional filters (unread-only, by sender/subject, mark-as-read).
 
 Inbound payload — the keys the agent sees:
 
@@ -66,11 +66,16 @@ Inbound payload — the keys the agent sees:
     {"filename": "...", "content_type": "application/pdf",
      "size_bytes": 12345, "content": "<base64 or text>", "encoding": "base64"}
   ],
-  "_email": { /* connector metadata */ }
+  "_email": {
+    "connector_id": "uuid-here",
+    "mailbox": "INBOX",
+    "uid": "12345",
+    "timestamp": "2026-07-31T10:30:05.123Z"
+  }
 }
 ```
 
-Attachments over 10 MB are listed as metadata only (no content). Field names are `filename`, `content_type`, `content` — not `name`, `mime_type`, `data`.
+Attachments over 10 MB are listed as metadata only (no content). Supported content includes common images, PDF/text/data formats, and DOCX/XLSX/PPTX; tracking pixels, tiny inline/signature images, and unknown formats are filtered out. Field names are `filename`, `content_type`, `content` — not `name`, `mime_type`, `data`.
 
 Outbound: configure SMTP server / port / username / password / From address / From name, and optionally a Default Recipient. The agent's *output* is JSON with `to`, `subject`, `body`, and optional `cc`, `bcc`, `html_body`, `reply_to`. A recipient is required — it comes from the output's `to` or the connector's Default Recipient; with neither, the send fails. `subject` defaults to `"Agent Response"` when omitted. The connector does **not** automatically reply to the inbound sender — your agent must echo the right `to` (or rely on the Default Recipient). A bare (non-JSON) string is sent as the body, so it only delivers when a Default Recipient is configured.
 
@@ -78,9 +83,9 @@ Outbound: configure SMTP server / port / username / password / From address / Fr
 
 Inbound (Consumer) and Outbound (Producer) modes.
 
-- **Connection** (per env-vars): bootstrap servers, SASL credentials, topic name, consumer group (inbound).
+- **Connection**: environment-scoped dashboard fields for bootstrap servers, SASL credentials, topic name, and consumer group (inbound).
 - **Inbound payload**: the parsed message value. Metadata is exposed at `_kafka` inside the payload: `{topic, partition, offset, timestamp, key}` — not in `context`. JSON-object values are dispatched with their top-level fields plus `_kafka`; anything else is wrapped under a `message` key — non-JSON values as `{"message": "<raw text>", "_kafka": ...}`, null values (compaction tombstones) as `{"message": null, "_kafka": ...}`. Tombstones DO trigger runs; use `_kafka.key` to identify the deleted entity.
-- **Outbound**: agent emits a JSON object; the connector publishes it to the configured topic. If the run was triggered by an inbound Kafka message, the inbound message's key is preserved on the outbound for partition ordering.
+- **Outbound**: publishes a run envelope with `run_id`, `agent_name`, `status`, `output`, `error`, `started_at`, `ended_at`, and `token_usage`. If the run was triggered by inbound Kafka, its key is preserved for partition ordering; otherwise the Kafka key falls back to `run_id`.
 - **Outbound delivery gating** (applies to every outbound connector, not just Kafka): only runs that end `completed` are delivered — failed and cancelled runs are skipped. A run ended via `StopProcessing` counts as completed and IS published (the stop message becomes `output`) unless raised with `publish_outbound=False` — see [StopProcessing](tools-and-python.md). Returning `None`/empty output does not suppress delivery.
 
 ## mcp (server mode)
@@ -90,16 +95,17 @@ Exposes Connic agents *as* MCP tools to external clients (Claude Desktop, IDEs, 
 - The connector provisions an MCP endpoint URL.
 - Each agent linked to the connector becomes one MCP tool. The tool name is the agent name lowercased with underscores; the tool description is `"Invoke the <Agent Name> agent"`. The tool input schema is fixed: `{message: string (required), payload: object (optional)}`.
 - Modes: **Sync** (recommended; returns the agent's result as the MCP tool result, 5-minute timeout) or **Inbound** (returns a run ID immediately; this is Connic fire-and-forget behavior, not MCP Tasks).
-- Protocols: the endpoint supports stateless MCP `2026-07-28` with `server/discover`, `tools/list`, and `tools/call`. It preserves prior Streamable HTTP revisions with `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, and `ping`, plus the original HTTP/SSE transport.
+- Protocols: the endpoint supports stateless MCP `2026-07-28` with `server/discover`, `tools/list`, and `tools/call`. It also supports prior Streamable HTTP revisions (`initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `ping`) and the original HTTP/SSE transport.
+- Authentication uses the connector's pre-shared secret in `Authorization: Bearer` or `X-Connic-Secret`; it has no MCP OAuth discovery or interactive authorization flow. Requests with a browser `Origin` header are rejected, so use a native or server-side MCP client.
 
-**Don't confuse this with the `mcp_servers:` block in agent YAML** — that's the opposite direction (Connic agent as MCP *client*, calling external MCP tools). That consuming path uses Streamable HTTP, supports MCP `2026-07-28`, and automatically falls back for legacy servers without changing the `mcp_servers:` configuration.
+**Don't confuse this with the `mcp_servers:` block in agent YAML** — that's the opposite direction (Connic agent as MCP *client*, calling external MCP tools). See [MCP servers](guardrails-schemas-mcp.md#mcp-servers).
 
 ## postgres
 
 **Inbound only**, driven by Postgres `LISTEN/NOTIFY`. The connector subscribes to a channel; each `NOTIFY` becomes one agent run.
 
 - **Config**: host, port, database, user, password, **channel** (the LISTEN channel name), SSL mode, an optional "Parse JSON Payload" flag. Reach private databases via Connic Bridge.
-- **Inbound payload**: whatever was sent in the `NOTIFY` payload (parsed as JSON if the flag is on), plus a `_postgres` metadata block: `{channel, pid, timestamp}`.
+- **Inbound payload**: includes `_postgres: {channel, pid, timestamp}`. With JSON parsing enabled, an object keeps its top-level fields; a list or scalar is wrapped as `{data: <value>, _postgres: ...}`. With parsing off, invalid JSON, or plain text, it is `{message: <text>, _postgres: ...}`.
 - **Payload limit**: Postgres's NOTIFY ceiling is 8000 bytes — design publishers to send a key (e.g. record ID) and have the agent fetch the body via a custom tool.
 
 There are no `postgres.query` / `postgres.fetch_one` tools. To read or write Postgres from inside an agent, write a custom tool with your DB driver of choice (asyncpg, psycopg).
@@ -108,8 +114,9 @@ There are no `postgres.query` / `postgres.fetch_one` tools. To read or write Pos
 
 **Inbound only**, driven by S3 object events. Wire S3 → SNS HTTP subscription → connector URL, **or** S3 → EventBridge → connector URL.
 
-- **Config**: AWS access key + secret (no IAM role assumption documented), region, bucket, optional **prefix/suffix filters**, optional "Include Content" (downloads the object — text decoded as UTF-8, binary as base64), max file size 1–100 MB.
-- **Inbound payload**: `{bucket, key, size, etag, event_name, event_time, content?, _s3: {event_source, aws_region, request_id, source_ip}}`.
+- **Config**: AWS access key + secret (no IAM role assumption documented), region, bucket, event mode (**Object Created** by default, or **All Events** to include deletes/restores), optional **prefix/suffix filters**, optional "Include Content", and max file size 1–100 MB.
+- **Inbound payload**: `{bucket, key, size, etag, event_name, event_time, content?, _s3: {event_source, aws_region, request_id, source_ip}}`. When content is included it is `{text, content_type, size_bytes, encoding}`; UTF-8 text uses `encoding: "utf-8"` and binary uses base64.
+- **SNS / EventBridge setup**: send to `<connector-url>?secret=<secret-key>`. The SNS path verifies AWS signatures, confirms subscriptions, and unwraps notification envelopes; EventBridge uses that authenticated URL as an API Destination.
 
 There are no `s3.get_object` / `s3.put_object` / `s3.list_objects` tools. To upload/list/read from inside an agent, write custom tools using `boto3` / `aioboto3`.
 
@@ -118,10 +125,10 @@ There are no `s3.get_object` / `s3.put_object` / `s3.list_objects` tools. To upl
 Inbound (Consumer) and Outbound (Producer).
 
 - **Inbound config**: queue URL, AWS credentials, **visibility timeout** (default 300 s), **max messages** (1–10, default 10), **wait time** (long-polling, 0–20 s, default 20).
-- **Inbound payload**: the message body (JSON-parsed when possible), plus `_sqs: {message_id, receipt_handle, queue_url, approximate_receive_count, sent_timestamp}`.
+- **Inbound payload**: a JSON object keeps its top-level fields; any non-object body is wrapped under `message`. `_sqs: {message_id, receipt_handle, queue_url, approximate_receive_count, sent_timestamp}` is added in both cases.
 - **IAM**: inbound consumers need `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`; outbound producers need `sqs:SendMessage` and `sqs:GetQueueAttributes`.
-- **Delivery semantics**: successful runs delete the message; failed runs leave it for retry. Connic tracks dispatched runs and extends message visibility while they are still running. FIFO queues are supported via a Message Group ID.
-- **Outbound**: agent emits a JSON object; the connector sends it to the configured queue.
+- **Delivery semantics**: the message is deleted only after **all linked agent runs** succeed; if any fails, it remains for retry. Connic tracks dispatched runs and extends message visibility while they are still running. FIFO queues are supported via a Message Group ID.
+- **Outbound**: sends the same full run envelope as Kafka (`run_id`, `agent_name`, `status`, `output`, `error`, timestamps, and `token_usage`) to the configured queue.
 
 ## stripe
 
@@ -141,16 +148,16 @@ Telegram bot. **Inbound** and **Outbound** are separate connectors (different mo
 
   ```json
   {
-    "update_id": ...,
+    "update_id": 123456789,
     "text": "...",
-    "chat_id": ...,
+    "chat_id": 987654321,
     "message": {
-      "message_id": ..., "text": "...", "date": "...",
-      "chat_id": ..., "chat_type": "private|group|...",
-      "from_id": ..., "from_username": "...",
+      "message_id": 42, "text": "...", "date": 1700000000,
+      "chat_id": 987654321, "chat_type": "private",
+      "from_id": 987654321, "from_username": "johndoe",
       "from_first_name": "...", "from_last_name": "..."
     },
-    "raw": { /* original Telegram update */ }
+    "raw": {"update_id": 123456789}
   }
   ```
 
@@ -168,9 +175,9 @@ The most flexible HTTP connector. Three independent modes — pick the one that 
 | --- | --- |
 | **Sync (Request-Response)** | Caller `POST`s; connector blocks until the agent finishes and returns the result. 5-minute hard timeout. |
 | **Inbound (Fire & Forget)** | Caller `POST`s; connector returns immediately with `{status, dispatched_to, run_ids[]}`. |
-| **Outbound** | The agent's *output* is `POST`ed to a URL you configure (with `X-Connic-Signature` HMAC-SHA256 + `X-Connic-Timestamp` headers). |
+| **Outbound** | The full completed-run envelope is `POST`ed to a URL you configure, with `X-Connic-Signature` and `X-Connic-Timestamp` headers. |
 
-Inbound and Sync also accept `GET` (query params become the payload) and `multipart/form-data` (file uploads up to 10 MB; images, PDFs, Office docs etc. are passed as inline data to the LLM).
+Inbound and Sync also accept `GET` (query params become the payload, with the authentication `secret` stripped), `application/x-www-form-urlencoded`, and `multipart/form-data` (file uploads up to 10 MB; images, PDFs, Office docs etc. are passed as inline data to the LLM).
 
 For multipart, `context["payload"]` is normalised to the same shape `trigger_agent` uses for [passing files](predefined-tools.md#passing-files-to-the-triggered-agent):
 
@@ -225,17 +232,18 @@ Sync response:
 
 The URL itself is provisioned per connector — copy it from the connector's detail drawer in the dashboard. Don't hard-code an assumed URL format.
 
-For sync, the agent's response (string or — if `output_schema` is set — structured object) is what populates `result.output`. For inbound, the response is the dispatch confirmation; the run's output is visible in the dashboard.
+For sync, the agent's response (string or — if `output_schema` is set — structured object) is what populates `result.output`. For inbound, the response is the dispatch confirmation; the run's output is visible in the dashboard. Outbound sends the same run envelope as Kafka and SQS (`run_id`, `agent_name`, `status`, `output`, `error`, timestamps, and `token_usage`). Verify its hex HMAC-SHA256 over `timestamp + "." + raw_body` using the connector signing secret and a constant-time comparison; reject timestamps outside a five-minute window.
 
 ## websocket
 
 A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each connection is a session through which messages flow.
 
 - **Auth**: governed by the same **Require Authentication** toggle as the webhook connector (default on). When on, send `{"secret": "<connector secret>"}` as the first message after connecting, or pass `X-Connic-Secret` as a query param / header during the handshake. When off, the WS endpoint is open and authentication is your responsibility — typically a JWT in the first message that you verify in `middleware/<agent>.py::before`. Turn it off when each connection already carries a stronger per-user credential than a shared secret would provide.
-- **Message protocol**: client sends `{type: "message", id, payload: {message, context}}`. Server replies `ack` → `stream_start` → `stream_chunk` (multiple) → `stream_end` (with `full_response`, `token_usage`) when streaming is on; or a single `response` message when streaming is off. Agents with output guardrails still use the streaming event contract, but send one `stream_chunk` after the run completes so guardrails can inspect the full response before any text is released.
+- **Message protocol**: client sends the canonical `{type: "message", id?, payload: {message, context}}` envelope; shorthand `{"message": "..."}` and `{"content": "..."}` forms are also accepted. Server replies `ack` → `stream_start` → `stream_chunk` (multiple) → `stream_end` (with `full_response`, `token_usage`) when streaming is on; or a single `response` message when streaming is off. Agents with output guardrails still use the streaming event contract, but send one `stream_chunk` after the run completes so guardrails can inspect the full response before any text is released.
 - **Files / multimodal**: the payload may carry a top-level `files` array in the same shape as the [webhook multipart normalization](#webhook) (`{name, mime_type, data: "<base64>", size}`); each entry becomes a binary part of the LLM-facing `content` automatically. Unlike webhook multipart, this path has no server-side MIME allowlist or per-file size cap — files go straight to the model (provider limits apply), so validate in `before` if you need to reject uploads.
 - **Config**: streaming toggle, session timeout (default 1 h), max messages per session (default 100).
 - **`connector_run_id`** is returned on connect and identifies the session.
+- Conversation history persists only for that connection; closing it ends the session.
 
 ## Linking one connector to multiple agents
 
@@ -246,6 +254,6 @@ All agents linked to a single connector are triggered in parallel for each event
 When a connector fires, the inbound event reaches `middleware/<agent>.py::before(content, context)` in two forms:
 
 - **`content`** — the LLM-facing message: a dict with `role: "user"` and a list of `parts` (text and/or binary attachments). This is what the agent reasons over. Mutate it to attach documents, prepend context, redact PII.
-- **`context["payload"]`** — the **raw, untransformed connector payload**: the JSON body of a webhook, GET query params, the parsed Kafka message, the email metadata, etc. Read it for auth tokens, identity claims, routing metadata, and anything else you want middleware to see but the LLM should not.
+- **`context["payload"]`** — the connector's normalized payload before user middleware transforms it: the JSON body of a webhook, GET query params, normalized multipart fields/files, parsed Kafka message plus metadata, email fields, etc. Read it for auth tokens, identity claims, routing metadata, and anything else you want middleware to see but the LLM should not.
 
 Per-connector payload shapes are documented in the sections above. If you need a stable schema across multiple connectors, normalize in middleware before tools see it. The auth-token-in-payload pattern is the most common reason to reach for `context["payload"]` — see [the end-user authentication walkthrough](tools-and-python.md#end-user-authentication-and-per-run-permissions).

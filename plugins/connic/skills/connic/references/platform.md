@@ -6,34 +6,41 @@ The dashboard at `connic.co` is where projects, environments, deployments, and o
 
 The top-level container in Connic. Every dashboard URL is scoped to a project. **Always call it a "project", never "workspace".**
 
-A project has: a set of environments, its own Project credit, its own API keys, its own connectors, its own Git connection, and its own team membership. Retrieval and the database are **per-environment**, not per-project (so staging and production have separate data).
+A project has a set of environments, Project credit, API keys, connectors, optional Git connection, and team membership. Retrieval and the database are **per-environment**, not per-project (so staging and production have separate data).
 
 ## Models
 
-Every deployed Project supports two equal model paths:
+Deployed Projects support two model paths:
 
-- **Connic-managed:** use an exact `connic/*` ID from the [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). No separate provider credentials are needed. Inference runs in the EU and token usage draws from Project credit at the published catalog rate.
-- **BYOK:** configure provider credentials under **Project Settings → Model providers** and use that provider's prefix and model ID. The selected provider processes and bills the model call.
+- **Connic-managed:** use an exact `connic/*` ID from the [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). Models run in the EU and use Project credit at catalog rates; no separate provider credentials are needed.
+- **BYOK:** configure credentials under **Project Settings** and use the provider's prefix and model ID. The provider processes and bills the call.
 
-Either path can be the primary or fallback model. Never invent a `connic/*` alias or infer an ID from the upstream model name.
+Either can be the primary or fallback model. Never invent a `connic/*` alias or infer an ID from the upstream model name.
+
+For managed inference:
+
+- A `-fast` ID is an explicit latency-optimized profile that may use quantization and narrower reasoning, context, or modality limits. Treat switching IDs as a model change and re-run tests.
+- Connic can route the same catalog ID across eligible EU providers without changing model identity. Safe route failures may move to other capacity; an uncertain outcome is never replayed. A definitive fallback-eligible failure switches immediately to `fallback_model`, and the run records `context.fallback_model_used`.
+- Every `connic/*` call stays on EU inference capacity and is not used for model training. Catalog warning labels identify non-EU-native upstream providers or a provider's 30-day retention policy; those labels do not change the EU inference location.
+- A managed request cancelled by the run timeout or a manual stop settles at zero tokens and releases its reserved Project credit.
 
 ## Environments
 
-Each project has multiple environments (e.g. `staging`, `production`), plus a separate pool of **dev environments** that back `connic dev` sessions. Environments are fully isolated:
+Every project starts with one default environment and can have more standard environments according to its tier, plus a separate pool of **dev environments** that back `connic dev` sessions. Environments are fully isolated:
 
 - Separate environment variables / secrets.
 - Separate connector configurations.
 - Separate database and Retrieval data.
 - Separate run history.
 
-Configure under **Project Settings → Git & Environments**. Map a Git branch to each environment for auto-deploy on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
+Configure under **Project Settings → Git & Environments**. Variable keys must be uppercase; sensitive values can be marked **Sensitive**, and the raw editor accepts `KEY=VALUE` lines. Map a Git branch to each environment for auto-deploy on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
 
 ## Deployment
 
 Two paths:
 
-1. **Git-connected (preferred).** Configure a GitHub/GitLab/Bitbucket repo in **Project Settings → Git & Environments**. Each branch can map to one environment. Pushing runs a three-step pipeline: **Build → Tests → Deploy**. A failing test blocks promotion; git-triggered deploys cannot skip tests.
-2. **CLI.** `connic deploy --env=<env-uuid>` from a directory with a valid `.connic`. The `--env` value is an environment UUID, not the human name. `connic deploy` refuses to run if the project has a Git connection — Git is single-source-of-truth in that case. `--skip-tests` is available as a breaking-glass option for non-Git deploys.
+1. **Git-connected (preferred).** Configure a GitHub/GitLab/Bitbucket repo in **Project Settings → Git & Environments**. For a monorepo, set **Repository root directory** to the relative path containing the Connic project. Each branch can map to one environment. Pushing runs a three-step pipeline: **Build → Tests → Deploy**. A failing test blocks promotion; git-triggered deploys cannot skip tests.
+2. **CLI.** `connic deploy` from a directory with a valid `.connic` targets the default environment; `connic deploy --env=<env-uuid>` overrides it. The `--env` value is an environment UUID, not the human name. `connic deploy` refuses to run if the project has a Git connection — Git is single-source-of-truth in that case. `--skip-tests` is available as a breaking-glass option for non-Git deploys.
 
 GitLab.com accounts connect with OAuth. For Self-Managed GitLab, first add the public HTTPS instance under **Account → Git Accounts** with a personal access token that has the `api` scope, then select that account when connecting the project repository. The GitLab user must be an administrator or have the Maintainer or Owner role on each repository so Connic can manage its webhook.
 
@@ -58,7 +65,7 @@ PR Testing is supported on GitHub and GitLab.
 
 ## Observability
 
-**Dashboard → Logs** and **Dashboard → Runs** show every agent invocation:
+**Project → Agent Runs** lists executions; **Project → Logs** aggregates captured custom-code log lines across runs. Run details connect the two:
 
 - Inputs, outputs, every tool call with args and result.
 - Captured `print()` and `logging` calls. Python logger names must start with `tools.`, `middleware.`, `hooks.`, or `guardrails.` — the dashboard surfaces them as "Tool", "Middleware" (tagged `before`/`after`), "Hook", or "Guardrail" entries.
@@ -66,23 +73,29 @@ PR Testing is supported on GitHub and GitLab.
 - Reasoning traces (whenever the provider returns them; controlled by `reasoning_effort` on the agent).
 - Unhandled exceptions are captured automatically with their tracebacks.
 
-There's a 500-log-lines-per-run cap. Logs view filters include Status, Date Range, Deployment, and Search.
+There's a 500-log-lines-per-run cap. Agent Runs filters include Status, Date Range, Deployment, and Search; Logs can be filtered and searched across captured lines.
 
-Token Usage shows USD model-cost estimates based on Project pricing rules. For `connic/*`, the authoritative EUR charge uses the published catalog rate and appears in Project Billing. For BYOK, the selected provider's bill remains authoritative.
+A run detail includes the raw/formatted input, output, final context, error, parent/connector metadata, token breakdown, duration, and a hierarchical trace. Span types cover logical LLM steps, physical provider calls and retries, local tools, MCP tools, middleware, sequential steps, and the root run/loop. **Run Again** replays the same agent/input after a fix; queued or running executions can be cancelled.
+
+The **Observability** tab also supports multiple drag-and-drop dashboards. Widgets include stat cards, area and bar charts, recent-log lists, and shared text/select inputs; select options can come from Database collections. Dashboards have global date ranges, per-widget agent/connector filters, shared variables, and optional 10-second refresh. An agent's detail page has its own run statistics, status breakdown, configuration, filtered history, and manual trigger.
+
+Run filters and dashboard widgets use safe expressions over `context.*`, `input.*`, and `output.*`. Log and audit drains use the same grammar with `entry.*` bound to the candidate entry; unknown roots, calls, arithmetic, assignments, and private attributes are rejected, and expressions are capped at 2,000 characters.
+
+Token Usage reports `connic/*` costs in EUR. BYOK usage retains the USD or EUR currency configured for that model; different currencies are displayed separately and never converted or combined. Project Billing records the authoritative Project-credit debit for managed inference, while the BYOK provider's bill remains authoritative for its calls.
 
 ## Retrieval
 
 **Managed semantic retrieval** for each environment. Used via the predefined tools `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces` (see [predefined-tools.md](predefined-tools.md)).
 
-Dashboard view: **Project → Retrieval** (scoped to the active environment). Inspect entries, edit content, drop namespaces, bulk-import via CSV or file upload.
+Dashboard view: **Project → Retrieval** (scoped to the active environment). Upload content, inspect and filter indexed entries, run semantic Search, delete entries, and monitor ingestion jobs. Content updates use another upload/store with the same namespace-local entry ID.
 
-Namespaces are **dot-separated**, hierarchical, max depth 10 — e.g. `policies.hr.leave`, `products.pricing`. Don't use slashes. Ingestion is asynchronous: `retrieval_store` returns a job ID and entries only become searchable once indexing completes.
+Namespaces are **dot-separated**, hierarchical, max depth 10 — e.g. `policies.hr.leave`, `products.pricing`. Don't use slashes. Searching a namespace includes all descendants. Ingestion is asynchronous: `retrieval_store` returns a job ID and entries only become searchable once indexing completes.
 
 ## Database
 
-**Per-environment** schemaless document store. Used via `db_find` / `db_insert` / `db_update` / `db_delete` / `db_count` (see [predefined-tools.md](predefined-tools.md)).
+**Per-environment** schemaless document store. Used via `db_find` (including distinct-value queries), `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, and `db_list_collections` (see [predefined-tools.md](predefined-tools.md)).
 
-Dashboard view: **Project → Database**. Browse collections, run ad-hoc queries, inspect documents, export.
+Dashboard view: **Project → Database**. Browse documents with filter/sort controls, generate filters and sorting from plain language, insert documents manually, inspect inferred schemas and fill rates, and create or delete collections.
 
 Production data is never visible from staging.
 
@@ -93,18 +106,19 @@ Automated evaluators that score runs after the fact (correctness, helpfulness, s
 - Judges are **per-agent only** — set one up against the specific agent you want graded.
 - Judges can use an exact `connic/*` model or any BYOK provider configured for the Project.
 - Triggers: automatic on every run, automatic on a sample (configurable rate), or manual.
-- Filter expressions over `context.*` let you grade only matching runs.
-- Score-alert thresholds with a rolling window send notifications when quality drops.
+- Filter expressions over `input.*`, `output.*`, and `context.*` let you grade only matching runs. The judge receives the full run, including input, output, context, tool calls, and trace; its overall score is the sum of independently scored criteria.
+- Each completed judge evaluation consumes one additional Project-credit run unit; a failed evaluation consumes zero judge run units.
+- Score alerts use a configurable rolling window (last 10 completed evaluations by default) and fire only when the average crosses from at/above the threshold to below it. They can fire again after recovery and a later drop.
 
 ## Approvals
 
-Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (`approval:` block — see [agent-yaml.md](agent-yaml.md)). When an agent hits a gated tool, the run pauses and appears in **Project → Approvals**. A reviewer approves or rejects; the run resumes (or fails / skips the tool depending on `on_rejection`). Conditions on `param.*` and `context.*` let you gate only some calls. An approval webhook can POST decisions to your own endpoint.
+Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (`approval:` block — see [agent-yaml.md](agent-yaml.md)). When an agent hits a gated tool, the run pauses and appears in **Project → Approvals**. A reviewer approves or rejects; the run resumes (or fails / skips the tool depending on `on_rejection`). Conditions on `param.*` and `context.*` let you gate only some calls; an evaluation error requires approval. All project members receive email and in-app notifications by default; notification settings select member recipients and can also route to Slack, Microsoft Teams, PagerDuty, or a signed webhook. Multiple gated calls create separate pause/resume cycles; each resume loads the full conversation history without re-executing previously approved tools. Decisions are submitted in Connic or through the REST API, and are recorded in both the audit log and run trace — notification webhooks do not decide approvals.
 
 ## Bridge
 
-A tunnel from Connic's cloud to a private network (your VPC, on-prem services). Provision a Bridge under **Project Settings → Bridge**, install the Bridge agent on a machine inside your network. The Bridge ID can then be referenced from four kinds of consumer:
+A tunnel from Connic's cloud to a private network (your VPC, on-prem services). Provision a Bridge under **Project Settings → Bridge**, copy its token when it is shown once, then install the Bridge agent on a machine inside your network. The agent requires `BRIDGE_TOKEN` and a comma-separated `ALLOWED_HOSTS`; optional settings are `RELAY_URL` (default `wss://relay.connic.co`) and `LOG_LEVEL` (default `INFO`). The Bridge ID can then be referenced from four kinds of consumer:
 
-1. **Connectors** — pick the Bridge in the connector config dropdown.
+1. **Connectors** — pick the Bridge in the connector config dropdown. Bridge-capable types are Kafka and SQS (both directions), Postgres, email (both directions), S3 file downloads, and outbound webhook callbacks.
 2. **Custom LLM providers** — pick the Bridge in the provider config.
 3. **Custom tools / middleware / hooks / guardrails** — reach private endpoints via the magic hostname `<target>.cnc-bridge-<bridge_id>` from inside your Python code.
 4. **MCP servers** — set the `bridge:` field on the `mcp_servers` entry.
@@ -118,16 +132,13 @@ mcp_servers:
 
 ```python
 # From a custom tool reaching a private internal API
+import os
 import httpx
 url = f"https://api.internal.cnc-bridge-{os.environ['INTERNAL_BRIDGE_ID']}/users"
 r = await httpx.AsyncClient().get(url)
 ```
 
-For protocols that discover another endpoint at runtime (for example Redis
-Sentinel returning its current master), configure automatic destination routes
-under **Project Settings → Bridge** or with the authenticated
-`GET/PUT /v1/projects/{project_id}/bridges/{bridge_id}/routes` API, which
-requires `read` for GET or `write` for PUT in the API key's `bridges` section:
+For protocols that discover endpoints at runtime, such as Redis Sentinel, configure automatic destination routes under **Project Settings → Bridge** or with `GET/PUT /v1/projects/{project_id}/bridges/{bridge_id}/routes`. The API key's `bridges` section needs `read` for GET or `write` for PUT:
 
 ```json
 {
@@ -138,19 +149,12 @@ requires `read` for GET or `write` for PUT in the API key's `bridges` section:
 }
 ```
 
-- A bridge supports up to 32 routes, with 256 routes total across a project.
-  Every route matches a hostname/IP and one required TCP port.
-- Regex routes must use the safe anchored `^...$` subset. Do not use groups,
-  lookarounds, backreferences, alternation, braces, unescaped dots, or broad
-  `.*` patterns. A regex may contain at most one quantified character class,
-  such as `[a-z0-9-]+`.
-- Precedence is explicit magic hostname, exact route, then regex route. Matches
-  across distinct bridge IDs fail closed.
-- A route selects a tunnel but does not grant access. The bridge agent's exact
-  `ALLOWED_HOSTS` must include the Sentinel and every possible master, such as
-  `redis-sentinel.internal:26379,redis-1.internal:6379,redis-2.internal:6379`.
-- Custom native resolvers and later background-thread connections are not
-  auto-routed; use `<target>.cnc-bridge-<bridge_id>` for those connections.
+- A bridge supports up to 32 routes, with 256 routes total across a project. Each route matches one hostname or IP and one TCP port.
+- Regex routes use the safe anchored `^...$` subset. They cannot contain groups, lookarounds, backreferences, alternation, braces, unescaped dots, or broad `.*` patterns, and may contain at most one quantified character class such as `[a-z0-9-]+`.
+- Resolution order is explicit magic hostname, exact route, then regex route. Matches across distinct bridge IDs fail closed.
+- A route selects a tunnel but does not grant access. The bridge agent's exact `ALLOWED_HOSTS` must include the Sentinel and every possible master, such as `redis-sentinel.internal:26379,redis-1.internal:6379,redis-2.internal:6379`.
+- Automatic routes preserve the original hostname for TLS verification. With an explicit magic hostname, set SNI / `server_hostname` to the real target when the client verifies certificates.
+- Custom resolvers and connections opened later from background threads are not auto-routed; use `<target>.cnc-bridge-<bridge_id>` for those connections.
 
 ## Domains
 
@@ -158,7 +162,7 @@ Serve connector URLs from a subdomain you own while Connic handles TLS. The conn
 
 Add the domain under **Project Settings → Domains**. Apex domains and wildcards are unsupported; use an ASCII subdomain or punycode for an internationalized name. Configure the provided CNAME to `connect.connic.co` and TXT ownership record. DNS propagation can take up to an hour.
 
-Choose the domain in a connector's create or edit dialog. No redeploy or URL rotation is required, and the default `connect.connic.co` URL remains active. Domains are project-scoped and can serve connectors in any project environment. Deleting a domain returns its connectors to the default host; callers using the removed hostname receive 404 responses.
+Choose the domain in a connector's create or edit dialog. No redeploy or URL rotation is required, and the default `connect.connic.co` URL remains active. Domains are project-scoped and can serve connectors in any project environment. Deleting a domain returns its connectors to the default host; callers using the removed hostname receive 404 responses. A downgrade below Pro also makes custom hosts return 404 while default URLs keep working. Domain changes require the corresponding project action permission and are audit-logged.
 
 ## Team
 
@@ -180,19 +184,21 @@ The immutable audit log under **Project Settings → Audit Log** records the act
 
 ## Usage
 
-**Project → Usage** breaks down model-token analytics and run counts by agent, environment, and period. Its USD model-cost estimates power model-cost limits, alerts, anomaly detection, and scheduled reports; these are separate from the EUR Project credit balance.
+**Project → Token Usage** breaks down model-token analytics and run counts by agent, environment, and period. Managed `connic/*` token cost is shown in EUR; BYOK uses its configured USD or EUR currency, and currencies are never converted or combined. These analytics power model-cost limits, alerts, anomaly detection, and scheduled reports and remain separate from the Project-credit ledger.
 
-**Project → Billing** shows the complete Project credit balance and consumption across runs, compute, storage, retrieval, and `connic/*` model tokens. Standard Projects receive monthly plan credit and can add purchased credit manually or through capped auto-refill. New prepaid usage stops when available credit is insufficient. Approved Enterprise Projects can use monthly postpaid billing. Stripe handles payments, receipts, and invoices.
+Token-cost **alerts** notify without stopping runs; **limits** hold affected new runs. Either can be global, environment-scoped, or agent-scoped and reset daily at midnight UTC or monthly on the first. Held runs are released when the limit is disabled/deleted, raised above current spend, or its period resets. Optional anomaly detection compares each completed run with that agent's 30-day rolling average (default threshold `3x`, minimum five completed runs). Weekly reports arrive Monday at 09:00 UTC for the prior seven days; monthly reports arrive on the first at 09:00 UTC for the prior month.
 
-Architectural recommendations in this skill should be made on the basis of fit, reliability, and maintainability — not cost. Use the dashboard's usage and budget tools to manage spend separately from design decisions.
+**Project → Billing** shows the Project credit balance and consumption across runs, compute, storage, retrieval, and `connic/*` model tokens. Basic includes a one-time plan credit; Developer and Pro include monthly credit. Standard Projects can buy credit or configure capped auto-refill. Prepaid usage stops when credit is insufficient. Approved Enterprise Projects can use monthly postpaid billing. Stripe handles payments, receipts, and invoices.
+
+Architectural recommendations should start with fit, reliability, and maintainability, then compare cost and latency among choices that meet those requirements. Use the dashboard's usage and budget tools to manage spend and make the tradeoff explicit.
 
 ## REST API
 
-`https://api.connic.co/v1/...`. Auth via API key (create under **Project Settings → CLI / API Keys**). Rate limit: 60 requests/minute per project — 429 responses include `Retry-After`.
+`https://api.connic.co/v1/...`. Create a project-scoped API key under **Project Settings → CLI / API Keys** and send `Authorization: Bearer cnc_...`; the secret is shown only once. Full Access is the default, or grant per-section `read`, `write`, or the all-sections `*` scope. Team permissions and API-key permissions are independent. All keys for a project share one 60-requests/minute bucket; 429 responses include `Retry-After`. Standard errors use a JSON `{ "detail": "..." }` body.
 
 The REST API is for **managing and observing a project**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing Retrieval entries, approvals, and judges. Its `POST .../agents/{name}/trigger` endpoint exists only for first-party testing, not for wiring up agent runs.
 
-To run an agent in response to an HTTP request, queue message, email, schedule, or call from a backend, use the matching connector. Connectors provide per-agent URLs, signing secrets, sync/async modes, and replay safety.
+To run an agent in response to an HTTP request, queue message, email, schedule, or call from a backend, use the matching connector. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics. Do not assume generic replay protection: apply idempotency in project code where the source can redeliver.
 
 For the full endpoint catalogue and per-section permission scopes, fetch `https://connic.co/docs/v1/reference/rest-api`.
 
@@ -206,7 +212,7 @@ For the full endpoint catalogue and per-section permission scopes, fetch `https:
 | JSON output schemas | On-disk (`schemas/`) |
 | Declarative tests | On-disk (`tests/`) |
 | Environment variables / secrets | Dashboard (per environment) |
-| BYOK model-provider credentials | Dashboard (Project Settings → Model providers) |
+| BYOK model-provider credentials | Dashboard (Project Settings) |
 | Project credit, top-ups, auto-refill, and Stripe documents | Dashboard (Project → Billing) |
 | Connector configuration | Dashboard (linked to agents) |
 | API spec imports | Dashboard |

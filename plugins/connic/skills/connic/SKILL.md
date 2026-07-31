@@ -1,11 +1,11 @@
 ---
 name: connic
-description: Use when the user works in a Connic project or asks about Connic agents, connic/* or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger inside an evident Connic project—an `agents/` directory beside `tools/` and `middleware/`—even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
+description: Use when the user works in a Connic project or asks about Connic agents, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
 ---
 
 # Connic
 
-Connic is a code-first platform for building, testing, and deploying AI agents. Agents are defined declaratively in YAML, extended with Python (tools, middleware, hooks, guardrails), and run on Connic's managed cloud. Every deployed Project can use EU-hosted `connic/*` models or configured BYOK providers. The CLI is `connic` (from the `connic-composer-sdk` package). Public docs live at https://connic.co/docs/v1.
+Connic is a code-first platform for building, testing, and deploying AI agents. Agents are defined declaratively in YAML, extended with Python (tools, middleware, hooks, guardrails), and run on Connic's managed cloud. The CLI is `connic` (from the `connic-composer-sdk` package). Public docs live at https://connic.co/docs/v1.
 
 ## When and how to use this skill
 
@@ -30,7 +30,7 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [cli-and-dev.md](references/cli-and-dev.md) | The `connic` CLI, `connic dev` hot-reload, `connic test` declarative test suites, `connic lint`, `connic migrate` |
 | [ab-testing.md](references/ab-testing.md) | A/B test variants, Confidence and Exploratory modes, traffic assignment, safety rules, results, and lifecycle |
 | [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
-| [platform.md](references/platform.md) | Dashboard concepts: models, Project credit and billing, environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
+| [platform.md](references/platform.md) | Dashboard concepts: models, billing, environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
 
 For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed.
 
@@ -60,15 +60,15 @@ Discovery rules to keep in mind:
 
 ## Common workflows
 
-**Adding a new agent.** Create `agents/<name>.yaml` with `version: "1.0"`, `name`, `model`, `description`, `system_prompt`, and `tools`. Run `connic lint` to validate, then `connic dev` to iterate. See [agent-yaml.md](references/agent-yaml.md).
+**Adding a new agent.** Create `agents/<name>.yaml` with `version: "1.0"`, `name`, and `description`, then add the fields its type requires: `model` and `system_prompt` for an LLM agent, `agents` for a sequential agent, or `tool_name` for a tool agent. `tools` is optional and only applies to LLM agents. Run `connic lint` to validate, then use the user's existing development workflow to iterate. See [agent-yaml.md](references/agent-yaml.md).
 
 **Adding a new tool.** Create the function in `tools/<module>.py` with type hints and a docstring (the LLM uses the docstring to decide when to call it). Reference it in an agent's `tools:` list. See [tools-and-python.md](references/tools-and-python.md).
 
-**Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, and `cron` for schedules. Connectors provide per-agent URLs, secrets, sync/async modes, and replay safety. The REST `/trigger` endpoint is for first-party testing, not wiring up agent runs. See [connectors.md](references/connectors.md). Only the eleven connectors listed there exist — there is no native Slack, Discord, or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
+**Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, and `cron` for schedules. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics; do not assume generic deduplication or replay protection. The REST `/trigger` endpoint is for first-party testing, not wiring up agent runs. See [connectors.md](references/connectors.md). Only the eleven connectors listed there exist — there is no native Slack, Discord, or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
 
-**Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. The connector payload is passed as kwargs into a single Python function — no model in the loop, no reasoning step, but still a full run in the dashboard with logs, retries, and judges. This is the right shape for Kafka consumers that just ingest, S3 events that just transform, webhooks that just route, etc. See the [tool-agent section](references/agent-yaml.md#tool-agent).
+**Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. The runtime passes one normalized dict to the tool's required `payload` parameter, plus `context` when declared — it never splats payload keys into separate arguments. There is no model or reasoning step, but the run still has logs, retries, and judges. This is the right shape for Kafka consumers that just ingest, S3 events that just transform, webhooks that just route, etc. See the [tool-agent section](references/agent-yaml.md#tool-agent).
 
-**Deploying.** If the project is Git-connected, push to the branch mapped to the target environment — that's the only deploy path; `connic deploy` refuses to run on Git-connected projects. For non-Git projects, `connic deploy --env=<environment-uuid>` is the CLI path. Tests in `tests/` gate the deploy in both cases (Git deploys cannot skip; CLI deploys can with `--skip-tests`). See [cli-and-dev.md](references/cli-and-dev.md) and [platform.md](references/platform.md).
+**Deploying.** If the project is Git-connected, push to the branch mapped to the target environment — that's the only deploy path; `connic deploy` refuses to run on Git-connected projects. For non-Git projects, bare `connic deploy` targets the default environment and `--env=<environment-uuid>` overrides it. Tests in `tests/` gate the deploy in both cases (Git deploys cannot skip; CLI deploys can with `--skip-tests`). See [cli-and-dev.md](references/cli-and-dev.md) and [platform.md](references/platform.md).
 
 **Migrating from LangChain or Google ADK.** `connic migrate` scans an existing project and generates a Connic project skeleton. See [cli-and-dev.md](references/cli-and-dev.md).
 
@@ -141,14 +141,18 @@ guardrails:
   input:
     - type: prompt_injection
       mode: block
+    - type: pii
+      mode: redact
   output:
+    - type: moderation
+      mode: block
     - type: system_prompt_leakage
       mode: block
 ```
 
-For anything user-facing, add `pii` (input, mode `redact`) and `moderation` (output, mode `block`). For anything with tight topical scope, add `topic_restriction` (input). For internal-tool agents that should never reveal their internals, `system_prompt_leakage` is non-negotiable.
+This is the documented production baseline: prompt-injection detection plus PII redaction on input, and moderation plus system-prompt-leakage protection on output. For anything with tight topical scope, add `topic_restriction` (input).
 
-If the user is sketching a new agent, propose the guardrails in the same edit — don't wait to be asked. See [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) for the full type list and modes.
+If the user is sketching a new LLM agent, propose the guardrails in the same edit — don't wait to be asked. Tool agents have no LLM boundary; validate their payload and side effects in Python instead. See [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) for the full type list and modes.
 
 ### 3. Tests gate deployment — write them when you write the agent
 
@@ -160,7 +164,7 @@ When you create or substantially change an agent, add or update a matching `test
 - A negative case (input the agent should refuse or escalate).
 - For each gated tool, an `expected_no_tool_calls` case proving it isn't called for benign inputs, and an `expected_tool_calls` case proving it *is* called when appropriate.
 
-Set `runs >= 3` and a `success_threshold` of `80-100` so that flaky LLM behaviour doesn't pass by accident.
+Keep the deterministic default of `runs: 1` and `success_threshold: 100`. For genuinely stochastic behavior, raise `runs` (commonly 3–5) and lower the threshold only as far as the product's acceptable pass rate.
 
 To test an agent's reasoning without selected custom code really running, add a `tests/mocks/<name>.py` module and point a case at it with `mocks:`. Tool results use hierarchical `mock_*` functions (`mock_data_customer_add_customer` → `mock_data_customer` → `mock_data` → `mock`, most specific wins), each called as `mock(tool_name, params, context)`. Predefined and `api:` tool implementations always run for real.
 
@@ -176,7 +180,7 @@ See [cli-and-dev.md](references/cli-and-dev.md#connic-test) for the test YAML sc
 
 ### 5. Lock down `temperature` and `output_schema` when the consumer is code
 
-If the agent's response is parsed by code downstream, set `temperature: 0` *and* an `output_schema`. The two together give you deterministic, structured output. Free-form prose with `temperature: 0.7` is fine for chat UIs and useless for pipelines.
+If the agent's response is parsed by code downstream, set `temperature: 0` *and* an `output_schema`. The two together make output more repeatable and structurally validated; they do not make model behavior mathematically deterministic. Free-form prose with a higher temperature is appropriate for chat UIs, not brittle machine-parsed pipelines.
 
 ### 6. Don't ship secrets in `.connic` or commit it
 
@@ -186,17 +190,17 @@ If the agent's response is parsed by code downstream, set `temperature: 0` *and*
 
 The linter catches missing tools, unresolved schemas, broken middleware imports, and duplicate agent names *locally* in under a second. Run it after any edit, definitely before `connic deploy` or a `git push`.
 
-### 8. Recommend on fit, not cost
+### 8. Recommend on fit first
 
-When you suggest an architecture, evaluate options on **fit, reliability, and maintainability** — does the shape match the actual data flow, will it stay correct under retries and concurrency, is it easy to evolve. Do not factor LLM-call pricing into design recommendations. Spend is managed separately in the dashboard with budgets and alerts; an extra LLM call is not a reason to abandon a design that otherwise fits. If a pattern (e.g. mirroring data via routing agents, fanning out via judges) matches the system's needs, recommend it — let the user decide whether to economise.
+When you suggest an architecture, evaluate **fit, reliability, and maintainability** first — does the shape match the actual data flow, will it stay correct under retries and concurrency, is it easy to evolve. Then compare latency and Project-credit or provider cost among options that meet those requirements. For example, model-backed guardrails such as topic restriction and relevance can use a smaller suitable model. Do not sacrifice correctness merely to remove an LLM call; surface the tradeoff so the user can decide.
 
 ## Things to avoid
 
 - **Don't invent connectors.** The exhaustive list is in [connectors.md](references/connectors.md). If a user asks "how do I connect Slack?", say there's no native Slack connector — they can use a generic webhook, a custom MCP server, or a custom tool.
-- **Don't invent model IDs or assume BYOK is required.** Every deployed Project supports exact `connic/*` catalog IDs without a separate provider key, and BYOK remains an equal option. Check the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models) before selecting a managed model.
+- **Don't invent model IDs.** Select managed models from the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). `connic/*` models need no provider key; BYOK model IDs must be supported by the configured provider.
 - **Don't wire event-driven agent runs through the REST API.** Use the connector matching the transport. The REST `/trigger` endpoint is only for first-party testing.
 - **Don't invent CLI commands or flags.** Check [cli-and-dev.md](references/cli-and-dev.md). There is no `connic build`, `connic run`, `connic logs`, no `--json` flag on `lint`, no `--grep` flag on `test` (it's `--filter`), no `--message` on `deploy`, no `--env` on `dev`.
-- **Don't invent test assertions.** The only top-level assertions in `tests/*.yaml` are `expected_result` (a sandboxed expression with `output`, `error`, `status`, `context` bindings — `status` is `"completed"`, `"failed"`, `"cancelled"`, `"blocked"`, or `"awaiting_approval"`), `expected_tool_calls`, `expected_no_tool_calls`, and `expected_child_agents` (a map keyed by triggered agent name; each entry can carry `expected_payload`, `expected_result`, `expected_tool_calls`, `expected_no_tool_calls`, `expected_triggered`, and its own nested `expected_child_agents` — see [cli-and-dev.md](references/cli-and-dev.md#asserting-on-triggered-agents)). There is no `expected_output_contains` or `expected_output_matches`. (`mocks`, the four independent `strict_*_mocks` flags, `approval_decisions`, and `strict_approval_decisions` are valid execution controls, not assertions. See [Mocking tools](references/cli-and-dev.md#mocking-tools) and [Testing approvals](references/cli-and-dev.md#testing-approvals-hitl).)
+- **Don't invent test assertions.** The only top-level assertions in `tests/*.yaml` are `expected_result` (a sandboxed expression with `output`, `error`, `status`, `context` bindings — `status` is `"completed"`, `"failed"`, `"cancelled"`, `"blocked"`, or `"awaiting_approval"`), `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, and `expected_child_agents` (a map keyed by triggered agent name; each entry can carry `expected_payload`, `expected_result`, `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, `expected_triggered`, and its own nested `expected_child_agents` — see [cli-and-dev.md](references/cli-and-dev.md#asserting-on-triggered-agents)). There is no `expected_output_contains` or `expected_output_matches`. (`mocks`, the four independent `strict_*_mocks` flags, `approval_decisions`, and `strict_approval_decisions` are valid execution controls, not assertions. See [Mocking tools](references/cli-and-dev.md#mocking-tools) and [Testing approvals](references/cli-and-dev.md#testing-approvals-hitl).)
 - **Don't put function calls, lambdas, imports, or comprehensions in `expected_result`.** It's not real Python — it's a tight AST evaluator that allows only boolean ops, comparisons, subscripts, attribute access, and literals. `output.strip()`, `json.loads(...)`, `len(...)`, `re.search(...)`, `lambda ...`, `__import__(...)` all fail at parse time. For anything that needs to parse the output, normalize it, or check derived properties, write a **builder `cleanup`** function — it's ordinary Python, gets the full `run` dict, and can raise to fail the case. See [cli-and-dev.md](references/cli-and-dev.md#what-expected_result-can-and-cannot-do).
 - **Don't invent connector tools.** There are no `s3.get_object`, `postgres.query`, `telegram.send_message`, etc. predefined tools. The Postgres and S3 connectors are inbound-only triggers; for outbound calls write custom tools using your own libraries (asyncpg, boto3, httpx).
 - **Don't use `api:` prefix for MCP tools.** MCP tools from `mcp_servers:` are auto-loaded — they don't go in the agent's `tools:` list at all. The `api:` prefix is only for tools from API spec imports.

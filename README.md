@@ -2,9 +2,19 @@
 
 A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, the composer SDK, and the platform.
 
-This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: Claude Code, Cursor, Codex CLI, GitHub Copilot, Windsurf, Gemini, and others. The same `skills/connic/` directory is the source of truth for all distribution channels below.
+This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: Claude Code, Cursor, Codex CLI, GitHub Copilot, Windsurf, Gemini, and others. The same `plugins/connic/skills/connic/` directory is the source of truth for all distribution channels below.
 
 ## Install
+
+### Existing Connic project
+
+If the Composer SDK is installed, run this from the project root:
+
+```bash
+connic skill
+```
+
+This installs or updates the skill under `.agents/skills/connic/`. For a new project, `connic init <name> --skill` installs it while scaffolding.
 
 ### Any agent (recommended)
 
@@ -47,7 +57,7 @@ Activates whenever a developer is working in a Connic project (anything with a `
 
 - The on-disk project layout (`agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`)
 - How agent YAML works — every field, every default, every gotcha
-- How to choose exact EU-hosted `connic/*` models or configured BYOK providers
+- How to use EU-hosted `connic/*` models and configured BYOK providers
 - How to write Python tools, middleware, hooks, and custom guardrails — with the **exact** signatures the runtime expects (so generated code actually runs)
 - The full predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
 - All eleven connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) with correct directions and payload shapes
@@ -75,7 +85,7 @@ Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta
 │       └── skills/
 │           └── connic/
 │               ├── SKILL.md           # entry point — always loaded
-│               └── references/        # eight on-demand topic files
+│               └── references/        # ten on-demand topic files
 └── evals/
     └── evals.json                     # the six prompts used to validate the skill
 ```
@@ -85,6 +95,9 @@ Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta
 ## Updating
 
 ```bash
+# Composer SDK
+connic skill
+
 # Cross-agent
 npx skills update connic
 
@@ -94,7 +107,7 @@ npx skills update connic
 
 ## Contributing
 
-The entry point is `skills/connic/SKILL.md`; on-demand reference files are in `skills/connic/references/`. PRs welcome — please keep the existing style: terse, example-led, no marketing prose, every claim checked against the docs or SDK source.
+The entry point is `plugins/connic/skills/connic/SKILL.md`; on-demand reference files are in `plugins/connic/skills/connic/references/`. PRs welcome — please keep the existing style: terse, example-led, no marketing prose, every claim checked against the docs or SDK source.
 
 ## License
 

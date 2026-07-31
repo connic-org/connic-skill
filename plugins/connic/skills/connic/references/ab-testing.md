@@ -27,6 +27,7 @@ agents/
 
 ```yaml
 # agents/order-processor-test-faster-model.yaml
+version: "1.0"
 name: order-processor-test-faster-model
 model: gemini/gemini-2.5-flash
 description: "Processes incoming customer orders"
@@ -74,6 +75,7 @@ The traffic percentage is the share routed to the variant; the remainder stays o
 - Run randomization assigns each run independently.
 - Session randomization keeps a trusted session identity in one arm; only its first eligible run contributes the session outcome.
 - Pausing, concluding, invalidating, or failing a test returns new traffic to the base agent.
+- **Manual Trigger → Normal** follows the currently active routing; selecting a specific arm forces that arm.
 - A manually forced control or variant run stays visible in history but is excluded from Confidence analysis and safety checks.
 
 ## Configure a test

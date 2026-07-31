@@ -17,8 +17,9 @@ system_prompt: "Classify the user input as positive, neutral, or negative."
 output_schema: sentiment-result   # schemas/sentiment-result.json
 ```
 
+`schemas/sentiment-result.json`:
+
 ```json
-// schemas/sentiment-result.json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
@@ -49,7 +50,7 @@ Output schemas apply only to LLM agents.
 
 Run at request entry (input) and response exit (output). Configured under `guardrails:` in the agent YAML.
 
-**Ordering matters.** Input guardrails run **before** `middleware/<agent>.py::before`, so they cannot see any values that middleware sets on `context` — `context["user_id"]`, `context["permissions"]`, anything you hydrate from a JWT — none of it is populated yet. Input guardrails see the raw `content` string (plus the auto-populated system fields like `context["payload"]`, `run_id`, etc.) and nothing else. Output guardrails run **after** the agent finishes, so they *do* see the fully-enriched `context`.
+**Ordering matters.** The normal flow is input → input guardrails → `before` middleware → agent execution → `after` middleware → output guardrails → response. Input guardrails therefore cannot see values that middleware sets on `context` — `context["user_id"]`, `context["permissions"]`, anything you hydrate from a JWT — because none of it is populated yet. Input guardrails see the raw `content` string (plus auto-populated system fields such as `context["payload"]` and `run_id`). Output guardrails run after `after` middleware, so they see its final response and the fully enriched `context`.
 
 Concrete consequences:
 
@@ -137,7 +138,7 @@ guardrails:
         provider: lakera         # default | lakera (for prompt_injection)
 ```
 
-Available providers vary by type: `moderation` and `pii_leakage` support `openai` and `perspective`; `prompt_injection` supports `lakera`. Other types (input `pii`, `topic_restriction`, `regex`, `system_prompt_leakage`, `relevance`, `data_exfiltration`) always use Connic's built-in detector — setting a `provider` on them has no effect. The default is Connic's built-in classifier — fast and free, but less accurate than the dedicated providers.
+Available providers vary by type: `moderation` supports `openai` and `perspective`; `prompt_injection` supports `lakera`. The deployed runtime also accepts `openai` and `perspective` for `pii_leakage`, although the current provider table only documents them for moderation. `topic_restriction` and `relevance` are LLM classifiers: choose their model with `config.model`, which defaults to the agent model, rather than `config.provider`. Input `pii`, `regex`, `system_prompt_leakage`, and `data_exfiltration` use Connic's local checks.
 
 ### Common config fields
 
@@ -145,6 +146,20 @@ Available providers vary by type: `moderation` and `pii_leakage` support `openai
 - `rejection_message`: string shown to the caller when `mode: block` fires.
 - `fail_run`: `true` to mark a blocked run as `status: failed` instead of `completed`. Default `false`.
 - `off_topic_message` (topic_restriction only): the canned response.
+
+### Type-specific config
+
+| Type | Direction | Important `config` fields |
+| --- | --- | --- |
+| `prompt_injection` | input | `sensitivity: low \| medium \| high` (default `medium`); optional `provider: lakera` |
+| `pii` | input | `entities`: any of `email`, `phone`, `ssn`, `credit_card`, `iban`, `ip_address`, `api_key` (default all) |
+| `moderation` | input/output | `categories`; external-provider `threshold` (default `0.7`); optional `provider: openai \| perspective` |
+| `topic_restriction` | input | `allowed_topics` or `blocked_topics`; `off_topic_message`; optional `model` (default agent model) |
+| `regex` | input/output | `patterns`: a list of `{pattern, message}` objects |
+| `pii_leakage` | output | `entities` (default `ssn`, `credit_card`, `api_key`) |
+| `system_prompt_leakage` | output | `similarity_threshold` from 0 to 1 (default `0.6`) |
+| `relevance` | output | optional relevance `context`; optional `model` (default agent model) |
+| `data_exfiltration` | output | `allowed_domains` (default none, so every external domain is flagged) |
 
 ### Blocking and the `after` middleware
 
@@ -186,15 +201,15 @@ async def check(content: str, context: dict) -> GuardrailResult:
     return GuardrailResult(passed=True)
 ```
 
-The `check` signature is **exactly** `(content: str, context: dict)` — no `config` argument is passed in. `GuardrailResult` fields are `passed: bool`, `message: Optional[str]`, `details: Optional[dict]`. For output guardrails, `content` is the agent's response text. For redaction, use the built-in `pii`/`pii_leakage` types (they handle replacement internally) — there's no custom redact path.
+The `check` function can be synchronous or asynchronous, and its signature is **exactly** `(content: str, context: dict)` — no `config` argument is passed in. `GuardrailResult` fields are `passed: bool`, `message: Optional[str]`, `details: Optional[dict]`. For output guardrails, `content` is the agent's response text. For redaction, use the built-in `pii`/`pii_leakage` types (they handle replacement internally) — there's no custom redact path.
 
-If a custom guardrail raises, Connic logs the traceback under `guardrail.<name>` and handles it as a guardrail violation according to the rule's mode: `warn` continues processing, while `block` stops processing and returns the configured rejection message.
+`print`, `sys.stderr`, and stdlib `logging` output is captured under `guardrail.<name>` in Logs and the run detail. If a custom guardrail raises, Connic logs the traceback under that source and handles it as a guardrail violation according to the rule's mode: `warn` continues processing, while `block` stops processing and returns the configured rejection message.
 
 ## MCP servers
 
 Connect external MCP (Model Context Protocol) servers to expose their tools to the agent. Tools from a configured server are **auto-loaded** into the agent — you do **not** list them again under `tools:`.
 
-This consuming path uses Streamable HTTP. Connic uses MCP `2026-07-28` with current servers and automatically falls back when a server only supports a legacy revision. Existing `mcp_servers:` configuration remains unchanged.
+`mcp_servers:` uses Streamable HTTP, negotiates MCP `2026-07-28`, and falls back to legacy revisions without configuration changes.
 
 ```yaml
 mcp_servers:
@@ -240,7 +255,12 @@ This is the right way to forward the **authenticated end user's identity** to a 
 Notes:
 
 - Bridge IDs come from **Project Settings → Bridge** and are how you reach private MCP servers running inside your network.
+- The server's host and port must be present in the Bridge agent's `ALLOWED_HOSTS`.
 - A single agent can declare up to 50 MCP servers.
+- MCP is supported only on LLM agents. External servers must use remote Streamable HTTP; stdio is not supported. Connic consumes tools only, not standalone resources, prompts, subscriptions, Tasks, or MCP Apps extensions.
+- Authentication is via static or interpolated headers. Automatic MCP OAuth discovery and interactive authorization are not supported.
+- If a server is unavailable at startup, the agent starts without that server's tools. A later MCP tool error is traced and returned to the LLM in the current run; Connic does not replay the agent or blindly retry a tool that may have produced side effects.
+- Tool calls are traced. MCP tool annotations, structured results, and UI resource metadata attached to tools are preserved across supported protocol revisions.
 
 ## API spec tools
 
@@ -248,14 +268,14 @@ Import an OpenAPI 3.x spec and the SDK auto-generates one tool per operation. Co
 
 Steps:
 
-1. Set a name (lowercase, used as a prefix), e.g. `stripe`.
+1. Set a name used as the prefix, e.g. `stripe`: at most 64 characters, starting with a lowercase letter and containing only lowercase letters, digits, and underscores.
 2. Upload a JSON/YAML spec or supply a URL (refresh on demand).
 3. Override the base URL if needed.
 4. Configure auth: Bearer token, API Key (header), or Basic. Credentials are stored securely and injected at request time.
 
 Tool naming:
 
-- With `operationId`: converted to snake_case with the HTTP verb at the end (`createCharge` → `charges_create`).
+- With `operationId`: converted to snake_case with the action verb at the end (`createCharge` → `charge_create`). If no verb is detected, the HTTP method is appended.
 - Without: derived from path + verb (`GET /users` → `users_get`, `GET /users/{id}` → `users_by_id_get`).
 - Common prefixes like `/api/v1` and `/v2` are stripped.
 
@@ -263,14 +283,16 @@ Reference in agent YAML:
 
 ```yaml
 tools:
-  - api:stripe.charges_create
+  - api:stripe.charge_create
   - api:stripe.*                # all operations
-  - api:stripe.charges_*        # prefix wildcard
+  - api:stripe.charge_*         # prefix wildcard
 ```
 
-Each API spec lives in its own namespace — `api:stripe.charges_create` and `api:internal.charges_create` are independent tools.
+Each API spec lives in its own namespace — `api:stripe.charge_create` and `api:internal.charge_create` are independent tools.
 
-Hook scope (`hooks/<agent>.py`) for API-spec and MCP tools isn't documented; assume hooks fire for local custom tools and predefined Connic tools, and verify against the docs if you need to intercept an `api:` or MCP call.
+After import, individual tools can be enabled or disabled and given custom names or descriptions. Disabled tools do not resolve through exact references or wildcards. Refreshing a URL-sourced spec matches existing tools by HTTP method and path, so custom names, descriptions, and enabled states survive while new endpoints are added and removed endpoints disappear. Any spec, tool, auth, or refresh change requires an agent redeploy before it takes effect.
+
+Tool hooks in `hooks/<agent>.py` fire for local custom tools, predefined Connic tools, and `api:` tools. They do not fire for tools served by external MCP servers.
 
 ## When to use which
 
