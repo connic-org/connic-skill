@@ -1,0 +1,29 @@
+{
+  "name": "connic",
+  "version": "1.1.0",
+  "description": "Build, test, and deploy Connic agents with current SDK, CLI, connector, and platform guidance.",
+  "author": {
+    "name": "Connic",
+    "email": "support@connic.co",
+    "url": "https://connic.co"
+  },
+  "homepage": "https://connic.co",
+  "repository": "https://github.com/connic-org/connic-skill",
+  "license": "Apache-2.0",
+  "keywords": ["connic", "agents", "composer", "ai-agents"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Connic",
+    "shortDescription": "Build, test, and deploy Connic agents",
+    "longDescription": "Use current Connic Composer SDK, CLI, connector, and platform guidance to build, test, review, and deploy Connic agents.",
+    "developerName": "Connic",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://connic.co",
+    "defaultPrompt": [
+      "Help me build a Connic agent",
+      "Review this Connic project",
+      "Add a tool to my Connic agent"
+    ]
+  }
+}

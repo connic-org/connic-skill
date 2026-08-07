@@ -1,7 +1,7 @@
 {
   "name": "connic",
   "description": "Teach Claude Code how to work with Connic projects — agents, tools, connectors, composer SDK, platform. Bundles the connic skill plus the on-disk reference set.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Connic"
   },

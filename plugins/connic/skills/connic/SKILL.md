@@ -1,11 +1,17 @@
 ---
 name: connic
 description: Use when the user works in a Connic project or asks about Connic agents, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
+metadata:
+  version: "1.1.0"
 ---
 
 # Connic
 
 Connic is a code-first platform for building, testing, and deploying AI agents. Agents are defined declaratively in YAML, extended with Python (tools, middleware, hooks, guardrails), and run on Connic's managed cloud. The CLI is `connic` (from the `connic-composer-sdk` package). Public docs live at https://connic.co/docs/v1.
+
+## Start-of-session update check
+
+Before any Connic work, run `connic update --check` once per agent session. If it reports updates, tell the user and offer `connic update` for both SDK and skill, `connic update --sdk` for the SDK only, or `connic update --skill` for the skill only. Do not install an update without the user's explicit consent.
 
 ## When and how to use this skill
 

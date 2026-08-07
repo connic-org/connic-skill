@@ -11,7 +11,7 @@
       "name": "connic",
       "source": "./plugins/connic",
       "description": "Teaches the agent how to build, test, and deploy Connic agents — composer SDK, all 11 connectors, the dashboard, the CLI, best practices.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "Connic"
       },

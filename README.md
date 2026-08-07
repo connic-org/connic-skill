@@ -1,6 +1,6 @@
 # Connic Skill
 
-A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, the composer SDK, and the platform.
+A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, the Connic Composer SDK, and the platform.
 
 This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: Claude Code, Cursor, Codex CLI, GitHub Copilot, Windsurf, Gemini, and others. The same `plugins/connic/skills/connic/` directory is the source of truth for all distribution channels below.
 
@@ -8,13 +8,15 @@ This repo follows the open [SKILL.md](https://github.com/anthropics/skills) stan
 
 ### Existing Connic project
 
-If the Composer SDK is installed, run this from the project root:
+If the [Connic Composer SDK](https://github.com/connic-org/connic-composer-sdk) is installed, run this from the project root:
 
 ```bash
 connic skill
 ```
 
-This installs or updates the skill under `.agents/skills/connic/`. For a new project, `connic init <name> --skill` installs it while scaffolding.
+This installs the skill in both `.agents/skills/connic/` and `.claude/skills/connic/`. For a new project, `connic init <name> --skill` installs both copies while scaffolding.
+
+At the start of each agent session, the skill instructs the agent to run `connic update --check` once before Connic work. The check only reports available updates; the agent must ask before installing one.
 
 ### Any agent (recommended)
 
@@ -46,7 +48,7 @@ If you'd rather drop the files in by hand, copy `plugins/connic/skills/connic/` 
 | Claude Code (user) | `~/.claude/skills/connic/` |
 | Claude Code (project) | `.claude/skills/connic/` |
 | Cursor | `.cursor/skills/connic/` |
-| Codex CLI | `.codex/skills/connic/` |
+| Codex CLI | `.agents/skills/connic/` |
 | Generic | `.agents/skills/connic/` |
 
 The skill works the same regardless of host.
@@ -81,7 +83,9 @@ Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta
 ├── plugins/
 │   └── connic/                        # the plugin itself
 │       ├── .claude-plugin/
-│       │   └── plugin.json            # plugin manifest
+│       │   └── plugin.json            # Claude Code plugin manifest
+│       ├── .codex-plugin/
+│       │   └── plugin.json            # ChatGPT and Codex plugin manifest
 │       └── skills/
 │           └── connic/
 │               ├── SKILL.md           # entry point — always loaded
@@ -90,13 +94,19 @@ Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta
     └── evals.json                     # the six prompts used to validate the skill
 ```
 
-`npx skills` and the Claude Code plugin loader both read the same `plugins/connic/skills/connic/` directory — no content duplication.
+`npx skills`, ChatGPT and Codex, and the Claude Code plugin loader all read the same `plugins/connic/skills/connic/` directory — no content duplication.
 
 ## Updating
 
 ```bash
-# Composer SDK
-connic skill
+# SDK and skill
+connic update
+
+# SDK only
+connic update --sdk
+
+# Skill only
+connic update --skill
 
 # Cross-agent
 npx skills update connic
