@@ -138,7 +138,7 @@ url = f"https://api.internal.cnc-bridge-{os.environ['INTERNAL_BRIDGE_ID']}/users
 r = await httpx.AsyncClient().get(url)
 ```
 
-For protocols that discover endpoints at runtime, such as Redis Sentinel, configure automatic destination routes under **Project Settings → Bridge** or with `GET/PUT /v1/projects/{project_id}/bridges/{bridge_id}/routes`. The API key's `bridges` section needs `read` for GET or `write` for PUT:
+For protocols that discover endpoints at runtime, such as Redis Sentinel, configure automatic destination routes under **Project Settings → Bridge** or with `GET/PUT /v1/projects/{project_id}/bridges/{bridge_id}/routes`. The user or credential needs the `bridges.update` project permission:
 
 ```json
 {
@@ -176,7 +176,7 @@ Choose the domain in a connector's create or edit dialog. No redeploy or URL rot
 
 The project security policy can require 2FA for every member. Enable 2FA on your own account first; changing the policy requires the **Edit project settings** permission.
 
-API key permissions are separate from team permission groups. Keys can have full access or per-section `read` and `write` access to the REST API.
+Team permission groups are the source of truth for project access. API keys and MCP authorizations can use all supported permissions available to their authorizing user or a selected subset, but they can never exceed that user's current access. Role, group, and membership changes take effect on subsequent credential requests.
 
 The immutable audit log under **Project Settings → Audit Log** records the actor, timestamp, action, and before/after values where applicable, with secrets masked. It can be filtered by time, action, resource, or user; retention depends on the plan.
 
@@ -194,13 +194,19 @@ Architectural recommendations should start with fit, reliability, and maintainab
 
 ## REST API
 
-`https://api.connic.co/v1/...`. Create a project-scoped API key under **Project Settings → CLI / API Keys** and send `Authorization: Bearer cnc_...`; the secret is shown only once. Full Access is the default, or grant per-section `read`, `write`, or the all-sections `*` scope. Team permissions and API-key permissions are independent. All keys for a project share one 60-requests/minute bucket; 429 responses include `Retry-After`. Standard errors use a JSON `{ "detail": "..." }` body.
+`https://api.connic.co/v1/...`. Create a project-scoped API key under **Project Settings → API Keys & MCP Auth** and send `Authorization: Bearer cnc_...`; the secret is shown only once. New keys default to **All available**, which dynamically follows every current and future REST API permission the key owner has. Choose **Custom** to grant an explicit subset of those same project permissions, and edit that subset later without rotating the secret. A key never exceeds its owner's live project access. All keys for a project share one 60-requests/minute bucket; 429 responses include `Retry-After`. Standard errors use a JSON `{ "detail": "..." }` body.
 
-The REST API is for **managing and observing a project**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing Retrieval entries, approvals, and judges. Its `POST .../agents/{name}/trigger` endpoint exists only for first-party testing, not for wiring up agent runs.
+The REST API is for **managing and observing a project**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing Retrieval entries, approvals, and judges. Use connectors to start runs from external events.
 
 To run an agent in response to an HTTP request, queue message, email, schedule, or call from a backend, use the matching connector. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics. Do not assume generic replay protection: apply idempotency in project code where the source can redeliver.
 
-For the full endpoint catalogue and per-section permission scopes, fetch `https://connic.co/docs/v1/reference/rest-api`.
+For the full endpoint catalogue and its canonical project-permission requirements, fetch `https://connic.co/docs/v1/reference/rest-api`.
+
+Use the interface that matches the job:
+
+- **Connic MCP** for conversational inspection and bounded project operations from an OAuth-capable AI client. See [platform-mcp.md](platform-mcp.md).
+- **REST API** for deterministic service integrations and repeatable automation.
+- **CLI** for local authoring, validation, tests, and deployment workflows.
 
 ## What lives where: dashboard vs. on-disk
 

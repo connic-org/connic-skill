@@ -6,8 +6,8 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 
 | Command | What it does |
 | --- | --- |
-| `connic init [name]` | Scaffold a new project directory. `--templates=invoice,customer-support` seeds from starter templates; `--skill` installs this skill. |
-| `connic skill` | Install the Connic skill under `.agents/skills/connic/` and `.claude/skills/connic/` in the current project. |
+| `connic init [name]` | Scaffold a new project directory. `--templates=invoice,customer-support` seeds starter templates; `--skill` installs this skill and offers full plugins for detected Codex and Claude Code clients. |
+| `connic skill` | Install the project skill under `.agents/skills/connic/` and `.claude/skills/connic/`, then offer full plugins for detected Codex and Claude Code clients. |
 | `connic update [--check|--sdk|--skill]` | Check for or install available SDK and skill updates. |
 | `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
 | `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery — locally, no upload. |
@@ -28,7 +28,7 @@ connic init my-agents --skill
 cd my-agents
 ```
 
-The default scaffold creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing a starter example. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent YAML on disk — the README shows what one should look like. `--skill` adds `.agents/skills/connic/` and `.claude/skills/connic/`; omit it when the project should not carry the skill.
+The default scaffold creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing a starter example. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent YAML on disk — the README shows what one should look like. `--skill` adds `.agents/skills/connic/` and `.claude/skills/connic/`; omit it when the project should not carry the skill. In an interactive terminal, the command then detects Codex and Claude Code and asks separately whether to install the full Connic plugin. Declining keeps the skill-only setup.
 
 ## `connic skill`
 
@@ -37,7 +37,7 @@ cd my-project
 connic skill
 ```
 
-Installs the Connic skill in `.agents/skills/connic/` and `.claude/skills/connic/`. It is the existing-project equivalent of `connic init --skill`.
+Installs the Connic skill in `.agents/skills/connic/` and `.claude/skills/connic/`. It is the existing-project equivalent of `connic init --skill`. In an interactive terminal, it also offers to install the full plugin for each detected Codex or Claude Code client. The plugin bundles the skill and Connic MCP; the local copies remain skill-only. See [AI agent setup](https://connic.co/docs/v1/ai-agent-setup).
 
 ## `connic update`
 

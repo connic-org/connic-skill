@@ -1,8 +1,8 @@
 # Connectors
 
-Connectors define how agents are triggered, what input they receive, and where results go. Each connector can link to one or more agents; one trigger dispatches its input to every linked agent. There are exactly **eleven** built-in connectors. There is **no** native Slack, Discord, GitHub, or Notion connector — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
+Connectors define how agents are triggered, what input they receive, and where results go. Each connector can link to one or more agents; one trigger dispatches its input to every linked agent. There is **no** native Slack, Discord, GitHub, or Notion connector — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
 
-Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST `/trigger` endpoint is only for first-party testing, not wiring up agent runs.
+Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST API is for project management, not starting event-driven runs.
 
 Connectors are configured per environment in the **Dashboard**, not in YAML. Sensitive connection fields are stored encrypted. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's input. Outbound email and Telegram connectors consume the agent output; outbound webhook, Kafka, and SQS publish a full run envelope instead.
 

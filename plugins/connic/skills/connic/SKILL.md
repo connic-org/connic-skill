@@ -1,8 +1,8 @@
 ---
 name: connic
-description: Use when the user works in a Connic project or asks about Connic agents, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
+description: Use when the user works in a Connic project or asks about Connic agents, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Connic
@@ -11,7 +11,7 @@ Connic is a code-first platform for building, testing, and deploying AI agents. 
 
 ## Start-of-session update check
 
-Before any Connic work, run `connic update --check` once per agent session. If it reports updates, tell the user and offer `connic update` for both SDK and skill, `connic update --sdk` for the SDK only, or `connic update --skill` for the skill only. Do not install an update without the user's explicit consent.
+For local Connic project, CLI, or SDK work, run `connic update --check` once per agent session when the CLI is available. Skip this for an MCP-only session, standalone platform guidance, or when the CLI is not installed. If it reports updates, tell the user and offer `connic update` for both SDK and skill, `connic update --sdk` for the SDK only, or `connic update --skill` for the skill only. Do not install an update without the user's explicit consent.
 
 ## When and how to use this skill
 
@@ -31,14 +31,21 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [agent-yaml.md](references/agent-yaml.md) | Writing or editing `agents/*.yaml` — agent types, models, tools field, sessions, concurrency, retries, approvals, conditional tools |
 | [tools-and-python.md](references/tools-and-python.md) | Writing `tools/*.py`, middleware, hooks, the `context` dict, `StopProcessing` / `AbortTool`, logging, env vars |
 | [predefined-tools.md](references/predefined-tools.md) | Built-in tools: `trigger_agent`, `retrieval_query`, `db_find`, `web_search`, etc. — including filter operators |
-| [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) | Input/output guardrails, JSON output schemas, MCP server integration, API spec tools |
-| [connectors.md](references/connectors.md) | The eleven connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) — how they trigger or receive from agents |
+| [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) | Input/output guardrails, JSON output schemas, agents consuming external MCP servers, API spec tools |
+| [connectors.md](references/connectors.md) | Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) — how they trigger or receive from agents |
 | [cli-and-dev.md](references/cli-and-dev.md) | The `connic` CLI, `connic dev` hot-reload, `connic test` declarative test suites, `connic lint`, `connic migrate` |
 | [ab-testing.md](references/ab-testing.md) | A/B test variants, Confidence and Exploratory modes, traffic assignment, safety rules, results, and lifecycle |
 | [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
 | [platform.md](references/platform.md) | Dashboard concepts: models, billing, environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
+| [platform-mcp.md](references/platform-mcp.md) | Connecting an AI client to Connic MCP, live project/environment operations, OAuth scopes, tool selection, and revocation |
 
 For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed.
+
+### Choosing live tools or standalone guidance
+
+The full Codex, Claude Code, and Cursor plugins bundle the production MCP endpoint; standalone skill installations do not modify the client's MCP configuration. When Connic MCP tools are available, use them for authenticated live platform state and operations within the granted scope. Discover the available tools from the live authorization and use only the narrowest relevant one. Perform writes only when explicitly requested. Otherwise remain fully useful with the references, project files, CLI, dashboard, and REST API. Do not claim to have inspected live state when no Connic MCP tool is available.
+
+Connic MCP is the platform-management server. It is different from an agent's `mcp_servers:` configuration, where the agent consumes an external server, and from the MCP connector, where an external client invokes a deployed Connic agent. See [platform-mcp.md](references/platform-mcp.md).
 
 ## Project layout cheatsheet (most-used reference, inlined)
 
@@ -70,7 +77,7 @@ Discovery rules to keep in mind:
 
 **Adding a new tool.** Create the function in `tools/<module>.py` with type hints and a docstring (the LLM uses the docstring to decide when to call it). Reference it in an agent's `tools:` list. See [tools-and-python.md](references/tools-and-python.md).
 
-**Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, and `cron` for schedules. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics; do not assume generic deduplication or replay protection. The REST `/trigger` endpoint is for first-party testing, not wiring up agent runs. See [connectors.md](references/connectors.md). Only the eleven connectors listed there exist — there is no native Slack, Discord, or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
+**Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, and `cron` for schedules. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics; do not assume generic deduplication or replay protection. The REST API is for project management, not event-driven agent runs. See [connectors.md](references/connectors.md). Only the connectors listed there exist — there is no native Slack, Discord, or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
 
 **Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. The runtime passes one normalized dict to the tool's required `payload` parameter, plus `context` when declared — it never splats payload keys into separate arguments. There is no model or reasoning step, but the run still has logs, retries, and judges. This is the right shape for Kafka consumers that just ingest, S3 events that just transform, webhooks that just route, etc. See the [tool-agent section](references/agent-yaml.md#tool-agent).
 
@@ -192,6 +199,8 @@ If the agent's response is parsed by code downstream, set `temperature: 0` *and*
 
 `.connic` contains the project API key. Add it to `.gitignore` on first commit. Use **Dashboard → Settings → Variables** for any secret the agent or its tools need at runtime (mark them sensitive so they're masked in logs).
 
+Never read, print, copy, or pass `.connic` credentials as MCP tool arguments. A Connic MCP client authenticates through its own OAuth flow; the skill supplies workflow knowledge and never handles its access or refresh tokens.
+
 ### 7. Validate with `connic lint` before every deploy
 
 The linter catches missing tools, unresolved schemas, broken middleware imports, and duplicate agent names *locally* in under a second. Run it after any edit, definitely before `connic deploy` or a `git push`.
@@ -204,12 +213,13 @@ When you suggest an architecture, evaluate **fit, reliability, and maintainabili
 
 - **Don't invent connectors.** The exhaustive list is in [connectors.md](references/connectors.md). If a user asks "how do I connect Slack?", say there's no native Slack connector — they can use a generic webhook, a custom MCP server, or a custom tool.
 - **Don't invent model IDs.** Select managed models from the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). `connic/*` models need no provider key; BYOK model IDs must be supported by the configured provider.
-- **Don't wire event-driven agent runs through the REST API.** Use the connector matching the transport. The REST `/trigger` endpoint is only for first-party testing.
+- **Don't wire event-driven agent runs through the REST API.** Use the connector matching the transport.
 - **Don't invent CLI commands or flags.** Check [cli-and-dev.md](references/cli-and-dev.md). There is no `connic build`, `connic run`, `connic logs`, no `--json` flag on `lint`, no `--grep` flag on `test` (it's `--filter`), no `--message` on `deploy`, no `--env` on `dev`.
 - **Don't invent test assertions.** The only top-level assertions in `tests/*.yaml` are `expected_result` (a sandboxed expression with `output`, `error`, `status`, `context` bindings — `status` is `"completed"`, `"failed"`, `"cancelled"`, `"blocked"`, or `"awaiting_approval"`), `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, and `expected_child_agents` (a map keyed by triggered agent name; each entry can carry `expected_payload`, `expected_result`, `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, `expected_triggered`, and its own nested `expected_child_agents` — see [cli-and-dev.md](references/cli-and-dev.md#asserting-on-triggered-agents)). There is no `expected_output_contains` or `expected_output_matches`. (`mocks`, the four independent `strict_*_mocks` flags, `approval_decisions`, and `strict_approval_decisions` are valid execution controls, not assertions. See [Mocking tools](references/cli-and-dev.md#mocking-tools) and [Testing approvals](references/cli-and-dev.md#testing-approvals-hitl).)
 - **Don't put function calls, lambdas, imports, or comprehensions in `expected_result`.** It's not real Python — it's a tight AST evaluator that allows only boolean ops, comparisons, subscripts, attribute access, and literals. `output.strip()`, `json.loads(...)`, `len(...)`, `re.search(...)`, `lambda ...`, `__import__(...)` all fail at parse time. For anything that needs to parse the output, normalize it, or check derived properties, write a **builder `cleanup`** function — it's ordinary Python, gets the full `run` dict, and can raise to fail the case. See [cli-and-dev.md](references/cli-and-dev.md#what-expected_result-can-and-cannot-do).
 - **Don't invent connector tools.** There are no `s3.get_object`, `postgres.query`, `telegram.send_message`, etc. predefined tools. The Postgres and S3 connectors are inbound-only triggers; for outbound calls write custom tools using your own libraries (asyncpg, boto3, httpx).
 - **Don't use `api:` prefix for MCP tools.** MCP tools from `mcp_servers:` are auto-loaded — they don't go in the agent's `tools:` list at all. The `api:` prefix is only for tools from API spec imports.
+- **Don't confuse Connic MCP with agent MCP integrations.** Connic MCP lets an AI client manage a Connic project. `mcp_servers:` lets a Connic agent consume external tools. The MCP connector lets an external client invoke deployed agents.
 - **Don't add `import connic` boilerplate to tool files.** Tools are plain functions; the runtime discovers them. Only import from `connic` for special exceptions (`StopProcessing` — runs anywhere; `AbortTool` — only in hook `before()`) or predefined tools (`from connic.tools import trigger_agent`).
 - **Don't add decorators.** No `@tool`, no `@agent`. Discovery is by directory + filename + docstring.
 - **Don't run `connic dev` or `connic deploy` for the user** without asking. Both are network operations against the user's Connic account.

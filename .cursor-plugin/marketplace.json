@@ -1,15 +1,16 @@
 {
-  "$schema": "https://code.claude.com/schemas/marketplace.json",
   "name": "connic",
-  "description": "Connic agent skills for Claude Code and any SKILL.md-compatible agent.",
   "owner": {
     "name": "Connic",
     "email": "support@connic.co"
   },
+  "metadata": {
+    "description": "Connic plugins for building and operating production AI agents."
+  },
   "plugins": [
     {
       "name": "connic",
-      "source": "./plugins/connic",
+      "source": "plugins/connic",
       "description": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance.",
       "version": "1.2.0",
       "author": {
@@ -18,7 +19,6 @@
       "homepage": "https://connic.co",
       "repository": "https://github.com/connic-org/connic-skill",
       "license": "Apache-2.0",
-      "category": "framework",
       "keywords": ["connic", "agents", "composer", "mcp", "ai-agents"]
     }
   ]

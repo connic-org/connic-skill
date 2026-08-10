@@ -42,6 +42,20 @@
       "prompt": "I want my Connic agent to be able to look up customer records from our Postgres database. How do I wire that up?",
       "expected_output": "Correctly states that the Postgres connector is INBOUND-ONLY (LISTEN/NOTIFY trigger) and does NOT expose query tools. To read from Postgres inside an agent, the user should write a custom Python tool in tools/ using asyncpg or psycopg with credentials from env vars. The custom tool should be purpose-driven (e.g. lookup_customer(customer_id)), not a thin SQL wrapper. Does NOT mention any `postgres.query`, `postgres.fetch_one`, or similar fabricated tool.",
       "files": []
+    },
+    {
+      "id": 6,
+      "name": "platform-state-without-mcp",
+      "prompt": "Which deployments are currently failing in my Connic production environment? I do not have Connic MCP connected in this client.",
+      "expected_output": "Does not pretend to inspect live state and does not ask for or read the `.connic` API key. Explains that live deployment state requires Connic MCP or the dashboard, remains useful by giving the exact dashboard location or deterministic REST alternative, and clearly distinguishes those from an agent's `mcp_servers:` configuration.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "platform-mcp-live-tool-selection",
+      "prompt": "Connic MCP is connected. Check the current failed runs for the authorized environment, then tell me whether any need attention. Do not change anything.",
+      "expected_output": "Starts with Connic MCP context when needed, uses the live run read tools and no write tools, respects the authorization's derived project/environment instead of asking for IDs, and never reads or passes `.connic` credentials. Does not confuse Connic MCP with `mcp_servers:` or the MCP connector.",
+      "files": []
     }
   ]
 }

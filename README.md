@@ -1,8 +1,12 @@
 # Connic Skill
 
-A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, the Connic Composer SDK, and the platform.
+A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, Connic MCP, the Composer SDK, and the platform.
 
 This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: Claude Code, Cursor, Codex CLI, GitHub Copilot, Windsurf, Gemini, and others. The same `plugins/connic/skills/connic/` directory is the source of truth for all distribution channels below.
+
+Installing the full Connic plugin in Codex, Claude Code, or Cursor also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
+
+See [AI agent setup](https://connic.co/docs/v1/ai-agent-setup) for client-specific plugin, skill, MCP, and OAuth instructions.
 
 ## Install
 
@@ -16,6 +20,8 @@ connic skill
 
 This installs the skill in both `.agents/skills/connic/` and `.claude/skills/connic/`. For a new project, `connic init <name> --skill` installs both copies while scaffolding.
 
+In an interactive terminal, both CLI paths also detect Codex and Claude Code and ask separately whether to install the full plugin. Declining leaves the skill-only project copies in place.
+
 At the start of each agent session, the skill instructs the agent to run `connic update --check` once before Connic work. The check only reports available updates; the agent must ask before installing one.
 
 ### Any agent (recommended)
@@ -28,6 +34,17 @@ npx skills add connic-org/connic-skill
 
 Run `npx skills add --help` for per-agent install flags and CI-friendly options.
 
+### Codex (plugin marketplace)
+
+Install the full plugin when you want the skill and Connic MCP together:
+
+```bash
+codex plugin marketplace add connic-org/connic-skill
+codex plugin add connic@connic
+```
+
+Start a new Codex task after installation, then open `/mcp` to authenticate or inspect the connection registered from `codex.mcp.json`.
+
 ### Claude Code (plugin marketplace)
 
 This repo is also a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Inside Claude Code:
@@ -37,7 +54,19 @@ This repo is also a [Claude Code plugin marketplace](https://code.claude.com/doc
 /plugin install connic@connic
 ```
 
+The Claude Code plugin automatically registers `https://mcp.connic.co/mcp` from the plugin's `.mcp.json`. Open `/mcp` to complete OAuth or inspect the connection.
+
 Update with `/plugin marketplace update connic` whenever a new version is released.
+
+### Cursor (GitHub plugin marketplace)
+
+Enter this in a Cursor Agent chat, then choose a project or user scope:
+
+```text
+/add-plugin connic@https://github.com/connic-org/connic-skill
+```
+
+The Cursor plugin loads the same skill and registers `https://mcp.connic.co/mcp` from `mcp.json`. Start a new Agent chat, open **Customize**, find the Connic MCP server, and complete OAuth when prompted.
 
 ### Manual install
 
@@ -61,8 +90,9 @@ Activates whenever a developer is working in a Connic project (anything with a `
 - How agent YAML works — every field, every default, every gotcha
 - How to use EU-hosted `connic/*` models and configured BYOK providers
 - How to write Python tools, middleware, hooks, and custom guardrails — with the **exact** signatures the runtime expects (so generated code actually runs)
-- The full predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
-- All eleven connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) with correct directions and payload shapes
+- The predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
+- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) with correct directions and payload shapes
+- How to use Connic MCP for authenticated live project operations without confusing it with agent-side MCP servers or the MCP connector
 - The `connic` CLI — real flags only, no fabricated ones
 - The dashboard concepts (Project credit and billing, environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, Bridge, REST API)
 - Best practices the docs recommend: wrap predefined tools, ship with guardrails, write tests as deploy gates
@@ -71,7 +101,7 @@ Activates whenever a developer is working in a Connic project (anything with a `
 
 Connic is a fast-moving, code-first agent platform — the SDK, the composer features, and the connector catalogue ship updates regularly. This skill is a tight, source-checked reference written directly from the live docs and the `connic-composer-sdk` source, so your AI agent always works against the **current** shape of Connic instead of a stale snapshot from its training data. The result is generated code that runs the first time: real YAML keys, real CLI flags, real predefined-tool signatures, and the conventions the Connic team actually recommends.
 
-Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta +44 pp) across six representative tasks. See [evals/](evals/) for the prompts.
+The eval suite covers representative standalone and live Connic MCP behavior. See [evals/](evals/) for the prompts.
 
 ## Repository layout
 
@@ -80,21 +110,28 @@ Internal evals show **100% vs 56%** pass-rate against a no-skill baseline (delta
 ├── README.md
 ├── .claude-plugin/
 │   └── marketplace.json               # Claude Code marketplace catalog
+├── .cursor-plugin/
+│   └── marketplace.json               # Cursor marketplace catalog
 ├── plugins/
 │   └── connic/                        # the plugin itself
+│       ├── .mcp.json                  # bundled production Connic MCP connection
 │       ├── .claude-plugin/
 │       │   └── plugin.json            # Claude Code plugin manifest
 │       ├── .codex-plugin/
-│       │   └── plugin.json            # ChatGPT and Codex plugin manifest
+│       │   └── plugin.json            # Codex plugin manifest
+│       ├── .cursor-plugin/
+│       │   └── plugin.json            # Cursor plugin manifest
+│       ├── codex.mcp.json              # Codex MCP connection
+│       ├── mcp.json                    # Cursor MCP connection
 │       └── skills/
 │           └── connic/
 │               ├── SKILL.md           # entry point — always loaded
-│               └── references/        # ten on-demand topic files
+│               └── references/        # on-demand topic references
 └── evals/
-    └── evals.json                     # the six prompts used to validate the skill
+    └── evals.json                     # prompts used to validate the skill
 ```
 
-`npx skills`, ChatGPT and Codex, and the Claude Code plugin loader all read the same `plugins/connic/skills/connic/` directory — no content duplication.
+`npx skills`, Codex, Claude Code, and Cursor all read the same `plugins/connic/skills/connic/` directory — no content duplication.
 
 ## Updating
 
