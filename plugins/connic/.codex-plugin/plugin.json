@@ -1,6 +1,6 @@
 {
   "name": "connic",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance.",
   "author": {
     "name": "Connic",
@@ -12,9 +12,11 @@
   "license": "Apache-2.0",
   "keywords": ["connic", "agents", "composer", "mcp", "ai-agents"],
   "skills": "./skills/",
-  "mcpServers": "./codex.mcp.json",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Connic",
+    "composerIcon": "./assets/connic-icon.png",
+    "logo": "./assets/connic-icon.png",
     "shortDescription": "Build, test, deploy, and operate Connic agents",
     "longDescription": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance.",
     "developerName": "Connic",

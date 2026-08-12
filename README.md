@@ -2,9 +2,9 @@
 
 A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, Connic MCP, the Composer SDK, and the platform.
 
-This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: Claude Code, Cursor, Codex CLI, GitHub Copilot, Windsurf, Gemini, and others. The same `plugins/connic/skills/connic/` directory is the source of truth for all distribution channels below.
+This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: the ChatGPT app, Codex CLI, the Claude app, Claude Code, Cursor, GitHub Copilot, Windsurf, Gemini, and others. The same `plugins/connic/skills/connic/` directory is the source of truth for all distribution channels below.
 
-Installing the full Connic plugin in Codex, Claude Code, or Cursor also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
+Installing the full Connic plugin through the ChatGPT/Codex, Claude, or Cursor marketplace also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
 
 See [AI agent setup](https://connic.co/docs/v1/ai-agent-setup) for client-specific plugin, skill, MCP, and OAuth instructions.
 
@@ -34,7 +34,14 @@ npx skills add connic-org/connic-skill
 
 Run `npx skills add --help` for per-agent install flags and CI-friendly options.
 
-### Codex (plugin marketplace)
+### ChatGPT app (plugin marketplace)
+
+1. Open **Plugins → Add → Add a marketplace**.
+2. Enter `connic-org/connic-skill` in **Source**, leave **Git ref** and **Sparse paths** blank, then select **Add marketplace**.
+3. Open the Connic marketplace, select Connic, and choose **Install**.
+4. Complete the connection prompt, then start a new conversation or Codex task.
+
+### Codex CLI (plugin marketplace)
 
 Install the full plugin when you want the skill and Connic MCP together:
 
@@ -44,6 +51,13 @@ codex plugin add connic@connic
 ```
 
 Start a new Codex task after installation, then open `/mcp` to authenticate or inspect the connection registered from `codex.mcp.json`.
+
+### Claude app (Code)
+
+1. Open a local or SSH **Code** session and select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** directly.
+2. In the plugin browser, select **+ Add marketplace → Add from a repository**.
+3. Enter `connic-org/connic-skill` in **URL**, select **Sync**, then open Connic and choose **Install**.
+4. Select **Manage → Connectors → connic → Connect**, complete browser authentication, and start a new Code session.
 
 ### Claude Code (plugin marketplace)
 
@@ -108,8 +122,10 @@ The eval suite covers representative standalone and live Connic MCP behavior. Se
 ```
 .
 ├── README.md
+├── .agents/plugins/
+│   └── marketplace.json               # ChatGPT and Codex marketplace catalog
 ├── .claude-plugin/
-│   └── marketplace.json               # Claude Code marketplace catalog
+│   └── marketplace.json               # Claude app and Claude Code marketplace catalog
 ├── .cursor-plugin/
 │   └── marketplace.json               # Cursor marketplace catalog
 ├── plugins/
@@ -121,6 +137,8 @@ The eval suite covers representative standalone and live Connic MCP behavior. Se
 │       │   └── plugin.json            # Codex plugin manifest
 │       ├── .cursor-plugin/
 │       │   └── plugin.json            # Cursor plugin manifest
+│       ├── assets/
+│       │   └── connic-icon.png         # shared plugin icon
 │       ├── codex.mcp.json              # Codex MCP connection
 │       ├── mcp.json                    # Cursor MCP connection
 │       └── skills/
@@ -131,7 +149,7 @@ The eval suite covers representative standalone and live Connic MCP behavior. Se
     └── evals.json                     # prompts used to validate the skill
 ```
 
-`npx skills`, Codex, Claude Code, and Cursor all read the same `plugins/connic/skills/connic/` directory — no content duplication.
+`npx skills`, ChatGPT/Codex, Claude, and Cursor all read the same `plugins/connic/skills/connic/` directory — no content duplication.
 
 ## Updating
 

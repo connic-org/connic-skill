@@ -14,9 +14,15 @@ Do not substitute setup instructions from one surface for another.
 
 ## Connect a client
 
-The full Codex, Claude Code, and Cursor plugins bundle the production MCP connection. A standalone skill installation supplies instructions only and does not modify the client's MCP configuration.
+The ChatGPT/Codex, Claude, and Cursor plugin packages bundle the production MCP connection. A standalone skill installation supplies instructions only and does not modify the client's MCP configuration.
 
-1. Use the bundled `connic` server when it is available. Otherwise add `https://mcp.connic.co/mcp` as a remote MCP server in an OAuth-capable client.
+Install the plugin through the client's plugin marketplace before considering a manual MCP-only connection:
+
+- **ChatGPT app:** Open **Plugins → Add → Add a marketplace**, enter `connic-org/connic-skill` as the source, select **Add marketplace**, then open Connic and select **Install**.
+- **Claude app:** In a local or SSH **Code** session, select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** instead. In the plugin browser, select **+ Add marketplace → Add from a repository**, enter `connic-org/connic-skill` in **URL**, select **Sync**, then open Connic and select **Install**. Connect it under **Manage → Connectors → connic → Connect**, then start a new Code session.
+- **Codex CLI, Claude Code, and Cursor:** Use the packaged marketplace flow documented at `https://connic.co/docs/v1/ai-agent-setup`.
+
+1. Use the bundled `connic` server when it is available. Only use the client's manual MCP flow when the user explicitly wants an MCP-only setup; the endpoint is `https://mcp.connic.co/mcp`.
 2. Complete the browser sign-in and review the Connic consent screen.
 3. Select exactly one project, then choose all environments or an explicit environment subset.
 4. Review **Allow all read permissions** and **Allow all write actions**. Turn either switch off to choose individual permissions.

@@ -2,7 +2,7 @@
 name: connic
 description: Use when the user works in a Connic project or asks about Connic agents, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
 metadata:
-  version: "1.2.0"
+  version: "1.2.1"
 ---
 
 # Connic
@@ -43,7 +43,7 @@ For any topic not covered locally, the canonical docs URL is `https://connic.co/
 
 ### Choosing live tools or standalone guidance
 
-The full Codex, Claude Code, and Cursor plugins bundle the production MCP endpoint; standalone skill installations do not modify the client's MCP configuration. When Connic MCP tools are available, use them for authenticated live platform state and operations within the granted scope. Discover the available tools from the live authorization and use only the narrowest relevant one. Perform writes only when explicitly requested. Otherwise remain fully useful with the references, project files, CLI, dashboard, and REST API. Do not claim to have inspected live state when no Connic MCP tool is available.
+The ChatGPT/Codex, Claude, and Cursor plugin packages bundle the production MCP endpoint; standalone skill installations do not modify the client's MCP configuration. When Connic MCP tools are available, use them for authenticated live platform state and operations within the granted scope. Discover the available tools from the live authorization and use only the narrowest relevant one. Perform writes only when explicitly requested. Otherwise remain fully useful with the references, project files, CLI, dashboard, and REST API. Do not claim to have inspected live state when no Connic MCP tool is available.
 
 Connic MCP is the platform-management server. It is different from an agent's `mcp_servers:` configuration, where the agent consumes an external server, and from the MCP connector, where an external client invokes a deployed Connic agent. See [platform-mcp.md](references/platform-mcp.md).
 
