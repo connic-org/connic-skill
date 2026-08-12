@@ -19,7 +19,7 @@ The ChatGPT/Codex, Claude, and Cursor plugin packages bundle the production MCP 
 Install the plugin through the client's plugin marketplace before considering a manual MCP-only connection:
 
 - **ChatGPT app:** Open **Plugins → Add → Add a marketplace**, enter `connic-org/connic-skill` as the source, select **Add marketplace**, then open Connic and select **Install**.
-- **Claude app:** In a local or SSH **Code** session, select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** instead. In the plugin browser, select **+ Add marketplace → Add from a repository**, enter `connic-org/connic-skill` in **URL**, select **Sync**, then open Connic and select **Install**. Connect it under **Manage → Connectors → connic → Connect**, then start a new Code session.
+- **Claude app:** In a local or SSH **Code** session, select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** instead. In the plugin browser, select **+ Add marketplace → Add from a repository**, enter `connic-org/connic-skill` in **URL**, select **Sync**, then open Connic and select **Install**. On the installed Connic plugin page, open **Connectors** and select **Install** next to `connic`. In the **Add custom connector** modal, select **Add**. Back on the same plugin page, select **Connect** and complete OAuth. No running Code session or app restart is needed for the connector setup.
 - **Codex CLI, Claude Code, and Cursor:** Use the packaged marketplace flow documented at `https://connic.co/docs/v1/ai-agent-setup`.
 
 1. Use the bundled `connic` server when it is available. Only use the client's manual MCP flow when the user explicitly wants an MCP-only setup; the endpoint is `https://mcp.connic.co/mcp`.
@@ -34,7 +34,7 @@ The client owns the OAuth session. Never read `.connic`, ask the user to paste a
 
 Every authorization belongs to one user, one OAuth client, and one project. It can cover all current and future project environments or an explicit environment subset.
 
-Write actions require the client to request the optional write OAuth scope. The permission picker uses the same action-level permissions as Team & Permissions. **Allow all read permissions** and **Allow all write actions** include current and future eligible permissions; turn either switch off to choose individual permissions. The user who authorized the client can edit those permissions later. Revocation, permission edits, role changes, membership removal, a newly enforced MFA policy, or environment deletion take effect without waiting for the client's access token to expire.
+The initial OAuth challenge requests both `mcp:read` and `mcp:write`, but the issued authorization includes `mcp:write` only when the user enables write access during consent. The permission picker uses the same action-level permissions as Team & Permissions. **Allow all read permissions** and **Allow all write actions** include current and future eligible permissions; turn either switch off to choose individual permissions. The user who authorized the client can edit the permissions within its granted OAuth scopes later. Revocation, permission edits, role changes, membership removal, a newly enforced MFA policy, or environment deletion take effect without waiting for the client's access token to expire.
 
 Tool arguments never choose a project. Tools can accept `environment_id` when a request must choose one environment, and reject environments outside the authorization. `get_agent` requires one because an agent name alone is not unique across environments. Resource IDs are resolved and validated against the authorized project and environment scope before Connic returns data or changes state.
 
@@ -61,5 +61,5 @@ If Connic MCP tools are unavailable, continue with project files and this skill'
 - **Authorization required:** reconnect the server and complete OAuth in the browser.
 - **Permission denied:** review the authorization's selected permissions, the user's live project role, its project/environment boundary, and any MFA policy. All-access authorizations already include eligible capabilities added later. Do not work around a denial with `.connic` credentials.
 - **Resource not found:** verify the resource is in the authorized project and environment; intentionally cross-scoped resources may appear unavailable.
-- **Write tool unavailable:** edit the authorization under **API Keys & MCP Auth**. Turn on **Allow all write actions**, or select the required write permission. Reconnect only when the OAuth client never requested write access.
+- **Write tool unavailable:** if the authorization is read-only, reconnect and enable write access during consent. If writes are already enabled, edit the authorization under **API Keys & MCP Auth** and select the required write action, or turn on **Allow all write actions**.
 - **Authorization no longer needed:** revoke it under **Project Settings → API Keys & MCP Auth**.

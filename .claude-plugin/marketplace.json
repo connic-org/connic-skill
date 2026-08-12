@@ -11,7 +11,7 @@
       "name": "connic",
       "source": "./plugins/connic",
       "description": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "author": {
         "name": "Connic"
       },

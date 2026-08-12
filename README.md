@@ -50,14 +50,15 @@ codex plugin marketplace add connic-org/connic-skill
 codex plugin add connic@connic
 ```
 
-Start a new Codex task after installation, then open `/mcp` to authenticate or inspect the connection registered from `codex.mcp.json`.
+Start a new Codex task after installation, then open `/mcp` to authenticate or inspect the connection registered from `.mcp.json`.
 
 ### Claude app (Code)
 
 1. Open a local or SSH **Code** session and select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** directly.
 2. In the plugin browser, select **+ Add marketplace → Add from a repository**.
 3. Enter `connic-org/connic-skill` in **URL**, select **Sync**, then open Connic and choose **Install**.
-4. Select **Manage → Connectors → connic → Connect**, complete browser authentication, and start a new Code session.
+4. On the installed Connic plugin page, open **Connectors** and select **Install** next to `connic`.
+5. In the **Add custom connector** modal, select **Add**. Back on the same plugin page, select **Connect** and complete browser OAuth. No running Code session or app restart is needed for the connector setup.
 
 ### Claude Code (plugin marketplace)
 

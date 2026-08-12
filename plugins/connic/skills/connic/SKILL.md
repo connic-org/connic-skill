@@ -2,7 +2,7 @@
 name: connic
 description: Use when the user works in a Connic project or asks about Connic agents, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
 metadata:
-  version: "1.2.1"
+  version: "1.2.2"
 ---
 
 # Connic
