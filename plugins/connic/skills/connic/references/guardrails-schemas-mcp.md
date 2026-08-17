@@ -11,7 +11,7 @@ Force an LLM agent to emit structured JSON conforming to a JSON Schema. Files li
 version: "1.0"
 name: sentiment
 type: llm
-model: gemini/gemini-2.5-pro
+model: connic/gpt-5.6-luna
 description: "Classify input sentiment"
 system_prompt: "Classify the user input as positive, neutral, or negative."
 output_schema: sentiment-result   # schemas/sentiment-result.json

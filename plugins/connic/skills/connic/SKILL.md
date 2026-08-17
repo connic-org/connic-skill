@@ -2,7 +2,7 @@
 name: connic
 description: Use when the user works in a Connic project or asks about Connic agents, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
 metadata:
-  version: "1.2.2"
+  version: "1.2.3"
 ---
 
 # Connic
@@ -29,7 +29,7 @@ The reference files in `references/` are organized by topic. **Load only the one
 | --- | --- |
 | [project-anatomy.md](references/project-anatomy.md) | Project layout, where files go, how things are auto-discovered, `requirements.txt`, `.connic` |
 | [agent-yaml.md](references/agent-yaml.md) | Writing or editing `agents/*.yaml` — agent types, models, tools field, sessions, concurrency, retries, approvals, conditional tools |
-| [tools-and-python.md](references/tools-and-python.md) | Writing `tools/*.py`, middleware, hooks, the `context` dict, `StopProcessing` / `AbortTool`, logging, env vars |
+| [tools-and-python.md](references/tools-and-python.md) | Writing `tools/*.py`, returning files with `ToolFile`, middleware, hooks, the `context` dict, `StopProcessing` / `AbortTool`, logging, env vars |
 | [predefined-tools.md](references/predefined-tools.md) | Built-in tools: `trigger_agent`, `retrieval_query`, `db_find`, `web_search`, etc. — including filter operators |
 | [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) | Input/output guardrails, JSON output schemas, agents consuming external MCP servers, API spec tools |
 | [connectors.md](references/connectors.md) | Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) — how they trigger or receive from agents |
@@ -220,7 +220,7 @@ When you suggest an architecture, evaluate **fit, reliability, and maintainabili
 - **Don't invent connector tools.** There are no `s3.get_object`, `postgres.query`, `telegram.send_message`, etc. predefined tools. The Postgres and S3 connectors are inbound-only triggers; for outbound calls write custom tools using your own libraries (asyncpg, boto3, httpx).
 - **Don't use `api:` prefix for MCP tools.** MCP tools from `mcp_servers:` are auto-loaded — they don't go in the agent's `tools:` list at all. The `api:` prefix is only for tools from API spec imports.
 - **Don't confuse Connic MCP with agent MCP integrations.** Connic MCP lets an AI client manage a Connic project. `mcp_servers:` lets a Connic agent consume external tools. The MCP connector lets an external client invoke deployed agents.
-- **Don't add `import connic` boilerplate to tool files.** Tools are plain functions; the runtime discovers them. Only import from `connic` for special exceptions (`StopProcessing` — runs anywhere; `AbortTool` — only in hook `before()`) or predefined tools (`from connic.tools import trigger_agent`).
+- **Don't add `import connic` boilerplate to tool files.** Tools are plain functions; the runtime discovers them. Import from `connic` only for SDK types such as `ToolFile` and special exceptions (`StopProcessing` — runs anywhere; `AbortTool` — only in hook `before()`), or import predefined tools from `connic.tools` (for example, `trigger_agent`).
 - **Don't add decorators.** No `@tool`, no `@agent`. Discovery is by directory + filename + docstring.
 - **Don't run `connic dev` or `connic deploy` for the user** without asking. Both are network operations against the user's Connic account.
 

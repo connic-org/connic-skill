@@ -56,6 +56,13 @@
       "prompt": "Connic MCP is connected. Check the current failed runs for the authorized environment, then tell me whether any need attention. Do not change anything.",
       "expected_output": "Starts with Connic MCP context when needed, uses the live run read tools and no write tools, respects the authorization's derived project/environment instead of asking for IDs, and never reads or passes `.connic` credentials. Does not confuse Connic MCP with `mcp_servers:` or the MCP connector.",
       "files": []
+    },
+    {
+      "id": 8,
+      "name": "return-file-from-tool",
+      "prompt": "Write a Connic custom tool that generates an invoice PDF in memory and returns it to the agent so the model can inspect it. Can I return the PDF together with a JSON status object?",
+      "expected_output": "Imports `ToolFile` from `connic` and returns it with `mime_type=\"application/pdf\"`, a filename, and exactly one source (`data` bytes or `uri`). Explains that a single `ToolFile` or a top-level list/tuple mixing files with JSON or text is supported, while raw bytes are rejected because they lack a MIME type. Does not invent a decorator or file-result YAML field.",
+      "files": []
     }
   ]
 }

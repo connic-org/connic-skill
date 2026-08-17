@@ -29,7 +29,7 @@ agents/
 # agents/order-processor-test-faster-model.yaml
 version: "1.0"
 name: order-processor-test-faster-model
-model: gemini/gemini-2.5-flash
+model: connic/gpt-5.6-luna
 description: "Processes incoming customer orders"
 system_prompt: |
   You process incoming orders...

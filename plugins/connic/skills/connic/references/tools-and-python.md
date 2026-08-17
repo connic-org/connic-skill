@@ -1,6 +1,6 @@
 # Tools, middleware, hooks, and the context dict
 
-The Python side of a Connic project. All four file types (`tools/*.py`, `middleware/*.py`, `hooks/*.py`, `guardrails/*.py`) are auto-discovered — no decorators, no registration, no imports of the SDK except for special exceptions or predefined tools.
+The Python side of a Connic project. All four file types (`tools/*.py`, `middleware/*.py`, `hooks/*.py`, `guardrails/*.py`) are auto-discovered — no decorators, no registration, no imports of the SDK except for SDK result types, special exceptions, or predefined tools.
 
 ## Tools (`tools/*.py`)
 
@@ -45,6 +45,26 @@ async def web_lookup(url: str, timeout: int = 10) -> dict:
         r = await client.get(url)
         return {"status_code": r.status_code, "body": r.text}
 ```
+
+### Returning files
+
+Return `ToolFile` when the next model turn needs a document, image, audio file, or other binary result. Set the MIME type and exactly one source: inline `data` bytes or a `uri`.
+
+```python
+from connic import ToolFile
+
+
+def export_invoice(invoice_id: str) -> ToolFile:
+    """Generate an invoice PDF for the agent to inspect."""
+    pdf = build_invoice_pdf(invoice_id)
+    return ToolFile(
+        mime_type="application/pdf",
+        name=f"invoice-{invoice_id}.pdf",
+        data=pdf,
+    )
+```
+
+`name` and `size_bytes` are optional. Inline byte size is inferred; if supplied, `size_bytes` must match the data length. A tool may return one `ToolFile` or include files alongside JSON and text values in a list or tuple. Raw `bytes` are rejected because they do not identify a MIME type. URI accessibility and supported media formats depend on the selected model provider.
 
 ### The `context` parameter (auto-injected)
 

@@ -330,7 +330,7 @@ Order in the final list: inherited entries first (root → deepest), then the ag
 ```yaml
 version: "1.0"
 type: llm
-model: anthropic/claude-sonnet-4-6
+model: connic/gpt-5.6-terra
 temperature: 0
 guardrails:
   input:
@@ -359,7 +359,7 @@ approval:
   timeout: 3600
 ```
 
-Effective config for `refund-agent`: `model: anthropic/claude-sonnet-4-6`, `temperature: 0`, the two inherited guardrails, and `tools: [audit.log_event, billing.lookup_charge, billing.issue_refund]`. The agent didn't redeclare `audit.log_event`, so it's inherited as-is.
+Effective config for `refund-agent`: `model: connic/gpt-5.6-terra`, `temperature: 0`, the two inherited guardrails, and `tools: [audit.log_event, billing.lookup_charge, billing.issue_refund]`. The agent didn't redeclare `audit.log_event`, so it's inherited as-is.
 
 ### Tips
 
