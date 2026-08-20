@@ -8,6 +8,7 @@ A Connic project is a directory of YAML and Python files. The CLI (`connic` from
 my-project/
 ├── .connic                    # api_key + project_id (DO NOT commit)
 ├── .agents/skills/connic/     # optional — installed by `connic skill` or `connic init --skill`
+├── .claude/skills/connic/     # optional — installed alongside the .agents copy
 ├── requirements.txt           # extra Python deps (SDK installed globally)
 ├── README.md
 ├── agents/                    # *.yaml — agent definitions (nesting allowed)
@@ -34,7 +35,7 @@ my-project/
     └── mocks/                  # *.py — custom-code replacements referenced by mocks:
 ```
 
-`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the current Connic skill under `.agents/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/` as you need them.
+`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the Connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/` as you need them.
 
 ## Auto-discovery rules
 
@@ -50,13 +51,13 @@ These are how files wire up. There is no central manifest — the layout *is* th
 | `schemas/<name>.json` | Reference as `output_schema: <name>` in an agent. Valid JSON Schema (subset — see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#output-schemas)). |
 | `guardrails/<name>.py` | Reference as `name: <name>` inside a `guardrails: - type: custom` block — filename must match exactly. |
 
-`_`-prefixed **files** and **functions** are skipped by the loader. So `tools/_helpers.py` is invisible, and so is `tools/utils.py::_internal_fn`. Use the leading underscore to hide module-private helpers. `__init__.py` is just one example of a `_`-prefixed file — don't put public tools there.
+Connic skips `_`-prefixed **files** and **functions** during tool discovery. So `tools/_helpers.py` is not exposed, and neither is `tools/utils.py::_internal_fn`. Use the leading underscore for module-private helpers. `__init__.py` is one example of a `_`-prefixed file; do not put tools there.
 
-Parameters without type hints are still exposed but default to `{"type": "string"}` in the LLM-facing schema, which silently coerces numeric/boolean inputs. Type-hint everything. Missing docstrings show up as `"No description provided."` to the LLM — write docstrings.
+Parameters without type hints are still exposed but default to `{"type": "string"}` in the LLM-facing schema, which gives the model the wrong guidance for numeric or boolean values. Type-hint every parameter. Missing docstrings show up as `"No description provided."` to the LLM — write docstrings.
 
 ## Cascading `_defaults.yaml`
 
-At any directory under `agents/`, drop a `_defaults.yaml` to share configuration with every agent at that level and deeper. The loader walks from `agents/` down to each agent file, merging `_defaults.yaml` files shallowest-first; the agent's own YAML wins last.
+At any directory under `agents/`, drop a `_defaults.yaml` to share configuration with every agent at that level and deeper. Connic combines `_defaults.yaml` files shallowest-first; the agent's own YAML wins last.
 
 ```
 agents/
@@ -71,7 +72,7 @@ agents/
 └── support-assistant.yaml      # inherits only root defaults
 ```
 
-`_defaults.yaml` follows the same shape as a normal agent YAML, but is partial — only the fields you want to share. `name` and `description` are **forbidden** in defaults (they're per-agent identity). `version` is permitted so you can pin the schema version once.
+`_defaults.yaml` follows the same shape as a normal agent YAML, but is partial — only the fields you want to share. `name` and `description` are **forbidden** in defaults because they identify one agent. `version` is permitted, but each agent file must also set `version`, `name`, and `description`.
 
 For the precise merge rules (scalars override, dicts deep-merge, lists concat with dedup-by-ref), see [Cascading defaults with `_defaults.yaml`](agent-yaml.md#cascading-defaults-with-_defaultsyaml) in the agent YAML reference.
 
@@ -88,7 +89,7 @@ Credentials live here. Created by `connic login`. **Do not commit.** Add it to `
 
 ## requirements.txt
 
-List only project-specific Python deps (HTTP clients, DB drivers, etc.). The `connic-composer-sdk` is installed by the runner, not from this file.
+List only project-specific Python dependencies such as HTTP clients and database drivers. Connic provides `connic-composer-sdk`; do not add it here.
 
 Example:
 
@@ -111,7 +112,7 @@ Connic deployment ignores Python packaging metadata. A larger repository may sti
 - **Function names**: snake_case.
 - **Schema file**: kebab-case to match agent style (`invoice-data.json`).
 
-Mixing styles works but is hard to read. Stick to the above unless the user's repo already uses something else.
+Use the project's existing module and schema style when it differs. Agent names must still use lowercase letters, numbers, and hyphens.
 
 ## Multiple agents sharing tools
 

@@ -2,7 +2,7 @@
 
 A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, Connic MCP, the Composer SDK, and the platform.
 
-This repo follows the open [SKILL.md](https://github.com/anthropics/skills) standard, so it works across every agent that implements it: the ChatGPT app, Codex CLI, the Claude app, Claude Code, Cursor, GitHub Copilot, Windsurf, Gemini, and others. The same `plugins/connic/skills/connic/` directory is the source of truth for all distribution channels below.
+This repo follows the open [SKILL.md](https://github.com/anthropics/skills) format. Every installation method below uses `plugins/connic/skills/connic/`.
 
 Installing the full Connic plugin through the ChatGPT/Codex, Claude, or Cursor marketplace also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
 
@@ -71,7 +71,7 @@ This repo is also a [Claude Code plugin marketplace](https://code.claude.com/doc
 
 The Claude Code plugin automatically registers `https://mcp.connic.co/mcp` from the plugin's `.mcp.json`. Open `/mcp` to complete OAuth or inspect the connection.
 
-Update with `/plugin marketplace update connic` whenever a new version is released.
+Run `/plugin marketplace update connic` to refresh the marketplace installation.
 
 ### Cursor (GitHub plugin marketplace)
 
@@ -95,26 +95,26 @@ If you'd rather drop the files in by hand, copy `plugins/connic/skills/connic/` 
 | Codex CLI | `.agents/skills/connic/` |
 | Generic | `.agents/skills/connic/` |
 
-The skill works the same regardless of host.
+All installation methods use the same skill files.
 
 ## What it does
 
 Activates whenever a developer is working in a Connic project (anything with a `.connic` file or an `agents/*.yaml` pattern) or asks anything about Connic. The skill teaches the agent:
 
 - The on-disk project layout (`agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`)
-- How agent YAML works — every field, every default, every gotcha
+- Agent YAML fields, defaults, and validation rules
 - How to use EU-hosted `connic/*` models and configured BYOK providers
-- How to write Python tools, middleware, hooks, and custom guardrails — with the **exact** signatures the runtime expects (so generated code actually runs)
+- Exact signatures for Python tools, middleware, hooks, and custom guardrails
 - The predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
-- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket) with correct directions and payload shapes
-- How to use Connic MCP for authenticated live project operations without confusing it with agent-side MCP servers or the MCP connector
-- The `connic` CLI — real flags only, no fabricated ones
+- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket), including directions and payload shapes
+- The differences between Connic MCP, agent-side MCP servers, and the MCP connector
+- Supported `connic` CLI commands and flags
 - The dashboard concepts (Project credit and billing, environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, Bridge, REST API)
 - Best practices the docs recommend: wrap predefined tools, ship with guardrails, write tests as deploy gates
 
 ## Why this exists
 
-Connic is a fast-moving, code-first agent platform — the SDK, the composer features, and the connector catalogue ship updates regularly. This skill is a tight, source-checked reference written directly from the live docs and the `connic-composer-sdk` source, so your AI agent always works against the **current** shape of Connic instead of a stale snapshot from its training data. The result is generated code that runs the first time: real YAML keys, real CLI flags, real predefined-tool signatures, and the conventions the Connic team actually recommends.
+This skill gives AI coding agents the supported YAML keys, CLI flags, predefined-tool signatures, and project conventions.
 
 The eval suite covers representative standalone and live Connic MCP behavior. See [evals/](evals/) for the prompts.
 

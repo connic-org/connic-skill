@@ -4,7 +4,7 @@ Connectors define how agents are triggered, what input they receive, and where r
 
 Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST API is for project management, not starting event-driven runs.
 
-Connectors are configured per environment in the **Dashboard**, not in YAML. Sensitive connection fields are stored encrypted. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's input. Outbound email and Telegram connectors consume the agent output; outbound webhook, Kafka, and SQS publish a full run envelope instead.
+Connectors are configured per environment in the **Dashboard**, not in YAML. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's input. Outbound email and Telegram connectors consume the agent output; outbound webhook, Kafka, and SQS publish a full run envelope instead.
 
 The full list and the modes each one supports:
 
@@ -24,17 +24,19 @@ The full list and the modes each one supports:
 
 Common dashboard flow: open the agent's detail page → **+** on Connector Flow → **Create New Connector** → pick a type → configure → save. Supported connectors such as Postgres and outbound webhook can also reach private endpoints via **Connic Bridge** — set the Bridge in the connector config. Private MCP servers that an agent consumes use `mcp_servers[].bridge` in agent YAML instead.
 
+Custom domains apply to HTTP Webhook, MCP Server, S3, Stripe, Telegram, and WebSocket connector URLs.
+
 Auth on `webhook`, `websocket`, and `mcp` (server-mode) connectors is governed by a **Require Authentication** toggle (default on). Accepted secret forms differ by transport:
 
 - **Webhook:** `X-Connic-Secret` header (preferred), `Authorization: Bearer`, or `?secret=` query parameter.
 - **WebSocket:** either header, `?secret=` / `?X-Connic-Secret=` during the handshake, or `{"secret": "..."}` as the first message.
 - **MCP:** `Authorization: Bearer` or `X-Connic-Secret` header; query-string secrets are not accepted.
 
-When off, the connector endpoint is open at the edge and authentication moves to your code — typically a JWT verified in `middleware/<agent>.py::before` (see the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions)). Use this when the inbound payload already carries a stronger per-user credential than a shared static secret would provide; leave the toggle on for the simple service-to-service case.
+When off, the connector accepts requests without its shared secret. Verify the caller in `middleware/<agent>.py::before`, for example with a JWT or signed payload (see the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions)).
 
 ### Connectors don't have to fire an LLM
 
-Any inbound connector can be linked to a [tool-type agent](agent-yaml.md#tool-agent) instead of an LLM-type agent. The normalized connector payload is passed as one dict to the function's required `payload` parameter, plus `context` when declared — payload keys are never splatted into kwargs. You still get run logs, retries, judges, and the rest of the platform machinery; you just skip the reasoning step. Use this for non-LLM consumers (Kafka → ingestion, S3 → ETL, webhook → routing) where the work is deterministic and you only want the connector and observability layer.
+Any inbound connector can be linked to a [tool-type agent](agent-yaml.md#tool-agent) instead of an LLM-type agent. The normalized connector payload is passed as one dict to the function's required `payload` parameter, plus `context` when declared — payload keys are never expanded into keyword arguments. The run retains logs, configured retries, and judges without a reasoning step. Use this for deterministic consumers such as Kafka ingestion, S3 transforms, or webhook routing.
 
 ## cron
 
@@ -93,9 +95,9 @@ Inbound (Consumer) and Outbound (Producer) modes.
 Exposes Connic agents *as* MCP tools to external clients (Claude Desktop, IDEs, other MCP-aware tools).
 
 - The connector provisions an MCP endpoint URL.
-- Each agent linked to the connector becomes one MCP tool. The tool name is the agent name lowercased with underscores; the tool description is `"Invoke the <Agent Name> agent"`. The tool input schema is fixed: `{message: string (required), payload: object (optional)}`.
+- Each agent linked to the connector becomes one MCP tool. The tool name is lowercased, with spaces and hyphens replaced by underscores; the tool description is `"Invoke the <Agent Name> agent"`. The tool input schema is fixed: `{message: string (required), payload: object (optional)}`. Keys from `payload` are merged into the agent input alongside `message`.
 - Modes: **Sync** (recommended; returns the agent's result as the MCP tool result, 5-minute timeout) or **Inbound** (returns a run ID immediately; this is Connic fire-and-forget behavior, not MCP Tasks).
-- Protocols: the endpoint supports stateless MCP `2026-07-28` with `server/discover`, `tools/list`, and `tools/call`. It also supports prior Streamable HTTP revisions (`initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `ping`) and the original HTTP/SSE transport.
+- Protocols: stateless `2026-07-28`; Streamable HTTP `2025-11-25`, `2025-06-18`, and `2025-03-26`; and HTTP/SSE `2024-11-05`.
 - Authentication uses the connector's pre-shared secret in `Authorization: Bearer` or `X-Connic-Secret`; it has no MCP OAuth discovery or interactive authorization flow. Requests with a browser `Origin` header are rejected, so use a native or server-side MCP client.
 
 **Don't confuse this with the `mcp_servers:` block in agent YAML** — that's the opposite direction (Connic agent as MCP *client*, calling external MCP tools). See [MCP servers](guardrails-schemas-mcp.md#mcp-servers).
@@ -114,9 +116,9 @@ There are no `postgres.query` / `postgres.fetch_one` tools. To read or write Pos
 
 **Inbound only**, driven by S3 object events. Wire S3 → SNS HTTP subscription → connector URL, **or** S3 → EventBridge → connector URL.
 
-- **Config**: AWS access key + secret (no IAM role assumption documented), region, bucket, event mode (**Object Created** by default, or **All Events** to include deletes/restores), optional **prefix/suffix filters**, optional "Include Content", and max file size 1–100 MB.
+- **Config**: AWS access key and secret, region, bucket, event mode (**Object Created** by default, or **All Events** to include deletes/restores), optional **prefix/suffix filters**, optional "Include Content", and max file size 1–100 MB.
 - **Inbound payload**: `{bucket, key, size, etag, event_name, event_time, content?, _s3: {event_source, aws_region, request_id, source_ip}}`. When content is included it is `{text, content_type, size_bytes, encoding}`; UTF-8 text uses `encoding: "utf-8"` and binary uses base64.
-- **SNS / EventBridge setup**: send to `<connector-url>?secret=<secret-key>`. The SNS path verifies AWS signatures, confirms subscriptions, and unwraps notification envelopes; EventBridge uses that authenticated URL as an API Destination.
+- **SNS / EventBridge setup**: send to `<connector-url>?secret=<secret-key>`. SNS subscriptions can confirm against this URL; EventBridge can use it as an API Destination.
 
 There are no `s3.get_object` / `s3.put_object` / `s3.list_objects` tools. To upload/list/read from inside an agent, write custom tools using `boto3` / `aioboto3`.
 
@@ -124,9 +126,9 @@ There are no `s3.get_object` / `s3.put_object` / `s3.list_objects` tools. To upl
 
 Inbound (Consumer) and Outbound (Producer).
 
-- **Inbound config**: queue URL, AWS credentials, **visibility timeout** (default 300 s), **max messages** (1–10, default 10), **wait time** (long-polling, 0–20 s, default 20).
+- **Inbound config**: queue URL, AWS credentials, **visibility timeout** (6–43,200 s, default 300), **max messages** (1–10, default 10), **wait time** (long-polling, 0–20 s, default 20).
 - **Inbound payload**: a JSON object keeps its top-level fields; any non-object body is wrapped under `message`. `_sqs: {message_id, receipt_handle, queue_url, approximate_receive_count, sent_timestamp}` is added in both cases.
-- **IAM**: inbound consumers need `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`; outbound producers need `sqs:SendMessage` and `sqs:GetQueueAttributes`.
+- **IAM**: inbound consumers need `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:ChangeMessageVisibility`; outbound producers need `sqs:SendMessage`.
 - **Delivery semantics**: the message is deleted only after **all linked agent runs** succeed; if any fails, it remains for retry. Connic tracks dispatched runs and extends message visibility while they are still running. FIFO queues are supported via a Message Group ID.
 - **Outbound**: sends the same full run envelope as Kafka (`run_id`, `agent_name`, `status`, `output`, `error`, timestamps, and `token_usage`) to the configured queue.
 
@@ -142,7 +144,7 @@ Inbound (Consumer) and Outbound (Producer).
 
 Telegram bot. **Inbound** and **Outbound** are separate connectors (different modes), both backed by the same bot token.
 
-- **Inbound**: messages to the bot trigger runs.
+- **Inbound**: `message`, `edited_message`, and `callback_query` updates trigger runs.
 
   Payload shape:
 
@@ -160,6 +162,8 @@ Telegram bot. **Inbound** and **Outbound** are separate connectors (different mo
     "raw": {"update_id": 123456789}
   }
   ```
+
+  Photos, voice messages, audio, videos, video notes, documents, and animations are downloaded when available. The largest photo size is used. Each downloaded item appears in top-level `files` as `{name, mime_type, data, size}`, with `data` base64-encoded.
 
   There is no top-level `user_id` — the sender id is `message.from_id`. Optional `Allowed User IDs` allowlist gates which users the bot responds to. Inbound auth is verified by Connic via the `X-Telegram-Bot-Api-Secret-Token` header that Telegram sends.
 
@@ -192,11 +196,11 @@ For multipart, `context["payload"]` is normalised to the same shape `trigger_age
 }
 ```
 
-If no supported file made it through, the payload collapses to just the top-level form fields (no `files` key). File parts are filtered to a fixed allowlist (images, PDF, text/CSV/JSON/XML, Office, ODF, EPUB) and capped at 10 MB per file — anything else is silently dropped with a server-side log warning, not surfaced as a 4xx. Validate in `before` if you need to reject the request when an expected upload is missing.
+If no supported file is accepted, the payload contains only the top-level form fields and no `files` key. File parts use a fixed allowlist (images, PDF, text/CSV/JSON/XML, Office, ODF, EPUB) and a 10 MB per-file limit. Unsupported or oversized parts are omitted. Validate in `before` if a missing upload should reject the request.
 
 The LLM-facing `content` is reconstructed automatically: each `files[*]` entry becomes a binary part, and the leading text part is the payload with only `files` removed. A `{message, files}` payload renders as the plain `message` string; any richer shape is JSON-serialised.
 
-**Authentication** (Inbound / Sync) is controlled by a **Require Authentication** toggle on the connector. When on (the default), callers must present the connector secret as `X-Connic-Secret: <secret>`, `Authorization: Bearer <secret>`, or `?secret=<secret>` — requests without it are rejected at the edge. When off, the endpoint is open and authentication is your responsibility downstream: typically you verify a JWT or another credential inside `middleware/<agent>.py::before` and reject from there (see the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions)). Turn it off when the inbound payload already carries a stronger credential than a static shared secret — JWTs, OIDC tokens, signed webhooks from a known upstream — so you're not stacking two redundant secrets. Leave it on for the simple case where the caller is just another service of yours.
+**Authentication** (Inbound / Sync) is controlled by a **Require Authentication** toggle on the connector. When on (the default), callers must present the connector secret as `X-Connic-Secret: <secret>`, `Authorization: Bearer <secret>`, or `?secret=<secret>`; unauthenticated requests are rejected. When off, verify the caller in `middleware/<agent>.py::before`, for example with a JWT or signed payload (see the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions)).
 
 Sync example (auth enabled):
 
@@ -240,8 +244,8 @@ A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each c
 
 - **Auth**: governed by the same **Require Authentication** toggle as the webhook connector (default on). When on, send `{"secret": "<connector secret>"}` as the first message after connecting, or pass `X-Connic-Secret` as a query param / header during the handshake. When off, the WS endpoint is open and authentication is your responsibility — typically a JWT in the first message that you verify in `middleware/<agent>.py::before`. Turn it off when each connection already carries a stronger per-user credential than a shared secret would provide.
 - **Message protocol**: client sends the canonical `{type: "message", id?, payload: {message, context}}` envelope; shorthand `{"message": "..."}` and `{"content": "..."}` forms are also accepted. Server replies `ack` → `stream_start` → `stream_chunk` (multiple) → `stream_end` (with `full_response`, `token_usage`) when streaming is on; or a single `response` message when streaming is off. Agents with output guardrails still use the streaming event contract, but send one `stream_chunk` after the run completes so guardrails can inspect the full response before any text is released.
-- **Files / multimodal**: the payload may carry a top-level `files` array in the same shape as the [webhook multipart normalization](#webhook) (`{name, mime_type, data: "<base64>", size}`); each entry becomes a binary part of the LLM-facing `content` automatically. Unlike webhook multipart, this path has no server-side MIME allowlist or per-file size cap — files go straight to the model (provider limits apply), so validate in `before` if you need to reject uploads.
-- **Config**: streaming toggle, session timeout (default 1 h), max messages per session (default 100).
+- **Files / multimodal**: the payload may carry a top-level `files` array in the same shape as the [webhook multipart normalization](#webhook) (`{name, mime_type, data: "<base64>", size}`); each entry becomes a binary part of the LLM-facing `content`. This path has no Connic MIME allowlist or per-file size cap, so provider limits apply. Validate uploads in `before` when needed.
+- **Config**: streaming toggle, session timeout (60–86,400 seconds, default 3,600), max messages per session (1–10,000, default 100).
 - **`connector_run_id`** is returned on connect and identifies the session.
 - Conversation history persists only for that connection; closing it ends the session.
 
@@ -256,4 +260,4 @@ When a connector fires, the inbound event reaches `middleware/<agent>.py::before
 - **`content`** — the LLM-facing message: a dict with `role: "user"` and a list of `parts` (text and/or binary attachments). This is what the agent reasons over. Mutate it to attach documents, prepend context, redact PII.
 - **`context["payload"]`** — the connector's normalized payload before user middleware transforms it: the JSON body of a webhook, GET query params, normalized multipart fields/files, parsed Kafka message plus metadata, email fields, etc. Read it for auth tokens, identity claims, routing metadata, and anything else you want middleware to see but the LLM should not.
 
-Per-connector payload shapes are documented in the sections above. If you need a stable schema across multiple connectors, normalize in middleware before tools see it. The auth-token-in-payload pattern is the most common reason to reach for `context["payload"]` — see [the end-user authentication walkthrough](tools-and-python.md#end-user-authentication-and-per-run-permissions).
+Per-connector payload shapes are documented in the sections above. Normalize them in middleware when tools need one stable schema. See [the authentication walkthrough](tools-and-python.md#end-user-authentication-and-per-run-permissions) for using credentials from `context["payload"]`.

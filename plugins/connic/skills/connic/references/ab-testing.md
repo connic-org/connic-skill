@@ -74,8 +74,8 @@ The traffic percentage is the share routed to the variant; the remainder stays o
 - Exploratory tests can run concurrently when their combined variant traffic is at most 100%.
 - Run randomization assigns each run independently.
 - Session randomization keeps a trusted session identity in one arm; only its first eligible run contributes the session outcome.
-- Pausing, concluding, invalidating, or failing a test returns new traffic to the base agent.
-- **Manual Trigger → Normal** follows the currently active routing; selecting a specific arm forces that arm.
+- Pausing, concluding, invalidating, or failing a test routes subsequent traffic to the base agent.
+- **Manual Trigger → Normal** follows the active routing; selecting a specific arm forces that arm.
 - A manually forced control or variant run stays visible in history but is excluded from Confidence analysis and safety checks.
 
 ## Configure a test
@@ -105,7 +105,7 @@ The detail view compares:
 - judge score and judge coverage
 - success rate
 
-Confidence also shows the primary metric, effect, sample progress, completed and upcoming looks, adjusted interval, allocation validity, and current recommendation. A planned look can recommend the variant, recommend control, continue collecting, or stop as inconclusive. Allocation mismatch, failed judge analysis, or a safety breach pauses without a winner claim.
+Confidence also shows the primary metric, effect, sample progress, completed and upcoming looks, adjusted interval, allocation validity, and recommendation. A planned look can recommend the variant, recommend control, continue collecting, or stop as inconclusive. Allocation mismatch, failed judge analysis, or a safety breach pauses without a winner claim.
 
 Runs routed to variants show a test pill in run history and can be filtered by variant.
 

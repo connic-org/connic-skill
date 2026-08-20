@@ -36,11 +36,11 @@ Pass a dict or list for structured JSON. Strings can contain plain text or encod
 
 When `wait_for_response=False`, it returns immediately with just `run_id` (no `status` or `response`).
 
-**Inside the deploy-gate test container**, `trigger_agent` runs the child agent in-process (instead of hitting the live deployment) so tests can assert on the chain via `expected_child_agents` in `tests/*.yaml`. See [cli-and-dev.md](cli-and-dev.md#asserting-on-triggered-agents). Production behaviour is unchanged.
+Tests can assert on agents invoked through `trigger_agent` or `trigger_agent_at` with `expected_child_agents` in `tests/*.yaml`. See [cli-and-dev.md](cli-and-dev.md#asserting-on-triggered-agents).
 
 #### Passing files to the triggered agent
 
-`trigger_agent` has no `files` parameter, but the receiving agent's runtime recognises a specific dict shape in the payload and reconstructs binary file parts from it — the same shape that inbound multipart webhooks and Telegram media use, so it's stable and supported:
+`trigger_agent` has no `files` parameter. To send files, include a top-level `files` list in its payload:
 
 ```python
 import base64
@@ -72,7 +72,7 @@ Shape rules:
 - The receiving agent keeps every non-`files` key at the top level of `context["payload"]`.
 - The receiving LLM sees the payload with only `files` removed. A `{message, files}` payload renders as the plain `message` string; any richer shape is JSON-serialised, so structured fields like `mode`, `data_points`, or `customer_id` are visible to the model.
 
-Base64 inflates the payload by ~33% and the whole thing travels as a JSON string through the trigger endpoint. For anything larger than a few MB, prefer a reference — a presigned S3 URL, a Retrieval `entry_id`, a project-database doc ID — and let the downstream agent fetch the binary via a tool.
+Base64 increases payload size. For large files, pass a reference such as a presigned S3 URL, Retrieval `entry_id`, or project-database document ID and let the receiving agent fetch the binary through a tool.
 
 ### `trigger_agent_at(agent_name, payload, delay=None, unix_timestamp=None)`
 
@@ -93,15 +93,15 @@ Provide **exactly one** of `delay` or `unix_timestamp`. A delay uses only `d`, `
 
 ## Retrieval
 
-Managed semantic retrieval for each environment, optionally divided into namespaces. Namespaces are **dot-separated** (e.g. `policies.hr.leave`, `products.pricing`), max depth 10. Don't use slashes — they aren't valid namespace characters. Namespace scoping always covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
+Managed semantic retrieval for each environment, optionally divided into namespaces. Use **dot-separated** names for hierarchy (e.g. `policies.hr.leave`, `products.pricing`), with a maximum depth of 10. Namespace scoping covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
 
 ```python
 # Semantic search
 result = await retrieval_query(
     query="refund policy",
-    namespace="policies",        # optional; omit for the default namespace
-    min_score=0.3,               # default 0.3
-    max_results=3,               # default 3
+    namespace="policies",        # optional; omit to search all namespaces
+    min_score=0.3,               # default 0.3; clamped to 0.0–1.0
+    max_results=3,               # default 3; clamped to 1–20
     metadata_filter={"source": "handbook"},  # optional; see "Metadata filters" below
 )
 # {"results": [{"score": 0.95, "content": "...", "metadata": {...}, "entry_id": "...", "namespace": "policies"}, ...]}
@@ -129,7 +129,7 @@ children = await retrieval_list_namespaces(parent="policies", depth=1)
 # {"parent": {...}, "namespaces": [...]}
 ```
 
-Retrieval entries become searchable only after the async indexing job finishes — don't query immediately after `retrieval_store`. The same applies to metadata-filter deletes: a delete fired while ingestion jobs are pending only sees already-indexed entries, and re-ingested entries keep their *previous* metadata until their job commits. Re-storing an existing `entry_id` + namespace atomically replaces that entry's content when the job lands — there's never mixed old/new state per entry, but there's no in-agent way to poll a `job_id`, so schedule dependent cleanup as a later run (e.g. via `trigger_agent_at`) rather than inline.
+Retrieval queries and metadata-filter deletes operate on committed index entries. A pending `retrieval_store` job is not searchable; for an existing namespace and `entry_id`, its committed content and metadata remain queryable until the replacement job commits atomically. Agents cannot poll a `job_id`, so schedule dependent cleanup as a later run with `trigger_agent_at` rather than inline.
 
 ### Metadata filters on `retrieval_query` and `retrieval_delete`
 
@@ -137,12 +137,12 @@ Both tools accept an optional `metadata_filter: dict` that narrows the operation
 
 Supported operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`, `$regex`, `$contains` (array contains), `$elemMatch`, `$and`, `$or`, `$nor`, `$not`.
 
-Operator semantics worth knowing (same engine as `db_find`):
+Operator semantics worth knowing (the filter syntax also applies to `db_find`):
 
 - Multiple operators on one field AND together: `{"article_id": {"$exists": True, "$nin": dead_ids}}`.
 - Negation operators (`$ne`, `$nin`) also match entries where the field is **missing** — add `"$exists": True` to restrict to entries that have the field. (The orphan-cleanup `run_id $ne` pattern relies on this: entries never stamped with a `run_id` also match.)
 - `$in`/`$nin` compare values as text — keep ids as strings.
-- No length limit on `$in`/`$nin` lists; the list binds as one array parameter, so thousands of ids are fine.
+- `$in`/`$nin` lists accept at most 1,000 values.
 
 ```python
 # Narrow semantic search to entries with specific metadata
@@ -163,7 +163,7 @@ await retrieval_query(
 
 The signature is `retrieval_delete(entry_id=None, namespace=None, metadata_filter=None)`. You must supply either `entry_id` or `namespace`. Three patterns:
 
-1. **Single entry by id** — `entry_id` (optionally with `namespace` to disambiguate same-id-in-different-namespaces). The legacy shape.
+1. **Single entry by id** — `entry_id` (optionally with `namespace` to disambiguate same-id-in-different-namespaces).
 2. **Bulk by namespace + filter** — `namespace` + `metadata_filter`. Deletes every entry inside `namespace` (and its sub-namespaces) whose metadata matches. The canonical "orphan cleanup" pattern: re-ingest with the current `run_id`, then delete everything in scope where `run_id != current_run_id`. Sequencing matters: run the delete only after the re-ingest jobs have finished — entries still being indexed keep their previous `run_id` and would match the delete filter (see the async-indexing note above).
 3. **Whole-subtree wipe** — `namespace` only (no `metadata_filter`). Deletes every entry under `namespace` and its sub-namespaces. Be careful — this is the bluntest tool here.
 
@@ -175,7 +175,7 @@ Rules:
 - A successful delete returns `{"ok": true, "deleted_chunks": N}`. Entry IDs are namespace-local, so supply `namespace` when the same ID may exist more than once.
 
 ```python
-# Orphan cleanup pattern — re-ingested with run_id = current_run_id, now drop stale entries
+# Orphan cleanup pattern keyed by the active ingestion run
 await retrieval_delete(
     namespace="confluence",
     metadata_filter={
@@ -238,7 +238,7 @@ await db_list_collections()
 
 System fields on every document (read-only): `_id` (UUID), `_created_at`, `_updated_at`.
 
-Collection names are at most 50 characters, start with a lowercase letter, and contain only lowercase letters, digits, and underscores. `db_upsert` requires non-empty `filter` and `update` dicts and updates only the first match. On insert, it merges top-level equality fields from `filter`, then `update`, then `insert_only` (later values win). Operator, logical, and dotted filter fields are not copied into the inserted document. A `None` value removes a field only on the update branch; on insertion it is stored as JSON null.
+Collection names are at most 50 characters, start with a lowercase letter, and contain only lowercase letters, digits, and underscores. `db_upsert` requires non-empty `filter` and `update` dicts and updates only the first match. On insert, it merges top-level equality fields from `filter`, then `update`, then `insert_only` (later values win). Operator, logical, and dotted filter fields are not copied into the inserted document. A `None` value in `update` removes the field on the update branch and is omitted from an inserted document.
 
 ### Filter operators and shorthand
 

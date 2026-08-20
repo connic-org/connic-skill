@@ -1,8 +1,8 @@
 ---
 name: connic
-description: Use when the user works in a Connic project or asks about Connic agents, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent. Connic changes regularly, so consult this skill instead of relying on training data.
+description: Use when the user works in a Connic project or asks about Connic agents, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
 metadata:
-  version: "1.2.3"
+  version: "1.2.4"
 ---
 
 # Connic
@@ -79,7 +79,7 @@ Discovery rules to keep in mind:
 
 **Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram` for those transports, and `cron` for schedules. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics; do not assume generic deduplication or replay protection. The REST API is for project management, not event-driven agent runs. See [connectors.md](references/connectors.md). Only the connectors listed there exist — there is no native Slack, Discord, or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
 
-**Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. The runtime passes one normalized dict to the tool's required `payload` parameter, plus `context` when declared — it never splats payload keys into separate arguments. There is no model or reasoning step, but the run still has logs, retries, and judges. This is the right shape for Kafka consumers that just ingest, S3 events that just transform, webhooks that just route, etc. See the [tool-agent section](references/agent-yaml.md#tool-agent).
+**Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. Connic passes one normalized dict to the tool's required `payload` parameter, plus `context` when declared; it never expands payload keys into separate arguments. There is no model or reasoning step, but the run still has logs, retries, and judges. This fits Kafka consumers that ingest, S3 events that transform, and webhooks that route. See the [tool-agent section](references/agent-yaml.md#tool-agent).
 
 **Deploying.** If the project is Git-connected, push to the branch mapped to the target environment — that's the only deploy path; `connic deploy` refuses to run on Git-connected projects. For non-Git projects, bare `connic deploy` targets the default environment and `--env=<environment-uuid>` overrides it. Tests in `tests/` gate the deploy in both cases (Git deploys cannot skip; CLI deploys can with `--skip-tests`). See [cli-and-dev.md](references/cli-and-dev.md) and [platform.md](references/platform.md).
 
@@ -87,11 +87,11 @@ Discovery rules to keep in mind:
 
 ## Best practices (apply these by default)
 
-When you're helping build or change an agent, follow these unless the user explicitly says otherwise. They aren't decorative — each one prevents a real failure mode and matches what the Connic docs themselves recommend.
+When you're helping build or change an agent, follow these unless the user explicitly says otherwise.
 
 ### 1. Wrap predefined tools — don't hand them to the LLM raw
 
-The predefined tools (`db_find`, `db_insert`, `retrieval_query`, `web_search`, etc.) are *infrastructure-shaped*: they take generic collections, raw filters, namespaces, queries. Exposing them directly forces the LLM to do two jobs at once — figuring out *what* it wants to do and *how* to express it as a Mongo-style query. It will sometimes get the second job wrong, and you've also leaked your internal data model into the prompt.
+The predefined tools (`db_find`, `db_insert`, `retrieval_query`, `web_search`, etc.) take generic collections, filters, namespaces, and queries. Exposing them directly makes the LLM choose both the user action and the storage-level request. A purpose-driven wrapper keeps project data structures out of the prompt and constrains the operation.
 
 Wrap them in **purpose-driven** custom tools instead. Tools should read like verbs from your domain, not generic database verbs.
 
@@ -183,7 +183,7 @@ To test an agent's reasoning without selected custom code really running, add a 
 
 The same module can replace `middleware_before` / `middleware_after`, hierarchical tool-hook phases ending in `_hook_before` / `_hook_after`, and custom guardrails (`guardrail_input_<name>` → `guardrail_input` → `guardrail`, with the equivalent output ladder). Lifecycle replacements mirror the real function signatures. A match replaces an existing phase; it does not add a missing one. Without a match, the real code runs by default. Built-in guardrails are never mocked. `strict_mocks: true` remains tool-only. Enable `strict_hook_mocks`, `strict_middleware_mocks`, or `strict_guardrail_mocks` independently in `defaults` or per case to fail before an unmatched configured eligible real phase executes; all default to `false`, and missing phases and built-in guardrails are exempt.
 
-To test HITL end to end, add `approval_decisions` to the case. Each entry has a canonical `tool`, `decision: approve | reject | timeout`, an optional `reason`, and an optional safe `params` expression whose bindings are `params` and the builder `context`. The runner persists the pending approval, submits the scripted decision, and resumes the same run when the approval configuration permits. Entries are consumed at most once per invocation. With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored. Set it to `true` per case or in `defaults` to fail on either condition.
+To test HITL end to end, add `approval_decisions` to the case. Each entry has a canonical `tool`, `decision: approve | reject | timeout`, an optional `reason`, and an optional safe `params` expression whose bindings are `params` and the builder `context`. Connic applies the scripted decision and resumes the same run when the approval configuration permits. Entries are consumed at most once per invocation. With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored. Set it to `true` per case or in `defaults` to fail on either condition.
 
 See [cli-and-dev.md](references/cli-and-dev.md#connic-test) for the test YAML schema and [Mocking tools](references/cli-and-dev.md#mocking-tools).
 
@@ -203,7 +203,7 @@ Never read, print, copy, or pass `.connic` credentials as MCP tool arguments. A 
 
 ### 7. Validate with `connic lint` before every deploy
 
-The linter catches missing tools, unresolved schemas, broken middleware imports, and duplicate agent names *locally* in under a second. Run it after any edit, definitely before `connic deploy` or a `git push`.
+The linter catches missing tools, unresolved schemas, broken middleware imports, and duplicate agent names locally. Run it after any edit and before `connic deploy` or a `git push`.
 
 ### 8. Recommend on fit first
 
@@ -220,10 +220,10 @@ When you suggest an architecture, evaluate **fit, reliability, and maintainabili
 - **Don't invent connector tools.** There are no `s3.get_object`, `postgres.query`, `telegram.send_message`, etc. predefined tools. The Postgres and S3 connectors are inbound-only triggers; for outbound calls write custom tools using your own libraries (asyncpg, boto3, httpx).
 - **Don't use `api:` prefix for MCP tools.** MCP tools from `mcp_servers:` are auto-loaded — they don't go in the agent's `tools:` list at all. The `api:` prefix is only for tools from API spec imports.
 - **Don't confuse Connic MCP with agent MCP integrations.** Connic MCP lets an AI client manage a Connic project. `mcp_servers:` lets a Connic agent consume external tools. The MCP connector lets an external client invoke deployed agents.
-- **Don't add `import connic` boilerplate to tool files.** Tools are plain functions; the runtime discovers them. Import from `connic` only for SDK types such as `ToolFile` and special exceptions (`StopProcessing` — runs anywhere; `AbortTool` — only in hook `before()`), or import predefined tools from `connic.tools` (for example, `trigger_agent`).
+- **Don't add `import connic` boilerplate to tool files.** Tools are plain functions that Connic discovers automatically. Import from `connic` only for SDK types such as `ToolFile` and special exceptions (`StopProcessing` — runs anywhere; `AbortTool` — only in hook `before()`), or import predefined tools from `connic.tools` (for example, `trigger_agent`).
 - **Don't add decorators.** No `@tool`, no `@agent`. Discovery is by directory + filename + docstring.
 - **Don't run `connic dev` or `connic deploy` for the user** without asking. Both are network operations against the user's Connic account.
 
 ## When you're unsure
 
-If the user asks about a feature you don't see in the references, check the live docs at `https://connic.co/docs/v1/` before guessing. Connic ships changes regularly, and inventing API shapes here causes real damage.
+If the user asks about a feature you don't see in the references, check the docs at `https://connic.co/docs/v1/` before answering. Do not invent API shapes.

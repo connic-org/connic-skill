@@ -27,7 +27,7 @@ AI Governance requires an Enterprise plan; compliance API routes return `403` fo
 | `compliance.export` | Capture and download evidence snapshots |
 | `compliance.incidents.manage` | Create and update incident records and notification evidence |
 
-Every mutation is written to the project audit log with the actor, action, and before/after state.
+Every mutation is written to the project audit log with the actor, action, and affected resource values.
 
 ## AI systems
 
@@ -37,13 +37,13 @@ An AI system is a project-scoped use-case record, independent of any single agen
 | --- | --- |
 | `draft` | Being described; only a pristine draft with no governance records can be deleted |
 | `active` | Currently in use |
-| `retired` | No longer in use; preserves governance history |
+| `retired` | Excluded from active use; retained in governance records |
 
 ## Preliminary assessments
 
 Assessments are immutable, versioned answer sets covering EU scope, operator roles, prohibited practices, high-risk routes, and Article 50 dimensions. Connic derives a deterministic preliminary result using a pinned catalog version and records the reviewed regulatory source.
 
-- New answers create a new version; assessments are never edited in place.
+- Each submitted answer set is an immutable assessment version.
 - Only the latest version can be approved.
 - Approval requires a rationale, at least one supported operator role, and acknowledgment of uncertain answers.
 - Provider and deployer roles are supported end to end.
@@ -60,7 +60,7 @@ Generate controls from the latest approved assessment. Each control records its 
 | `shared` | Connic supports an obligation the organization still owns |
 | `external` | The obligation is handled outside Connic |
 
-Control status is `gap`, `needs_evidence`, `configured`, or `not_applicable`. Marking a control `not_applicable` requires an exception rationale. Refreshing controls re-derives them from the latest approved assessment while preserving change history.
+Control status is `gap`, `needs_evidence`, `configured`, or `not_applicable`. Marking a control `not_applicable` requires an exception rationale. Refreshing controls derives them from the latest approved assessment and keeps earlier control versions available.
 
 ## Article 50 records
 
@@ -82,18 +82,14 @@ Connic records the supplied reporting deadline and basis. It does not calculate 
 
 Snapshots are immutable, metadata-only captures of selected systems and environments over an optional time window.
 
-- They are content-addressed using SHA-256 over canonical serialization.
+- Each snapshot has a SHA-256 content hash.
 - They cannot be edited or deleted and persist for the project lifetime.
 - They exclude raw prompts and model outputs.
 - They include systems, latest assessments, controls, transparency records, monitoring plans, incidents, and scoped run, approval, and judge telemetry.
 - Environment-scoped exports mark project-only audit telemetry unavailable rather than substituting a project-wide count.
 - Coverage metadata records the environment and time scope, plan retention window, unavailable telemetry, and other missing evidence.
 
-Default limits when a plan does not override them:
-
-- 100 snapshots per project
-- 10 MiB per snapshot
-- 100 MiB total snapshot storage per project
+Each snapshot can be up to 10 MiB. A project can capture up to 10 snapshots per hour. Contract-specific limits can also apply.
 
 Downloads are streamed ZIP archives with a human-readable report, canonical JSON, collection CSV/JSON files, and a manifest of per-file SHA-256 hashes. Response headers also carry the snapshot content hash and archive hash for independent verification. The checksums detect changes; they are not signatures or certifications.
 

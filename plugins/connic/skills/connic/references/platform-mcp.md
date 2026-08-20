@@ -34,15 +34,15 @@ The client owns the OAuth session. Never read `.connic`, ask the user to paste a
 
 Every authorization belongs to one user, one OAuth client, and one project. It can cover all current and future project environments or an explicit environment subset.
 
-The initial OAuth challenge requests both `mcp:read` and `mcp:write`, but the issued authorization includes `mcp:write` only when the user enables write access during consent. The permission picker uses the same action-level permissions as Team & Permissions. **Allow all read permissions** and **Allow all write actions** include current and future eligible permissions; turn either switch off to choose individual permissions. The user who authorized the client can edit the permissions within its granted OAuth scopes later. Revocation, permission edits, role changes, membership removal, a newly enforced MFA policy, or environment deletion take effect without waiting for the client's access token to expire.
+Write tools are available only when the user enables write access during consent. The permission picker uses the same action-level permissions as Team & Permissions. **Allow all read permissions** and **Allow all write actions** include all eligible permissions; turn either switch off to choose individual permissions. The user who authorized the client can edit its permissions later. Revocation, permission edits, role changes, membership removal, an enforced MFA policy, and environment deletion take effect immediately.
 
-Tool arguments never choose a project. Tools can accept `environment_id` when a request must choose one environment, and reject environments outside the authorization. `get_agent` requires one because an agent name alone is not unique across environments. Resource IDs are resolved and validated against the authorized project and environment scope before Connic returns data or changes state.
+Tool arguments never choose a project. Tools can accept `environment_id` when a request must choose one environment, and reject environments outside the authorization. `get_agent` requires one because an agent name alone is not unique across environments.
 
 Environment-scoped reads stay within the selected subset. Access to all environments can aggregate compatible stats and budget views or narrow them with `environment_id`. Project-wide resources—including audit, channels, budget alerts, Bridge routes, default-environment changes, and AI Governance—require access to all environments.
 
 ## Tools
 
-Availability depends on the user's current permissions, OAuth read/write access, selected permission settings, and the project/environment boundary. Tool discovery returns only the tools the authorization currently permits. Use the live tool catalog rather than relying on a static list. Database tools cover environment-scoped stats, collections, inferred schemas, full document queries and counts, updates to existing rows, and document and collection deletion. The current plugin, skill, and MCP setup guide is available at `https://connic.co/docs/v1/ai-agent-setup`.
+Availability depends on the user's permissions, OAuth read/write access, selected permission settings, and the project/environment boundary. Tool discovery returns only permitted tools. Use the live tool catalog rather than relying on a static list. Database tools cover environment-scoped stats, collections, inferred schemas, full document queries and counts, updates to existing rows, and document and collection deletion. The plugin, skill, and MCP setup guide is available at `https://connic.co/docs/v1/ai-agent-setup`.
 
 Connic MCP does not start agent runs directly. Use a connector for event-driven runs. MCP does not expose payments, credential management, project deletion, or account-security operations.
 
@@ -59,7 +59,7 @@ If Connic MCP tools are unavailable, continue with project files and this skill'
 ## Troubleshooting
 
 - **Authorization required:** reconnect the server and complete OAuth in the browser.
-- **Permission denied:** review the authorization's selected permissions, the user's live project role, its project/environment boundary, and any MFA policy. All-access authorizations already include eligible capabilities added later. Do not work around a denial with `.connic` credentials.
+- **Permission denied:** review the authorization's selected permissions, the user's live project role, its project/environment boundary, and any MFA policy. All-access authorizations include every eligible capability. Do not work around a denial with `.connic` credentials.
 - **Resource not found:** verify the resource is in the authorized project and environment; intentionally cross-scoped resources may appear unavailable.
 - **Write tool unavailable:** if the authorization is read-only, reconnect and enable write access during consent. If writes are already enabled, edit the authorization under **API Keys & MCP Auth** and select the required write action, or turn on **Allow all write actions**.
-- **Authorization no longer needed:** revoke it under **Project Settings → API Keys & MCP Auth**.
+- **Revoke authorization:** remove it under **Project Settings → API Keys & MCP Auth**.

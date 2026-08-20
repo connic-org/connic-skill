@@ -4,7 +4,7 @@ These four features all live in the agent YAML and shape what the agent *can* ta
 
 ## Output schemas
 
-Force an LLM agent to emit structured JSON conforming to a JSON Schema. Files live in `schemas/<name>.json`. Reference by bare name (no extension) in YAML.
+Set a JSON Schema for an LLM agent's structured output. Files live in `schemas/<name>.json`. Reference one by its bare name, without the extension, in YAML.
 
 ```yaml
 # agents/sentiment.yaml
@@ -42,7 +42,7 @@ Schemas follow the JSON Schema standard. Connic honors the keywords the model ne
 | Strings | `minLength`, `maxLength`, `pattern` |
 | Arrays | `minItems`, `maxItems` |
 
-Supported types: `string`, `number`, `integer`, `boolean`, `array`, `object`, `null`.
+The top-level schema must have `"type": "object"`. Properties can use `string`, `number`, `integer`, `boolean`, `array`, `object`, or `null`.
 
 Output schemas apply only to LLM agents.
 
@@ -127,7 +127,7 @@ Every guardrail evaluation is recorded as a trace span. Violations appear in the
 
 ### Provider-backed guardrails
 
-For production grade detection, swap the default classifier for a managed one with `config.provider`:
+Configure a supported managed provider with `config.provider`:
 
 ```yaml
 guardrails:
@@ -138,7 +138,7 @@ guardrails:
         provider: lakera         # default | lakera (for prompt_injection)
 ```
 
-Available providers vary by type: `moderation` supports `openai` and `perspective`; `prompt_injection` supports `lakera`. The deployed runtime also accepts `openai` and `perspective` for `pii_leakage`, although the current provider table only documents them for moderation. `topic_restriction` and `relevance` are LLM classifiers: choose their model with `config.model`, which defaults to the agent model, rather than `config.provider`. Input `pii`, `regex`, `system_prompt_leakage`, and `data_exfiltration` use Connic's local checks.
+Available providers vary by type: `moderation` supports `openai` and `perspective`; `prompt_injection` supports `lakera`. `topic_restriction` and `relevance` are LLM classifiers: choose their model with `config.model`, which defaults to the agent model, rather than `config.provider`. The remaining built-in types do not need a provider setting.
 
 ### Common config fields
 
@@ -209,7 +209,7 @@ The `check` function can be synchronous or asynchronous, and its signature is **
 
 Connect external MCP (Model Context Protocol) servers to expose their tools to the agent. Tools from a configured server are **auto-loaded** into the agent — you do **not** list them again under `tools:`.
 
-`mcp_servers:` uses Streamable HTTP, negotiates MCP `2026-07-28`, and falls back to legacy revisions without configuration changes.
+`mcp_servers:` connects to remote Streamable HTTP endpoints.
 
 ```yaml
 mcp_servers:
@@ -229,7 +229,7 @@ mcp_servers:
 
 The optional `tools:` field **inside** the `mcp_servers[]` block filters which of the server's tools the agent sees. There is no `api:` prefix for MCP tools — that prefix is reserved for API-spec tools (next section). MCP tools appear in the agent's tool list under their own names.
 
-`discoverable: true` defers loading — the LLM searches for matching tools by natural-language query at runtime instead of seeing them all upfront. Use it when a server exposes hundreds of tools.
+With `discoverable: true`, the LLM searches for matching tools by natural-language query during a run instead of seeing them all upfront. Use it when a server exposes hundreds of tools.
 
 ### Header interpolation: deploy-time vs per-run
 
@@ -239,8 +239,6 @@ Two substitution syntaxes are supported inside `headers:` values. They run in th
 | --- | --- | --- | --- |
 | `${VAR}` | Once, at deploy time | Environment variables (Project Settings → Variables) | Service-level secrets that are the same for every run — bearer tokens, API keys |
 | `${context.<dotted.path>}` | On every run | The run's `context` dict (populated by `middleware/<agent>.py::before`) | Per-user identity propagation — `X-User-Id`, `X-Customer`, anything else that must change per invocation |
-
-When any header on a server uses `${context.*}`, the MCP toolset for that server is rebuilt per run so the substituted values stay fresh.
 
 **Rules and gotchas for `${context.<path>}`:**
 
@@ -260,7 +258,7 @@ Notes:
 - MCP is supported only on LLM agents. External servers must use remote Streamable HTTP; stdio is not supported. Connic consumes tools only, not standalone resources, prompts, subscriptions, Tasks, or MCP Apps extensions.
 - Authentication is via static or interpolated headers. Automatic MCP OAuth discovery and interactive authorization are not supported.
 - If a server is unavailable at startup, the agent starts without that server's tools. A later MCP tool error is traced and returned to the LLM in the current run; Connic does not replay the agent or blindly retry a tool that may have produced side effects.
-- Tool calls are traced. MCP tool annotations, structured results, and UI resource metadata attached to tools are preserved across supported protocol revisions.
+- Tool calls are traced. MCP tool annotations, structured results, and UI resource metadata attached to tools are preserved.
 
 ## API spec tools
 
@@ -290,14 +288,14 @@ tools:
 
 Each API spec lives in its own namespace — `api:stripe.charge_create` and `api:internal.charge_create` are independent tools.
 
-After import, individual tools can be enabled or disabled and given custom names or descriptions. Disabled tools do not resolve through exact references or wildcards. Refreshing a URL-sourced spec matches existing tools by HTTP method and path, so custom names, descriptions, and enabled states survive while new endpoints are added and removed endpoints disappear. Any spec, tool, auth, or refresh change requires an agent redeploy before it takes effect.
+After import, individual tools can be enabled or disabled and given custom names or descriptions. Disabled tools do not resolve through exact references or wildcards. Refreshing a URL-sourced spec synchronizes operations by HTTP method and path while retaining custom names, descriptions, and enabled states for matching operations. Redeploy agents that use the spec after editing or refreshing it.
 
 Tool hooks in `hooks/<agent>.py` fire for local custom tools, predefined Connic tools, and `api:` tools. They do not fire for tools served by external MCP servers.
 
 ## When to use which
 
 - **Output schemas** — when downstream code parses the agent's response. Replaces brittle prompt-engineering for JSON.
-- **Guardrails** — when you need policy enforcement (PII, off-topic, prompt injection) at run boundaries. Cheaper and more reliable than asking the LLM to police itself in the prompt.
+- **Guardrails** — when you need policy enforcement for PII, topic scope, or prompt injection at run boundaries.
 - **MCP servers** — when the tools you need already exist as an MCP server (Context7, your internal tools, third-party MCP catalogs).
 - **API spec tools** — when you want every endpoint of an existing REST API exposed without writing wrapper functions.
 - **Custom Python tools** — when you need project-specific logic, want to combine multiple API calls, or need to bake in defaults the LLM shouldn't have to think about.

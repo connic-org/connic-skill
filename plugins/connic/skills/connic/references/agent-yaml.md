@@ -19,12 +19,12 @@ system_prompt: |
   User: {user_id} on {tier} tier.   # interpolated from context; unmatched placeholders stay literal
   Use tools when helpful.
 
-temperature: 0.1                   # lower = more repeatable; higher = more random
+temperature: 0.1                   # default 1.0; range 0.0–2.0
 timeout: 45                        # seconds for one run; minimum 5; no default
-max_iterations: 8                  # cap on LLM loop steps
-max_concurrent_runs: 20            # default 1; cap on parallel runs of this agent
+max_iterations: 8                  # default 100; minimum 1
+max_concurrent_runs: 20            # default 1; minimum 1
 reasoning_effort: medium           # auto is the default; supported overrides are model-specific
-# reasoning_budget: 4096           # DEPRECATED; legacy Claude 3.7/Sonnet 4 and Gemini 2.5 only; use reasoning_effort
+reasoning_budget: 4096             # optional; only for models that accept a raw token budget
 
 tools:                              # max 100 tools per agent
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
@@ -40,9 +40,9 @@ discoverable_tools:                 # indexed for on-demand search, not loaded u
 output_schema: invoice              # schemas/invoice.json
 
 retry_options:
-  attempts: 3                       # attempts per selected model/operation, including first; max 10
-  initial_delay: 10                 # exponential backoff starts here
-  max_delay: 30                     # backoff cap; max 300 seconds
+  attempts: 3                       # attempts for the model being retried/operation; max 10
+  initial_delay: 10                 # initial delay; range 0–300 seconds
+  max_delay: 30                     # generated backoff cap; range 1–300 seconds
   rerun_middleware: false           # tool/sequential operation retries only; ignored for LLM agents
 
 guardrails:
@@ -98,12 +98,20 @@ approval:
 database:
   prevent_delete: true              # block db_delete project-wide for this agent
   prevent_write: false              # block db_insert / db_update / db_upsert (per-collection rules also available)
+  collections:                      # optional allowlist; omit to allow every collection
+    orders:
+      prevent_write: true           # per-collection override
+    audit: {}
 retrieval:
   prevent_delete: true              # block retrieval_delete
   prevent_write: false              # block retrieval_store
+  namespaces:                       # optional allowlist; omit to allow every namespace
+    policies:
+      prevent_write: true           # per-namespace override
+    public: {}
 ```
 
-For `type: llm`, `attempts` is the request budget for the selected model and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. A fallback-eligible primary error switches immediately to `fallback_model` instead of consuming the primary's remaining attempts, and the fallback then has its own request budget. A request whose outcome is unknown is never replayed onto the fallback. Request retries preserve tool results already produced in the run, tool failures are returned to the LLM instead of blindly re-invoked, backoff counts against the overall `timeout`, and no retry or fallback occurs after streaming output begins. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
+For `type: llm`, `attempts` is the request budget for the model being retried and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. Without a fallback, the primary uses that budget. With `fallback_model`, the primary is tried once and the fallback uses the budget. Request retries preserve tool results already produced in the run, tool failures are returned to the LLM instead of blindly re-invoked, `Retry-After` and backoff count against the overall `timeout`, and no retry or fallback occurs after streaming output begins. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
 
 For `type: tool` and `type: sequential`, the same fields control operation-level attempts. `attempts` always includes the first attempt.
 
@@ -124,7 +132,7 @@ agents:
 
 ## Tool agent
 
-Wraps a single custom Python tool under `tools/` with no LLM. Predefined tools, `api:` tools, and wildcard references cannot be a tool agent's body. The tool function **must declare a `payload` parameter and may declare `context`** — no other parameters are permitted, including defaulted parameters. It's called as `func(payload=<dict>)`, plus `context=<dict>` if declared. Load/deploy validation rejects other signatures (the payload is never splatted into individual kwargs). At trigger boundaries, incoming JSON text is decoded before normalization. Inside a sequential pipeline, a tool stage's JSON-domain return value keeps its exact type for the next stage, so a returned string remains a string even when it looks like JSON. A JSON-object trigger payload arrives as-is in `payload`, connector metadata keys included (a Kafka tombstone arrives as `{"message": None, "_kafka": ...}`); decoded non-dict payloads are wrapped as `{"input": <value>}`. The run still appears in the dashboard with its inputs, outputs, and timing, but no model is invoked.
+Wraps a single custom Python tool under `tools/` with no LLM. Predefined tools, `api:` tools, and wildcard references cannot be a tool agent's body. The tool function **must declare a `payload` parameter and may declare `context`** — no other parameters are permitted, including defaulted parameters. Connic calls it with the normalized payload dict and injects `context` when declared; it never expands payload keys into separate arguments. JSON objects arrive as-is, while decoded non-object values are wrapped as `{"input": <value>}`. In a sequential pipeline, the tool's JSON-compatible return value keeps its type for the next stage. The run appears in the dashboard with its input, output, and timing, but no model is invoked.
 
 ```yaml
 version: "1.0"
@@ -134,9 +142,9 @@ description: "Compute tax for an order"
 tool_name: calculator.calculate_tax
 ```
 
-This is the right shape whenever you want the **connector and observability machinery** of a Connic agent without any reasoning step. Common cases:
+Use a tool agent when a connector or sequential pipeline should run deterministic Python without a reasoning step. Common cases:
 
-- **Non-LLM Kafka / SQS / webhook consumers.** Link a Kafka (or SQS, webhook, S3, …) inbound connector to a `tool`-type agent and the message payload is passed straight into your Python function. No reasoning step is needed because the work is deterministic — but you still get auto-retries, run logs, judges, A/B variants, and everything else Connic gives a normal agent run.
+- **Non-LLM Kafka / SQS / webhook consumers.** Link an inbound connector to a `tool`-type agent and its normalized payload is passed to the Python function. Runs retain logs, configured retries, and judges.
 - **Deterministic transforms and routing.** Parsers, validators, fan-out logic, ETL steps — anything where you know exactly what code should run.
 - **Pre/post pipeline stages in a `sequential` agent.** Use tool agents as the deterministic stages around an LLM stage in a sequential pipeline.
 
@@ -160,9 +168,9 @@ Use exact `connic/*` IDs from the live [Connic Model Catalog](https://connic.co/
 
 For a custom OpenAI-compatible provider, configure a unique lowercase prefix, the API base URL, and an optional API key. The `connic` prefix is reserved for managed models.
 
-An exact ID ending in `-fast` selects a latency-optimized execution profile and may use quantization. Some models only have a Fast ID; where both exist, switching from the standard ID can change output quality, accepted `reasoning_effort` values, context size, or input modalities. Treat it as a model change: check the catalog entry and re-run the agent's tests (or an A/B comparison) before using it for accuracy-critical work.
+An exact ID ending in `-fast` selects a latency-optimized catalog profile. Some models only have a Fast ID; where both exist, the profiles can differ in output quality, accepted `reasoning_effort` values, context size, or input modalities. Treat each exact ID as distinct and use the limits shown in the model catalog.
 
-Connic may route one managed ID across multiple EU inference providers, but the model identity named by the ID does not change. When a route fails and retrying is safe, Connic can move the request to other eligible capacity for that same ID. Managed and BYOK models can be paired as primary and fallback in either direction.
+Managed and BYOK models can be paired as primary and fallback in either direction.
 
 ## `tools:` list — patterns
 
@@ -180,13 +188,15 @@ tools:
   - alerts.page: context.urgent              # truthy check on a context value
 ```
 
-**Tool conditions** use Connic's safe Python-like expression language with `context.*` and `input.*` accessors. Comparisons are `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, and `is not`; combine or group them with `and`, `or`, `not`, and parentheses. Dot access, subscripts, and string/number/boolean/null and list/tuple/set/object literals are allowed. A bare accessor is a truthy check. A missing field makes the condition false rather than exposing the tool. Expressions are limited to 2,000 characters; unknown root names, calls, imports, arithmetic, assignments, and private attributes are rejected during validation.
+**Tool conditions** use Connic's restricted expression language with `context.*` and `input.*` accessors. Comparisons are `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, and `is not`; combine or group them with `and`, `or`, `not`, and parentheses. Dot access, subscripts, and string/number/boolean/null and list/tuple/set/object literals are allowed. A bare accessor is a truthy check. Syntax errors fail validation. During a run, a missing field, unsupported operation, or other evaluation error makes the condition false rather than exposing the tool. Expressions are limited to 2,000 characters; calls, imports, arithmetic, assignments, private attributes, and roots other than `context` and `input` are not allowed.
 
 **Approval conditions** are a different scope: they use `param.*` (the *tool arguments* about to be passed) and `context.*`. They do **not** support `input.*`. Don't confuse the two.
 
 A tool cannot appear in both the unconditional list and a conditional entry — no duplicates.
 
 Every exact tool reference must resolve, and a wildcard must match at least one eligible tool; a zero-match wildcard fails deployment rather than silently producing an empty set.
+
+Use `discoverable_tools` for tools the agent should find by natural-language search instead of loading upfront. It accepts the same exact references, wildcards, and conditions as `tools`. When any local or MCP tools are discoverable, Connic provides `search_tools` and `use_tool` automatically; do not list them yourself. A function cannot appear in both `tools` and `discoverable_tools`, and exposed function names must be unique across both lists.
 
 ### Full predefined-tool list
 
@@ -198,7 +208,7 @@ See [predefined-tools.md](predefined-tools.md) for full signatures. Per [SKILL.m
 
 ### A/B test variants
 
-The loader auto-recognises agent files named `{base-agent}-test-{variant}.yaml` (e.g. `support-assistant-test-shorter-prompt.yaml`) as A/B test variants of the base agent. See the dashboard's A/B Testing page for traffic split configuration.
+Agent files named `{base-agent}-test-{variant}.yaml` (e.g. `support-assistant-test-shorter-prompt.yaml`) are A/B test variants of the base agent. See the dashboard's A/B Testing page for traffic split configuration.
 
 ## `system_prompt` variable interpolation
 
@@ -284,7 +294,7 @@ The run pauses at the gated tool call until a reviewer approves or rejects in **
 
 ## Cascading defaults with `_defaults.yaml`
 
-Drop a `_defaults.yaml` into any directory under `agents/` to share configuration with every agent at that directory level and below. Use it to factor out the boring repetition — the same `model`, the same `guardrails`, a common set of `tools`, the same `database.collections` — across families of agents.
+Drop a `_defaults.yaml` into any directory under `agents/` to share configuration with every agent at that directory level and below. Use it for shared models, guardrails, tools, and database collections across families of agents.
 
 ```
 agents/
@@ -298,14 +308,14 @@ agents/
 └── support-assistant.yaml
 ```
 
-The loader collects the chain of `_defaults.yaml` files from `agents/` down to the agent's directory (shallowest first) and merges them; the agent's own YAML is applied last and wins on conflict.
+Connic combines `_defaults.yaml` files from `agents/` down to the agent's directory, shallowest first. The agent's own YAML is applied last and wins on conflict.
 
 ### What can live in `_defaults.yaml`
 
 The same fields as a normal agent YAML, but partial — only set what you want to share. Two exceptions:
 
 - `name` and `description` are **forbidden** in defaults (they're per-agent identity; sharing them would either be useless or collide).
-- `version` is allowed in defaults so you can pin `"1.0"` once project-wide. The agent file must still set it too (along with `name` and `description`).
+- `version` is allowed in defaults, but every agent file must also set it along with `name` and `description`.
 
 The linter rejects defaults files that contain `name` or `description`, pointing at the offending file.
 
@@ -363,7 +373,6 @@ Effective config for `refund-agent`: `model: connic/gpt-5.6-terra`, `temperature
 
 ### Tips
 
-- Each `_defaults.yaml` is parsed once per loader run, so adding shared config doesn't hurt cold-load time even with many agents.
 - Use `connic lint` to see the final shape if you're unsure what got merged — load errors point at the file whose values caused the rejection.
 - Test variants (`<base>-test-<name>.yaml`) inherit the same defaults as their base, since they live in the same directory.
 

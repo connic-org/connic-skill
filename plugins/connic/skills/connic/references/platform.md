@@ -1,10 +1,10 @@
 # Platform (Dashboard) concepts
 
-The dashboard at `connic.co` is where projects, environments, deployments, and operational concerns live. Most of these aren't expressed in the on-disk YAML — they're properties of the running project on Connic's infrastructure.
+Use the dashboard at `connic.co` to manage projects, environments, deployments, monitoring, and settings. Agent YAML defines agent behavior; dashboard settings apply to the project or selected environment.
 
 ## Project
 
-The top-level container in Connic. Every dashboard URL is scoped to a project. **Always call it a "project", never "workspace".**
+The top-level scope in Connic. Every dashboard URL is scoped to a project. **Always call it a "project", never "workspace".**
 
 A project has a set of environments, Project credit, API keys, connectors, optional Git connection, and team membership. Retrieval and the database are **per-environment**, not per-project (so staging and production have separate data).
 
@@ -19,8 +19,8 @@ Either can be the primary or fallback model. Never invent a `connic/*` alias or 
 
 For managed inference:
 
-- A `-fast` ID is an explicit latency-optimized profile that may use quantization and narrower reasoning, context, or modality limits. Treat switching IDs as a model change and re-run tests.
-- Connic can route the same catalog ID across eligible EU providers without changing model identity. Safe route failures may move to other capacity; an uncertain outcome is never replayed. A definitive fallback-eligible failure switches immediately to `fallback_model`, and the run records `context.fallback_model_used`.
+- A `-fast` ID selects a latency-optimized model variant. Its supported reasoning settings, context limit, or input modalities can differ from the standard ID; the catalog lists the exact differences.
+- Model-call failures use the agent's configured retry attempts. With `fallback_model`, the primary is tried once and the fallback receives that attempt budget. The run records `context.fallback_model_used` when it switches.
 - Every `connic/*` call stays on EU inference capacity and is not used for model training. Catalog warning labels identify non-EU-native upstream providers or a provider's 30-day retention policy; those labels do not change the EU inference location.
 - A managed request cancelled by the run timeout or a manual stop settles at zero tokens and releases its reserved Project credit.
 
@@ -44,7 +44,7 @@ Two paths:
 
 GitLab.com accounts connect with OAuth. For Self-Managed GitLab, first add the public HTTPS instance under **Account → Git Accounts** with a personal access token that has the `api` scope, then select that account when connecting the project repository. The GitLab user must be an administrator or have the Maintainer or Owner role on each repository so Connic can manage its webhook.
 
-A deploy bundles the local files (agents, tools, middleware, hooks, schemas, guardrails, tests, requirements.txt) and uploads them to Connic. The new bundle becomes the active version for that environment. Failed builds never replace the live deployment, and previous deployments remain available via an "Activate" action for instant rollback.
+A deployment includes agents, tools, middleware, hooks, schemas, guardrails, tests, and `requirements.txt`. A successful deployment becomes active for the environment. Failed builds leave the active deployment intact, and the deployment list provides an **Activate** action for rollback.
 
 Environment variables are injected at deploy time. Changing a variable requires re-deploying for new runs to pick it up.
 
@@ -52,7 +52,7 @@ Environment variables are injected at deploy time. Changing a variable requires 
 
 Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When it's on, every GitHub pull request or GitLab merge request whose target branch matches the environment's branch runs the project's test suite — the same tests `connic test` runs — and the result is posted back as `connic/pr-tests`.
 
-For new environments on git-connected projects with a branch set, PR Testing is on by default. CLI-only projects don't have it.
+PR Testing defaults to on for Git-connected environments with a branch. CLI-only projects don't have it.
 
 Each PR only triggers tests in the one environment whose branch matches its target — branch-to-environment is 1:1. Tests run with that environment's variables, secrets, and connections; if the environment has a **Test environment** override set, the tests run there instead (useful for keeping PR traffic out of production).
 
@@ -75,7 +75,7 @@ PR Testing is supported on GitHub and GitLab.
 
 There's a 500-log-lines-per-run cap. Agent Runs filters include Status, Date Range, Deployment, and Search; Logs can be filtered and searched across captured lines.
 
-A run detail includes the raw/formatted input, output, final context, error, parent/connector metadata, token breakdown, duration, and a hierarchical trace. Span types cover logical LLM steps, physical provider calls and retries, local tools, MCP tools, middleware, sequential steps, and the root run/loop. **Run Again** replays the same agent/input after a fix; queued or running executions can be cancelled.
+A run detail includes the raw/formatted input, output, final context, error, parent/connector metadata, token breakdown, duration, and a hierarchical trace. Span types cover logical LLM steps, physical provider calls and retries, local tools, MCP tools, middleware, sequential steps, and the root run/loop. **Run Again** repeats the same agent and input; queued or running executions can be cancelled.
 
 The **Observability** tab also supports multiple drag-and-drop dashboards. Widgets include stat cards, area and bar charts, recent-log lists, and shared text/select inputs; select options can come from Database collections. Dashboards have global date ranges, per-widget agent/connector filters, shared variables, and optional 10-second refresh. An agent's detail page has its own run statistics, status breakdown, configuration, filtered history, and manual trigger.
 
@@ -89,7 +89,9 @@ Token Usage reports `connic/*` costs in EUR. BYOK usage retains the USD or EUR c
 
 Dashboard view: **Project → Retrieval** (scoped to the active environment). Upload content, inspect and filter indexed entries, run semantic Search, delete entries, and monitor ingestion jobs. Content updates use another upload/store with the same namespace-local entry ID.
 
-Namespaces are **dot-separated**, hierarchical, max depth 10 — e.g. `policies.hr.leave`, `products.pricing`. Don't use slashes. Searching a namespace includes all descendants. Ingestion is asynchronous: `retrieval_store` returns a job ID and entries only become searchable once indexing completes.
+Use **dot-separated** namespace names for hierarchy, with a maximum depth of 10 — e.g. `policies.hr.leave`, `products.pricing`. Searching a namespace includes all descendants. Ingestion is asynchronous: `retrieval_store` returns a job ID and entries only become searchable once indexing completes.
+
+Retrieval has no fixed entry-count cap. Stored content contributes to project storage usage and Project credit. Notion, Confluence Cloud, Superhuman Docs (Coda), and website sources can sync on a schedule or on demand; each successfully ingested source item uses Project credit at the retrieval-source rate.
 
 ## Database
 
@@ -101,18 +103,18 @@ Production data is never visible from staging.
 
 ## Judges
 
-Automated evaluators that score runs after the fact (correctness, helpfulness, safety, custom criteria). Configure in **Project → Judges**. A judge is itself an LLM evaluator that takes a completed run as input and emits a score + reason.
+Automated evaluators score completed runs for correctness, helpfulness, safety, or custom criteria. Configure them in **Project → Judges**. A judge takes a completed run as input and emits a score and reason.
 
 - Judges are **per-agent only** — set one up against the specific agent you want graded.
 - Judges can use an exact `connic/*` model or any BYOK provider configured for the Project.
 - Triggers: automatic on every run, automatic on a sample (configurable rate), or manual.
-- Filter expressions over `input.*`, `output.*`, and `context.*` let you grade only matching runs. The judge receives the full run, including input, output, context, tool calls, and trace; its overall score is the sum of independently scored criteria.
+- Filter expressions over `input.*`, `output.*`, and `context.*` let you grade only matching runs. The judge receives the run's status, input, output, error, public context, token usage, and up to 100 recent trace spans. It receives the agent's system prompt only when **Include agent system prompt** is enabled. Its overall score is the sum of independently scored criteria.
 - Each completed judge evaluation consumes one additional Project-credit run unit; a failed evaluation consumes zero judge run units.
 - Score alerts use a configurable rolling window (last 10 completed evaluations by default) and fire only when the average crosses from at/above the threshold to below it. They can fire again after recovery and a later drop.
 
 ## Approvals
 
-Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (`approval:` block — see [agent-yaml.md](agent-yaml.md)). When an agent hits a gated tool, the run pauses and appears in **Project → Approvals**. A reviewer approves or rejects; the run resumes (or fails / skips the tool depending on `on_rejection`). Conditions on `param.*` and `context.*` let you gate only some calls; an evaluation error requires approval. All project members receive email and in-app notifications by default; notification settings select member recipients and can also route to Slack, Microsoft Teams, PagerDuty, or a signed webhook. Multiple gated calls create separate pause/resume cycles; each resume loads the full conversation history without re-executing previously approved tools. Decisions are submitted in Connic or through the REST API, and are recorded in both the audit log and run trace — notification webhooks do not decide approvals.
+Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (`approval:` block — see [agent-yaml.md](agent-yaml.md)). When an agent hits a gated tool, the run pauses and appears in **Project → Approvals**. A reviewer approves or rejects; the run resumes (or fails / skips the tool depending on `on_rejection`). Conditions on `param.*` and `context.*` let you gate only some calls; an evaluation error requires approval. Project members receive email and in-app notifications according to their notification preferences. Approval settings can also send a signed webhook. Multiple gated calls create separate pause/resume cycles; each resume loads the full conversation history without re-executing tools whose approvals are already recorded. Decisions are submitted in Connic or through the REST API, and are recorded in both the audit log and run trace — notification webhooks do not decide approvals.
 
 ## Bridge
 
@@ -154,7 +156,7 @@ For protocols that discover endpoints at runtime, such as Redis Sentinel, config
 - Resolution order is explicit magic hostname, exact route, then regex route. Matches across distinct bridge IDs fail closed.
 - A route selects a tunnel but does not grant access. The bridge agent's exact `ALLOWED_HOSTS` must include the Sentinel and every possible master, such as `redis-sentinel.internal:26379,redis-1.internal:6379,redis-2.internal:6379`.
 - Automatic routes preserve the original hostname for TLS verification. With an explicit magic hostname, set SNI / `server_hostname` to the real target when the client verifies certificates.
-- Custom resolvers and connections opened later from background threads are not auto-routed; use `<target>.cnc-bridge-<bridge_id>` for those connections.
+- Use `<target>.cnc-bridge-<bridge_id>` with custom DNS resolvers and connections opened from background threads.
 
 ## Domains
 
@@ -170,7 +172,7 @@ Choose the domain in a connector's create or edit dialog. No redeploy or URL rot
 
 - The Owner always has full access. Group assignments cannot narrow it. Only the Owner can delete the project or transfer ownership.
 - A Member must belong to at least one permission group. Their effective access is the union of every assigned group.
-- New projects include editable **Admin** and **User** groups. Admin starts with every permission; User starts with read-and-operate access. These are groups, not fixed roles.
+- Projects include editable **Admin** and **User** groups. Admin starts with every permission; User starts with read-and-operate access. These are groups, not fixed roles.
 - Custom groups bundle action-level permissions across agents, runs, deployments, connectors, environments, Retrieval, billing, team management, and other areas.
 - A group cannot be deleted while a member or pending invite uses it.
 
@@ -178,7 +180,7 @@ The project security policy can require 2FA for every member. Enable 2FA on your
 
 Team permission groups are the source of truth for project access. API keys and MCP authorizations can use all supported permissions available to their authorizing user or a selected subset, but they can never exceed that user's current access. Role, group, and membership changes take effect on subsequent credential requests.
 
-The immutable audit log under **Project Settings → Audit Log** records the actor, timestamp, action, and before/after values where applicable, with secrets masked. It can be filtered by time, action, resource, or user; retention depends on the plan.
+The immutable audit log under **Project Settings → Audit Log** records the actor, timestamp, action, and resource state where applicable, with secrets masked. It can be filtered by time, action, resource, or user; retention depends on the plan.
 
 > **Project permissions ≠ end-user authentication.** Permission groups govern who can sign in to the dashboard and manage the project. They do not authenticate the end users whose requests trigger agents. End-user auth (JWTs, OIDC tokens, per-user permissions) belongs in `middleware/<agent>.py::before`, with conditional tools gating actions on the hydrated `context.permissions`. See the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions).
 
@@ -194,7 +196,7 @@ Architectural recommendations should start with fit, reliability, and maintainab
 
 ## REST API
 
-`https://api.connic.co/v1/...`. Create a project-scoped API key under **Project Settings → API Keys & MCP Auth** and send `Authorization: Bearer cnc_...`; the secret is shown only once. New keys default to **All available**, which dynamically follows every current and future REST API permission the key owner has. Choose **Custom** to grant an explicit subset of those same project permissions, and edit that subset later without rotating the secret. A key never exceeds its owner's live project access. All keys for a project share one 60-requests/minute bucket; 429 responses include `Retry-After`. Standard errors use a JSON `{ "detail": "..." }` body.
+`https://api.connic.co/v1/...`. Create a project-scoped API key under **Project Settings → API Keys & MCP Auth** and send `Authorization: Bearer cnc_...`; the secret is shown only once. Keys default to **All available**, which follows every REST API permission the key owner has. Choose **Custom** to grant an explicit subset of those same project permissions, and edit that subset without rotating the secret. A key never exceeds its owner's live project access. All keys for a project share one 60-requests/minute bucket; 429 responses include `Retry-After`. Standard errors use a JSON `{ "detail": "..." }` body.
 
 The REST API is for **managing and observing a project**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing Retrieval entries, approvals, and judges. Use connectors to start runs from external events.
 

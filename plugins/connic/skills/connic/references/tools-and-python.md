@@ -4,7 +4,7 @@ The Python side of a Connic project. All four file types (`tools/*.py`, `middlew
 
 ## Tools (`tools/*.py`)
 
-Plain Python functions. The runtime introspects type hints and the docstring to build the schema shown to the LLM. The docstring is what the LLM reads to decide *when* to call the tool — write it for the model, not the developer.
+Tools are plain Python functions. Connic uses their type hints and docstrings to build the schema shown to the LLM. The docstring tells the model when to call the tool, so write it for the model.
 
 A type-hinted parameter without a default is required. A parameter with a default, including `Optional[T] = None`, is optional.
 
@@ -68,7 +68,7 @@ def export_invoice(invoice_id: str) -> ToolFile:
 
 ### The `context` parameter (auto-injected)
 
-If a tool declares a parameter **named** `context`, the runtime fills it in and the LLM never sees it. Injection is by parameter *name*, not by type hint — `context` (no annotation) works the same as `context: dict`. Don't name an LLM-facing parameter `context` or it'll be hidden.
+If a tool declares a parameter **named** `context`, Connic fills it in and hides it from the LLM. The parameter name controls this behavior, not its type hint: `context` works the same as `context: dict`. Use another name for any parameter the LLM should supply.
 
 ```python
 async def get_user_orders(context: dict, limit: int = 10) -> list:
@@ -103,7 +103,7 @@ def gated(resource: str, context: dict) -> str:
 - `AbortTool(result)` — **only** valid inside a `hooks/<agent>.py::before()`. Aborts just *this* tool call, returns `result` to the LLM in place of the real result, and the agent continues. Not for use from inside tool functions.
 - Any other unhandled exception → tool call fails, LLM sees the error and may retry or give up.
 
-These Python exceptions apply to project code. A remote MCP server cannot raise `StopProcessing` inside the Connic runtime; its protocol error is returned to the LLM as a tool failure. If parallel project tool calls raise `StopProcessing`, the first one observed ends the run.
+These Python exceptions apply to project code. Errors from a remote MCP server are returned to the LLM as tool failures instead. If parallel project tool calls raise `StopProcessing`, the first one observed ends the run.
 
 ### Logging
 
@@ -123,7 +123,7 @@ base_url = os.environ.get("BASE_URL", "https://api.example.com")
 
 Auto-attached to the agent with the matching `name`. Defines an optional `before` and/or `after`. Both can be sync or async.
 
-**Both functions must return their primary argument** — `before` returns `content`, `after` returns `response`. The runtime takes the returned value and feeds it forward (into the LLM for `before`, out to the caller for `after`). If you forget to return, the runtime gets `None` and the run fails — implicit `return None` is the single most common middleware bug, especially when you delegate the body to a helper. Modifying `content`/`context` in place is fine; you still have to return it at the end.
+**Both functions must return their primary argument** — `before` returns `content`, `after` returns `response`. The returned value feeds into the LLM for `before` and goes to the caller for `after`. An implicit `return None` makes the run fail. Modifying `content` or `context` in place is fine; return the primary argument at the end.
 
 ```python
 from typing import Dict, Any
@@ -175,7 +175,7 @@ async def before(content, context):
     return await authenticate_and_normalize(content, context)
 ```
 
-Either shape is fine — what matters is that the value returned from `before` is whatever you want the LLM to see, and the value returned from `after` is whatever you want the caller to see. Helpers in `middleware/_*.py` files are skipped by the auto-discovery loader (the leading underscore hides them), so they're a clean place to put shared code.
+Either shape is fine — the value returned from `before` is what the LLM sees, and the value returned from `after` is what the caller sees. Connic skips `middleware/_*.py` files during discovery, so they can hold shared helpers.
 
 ### The `content` shape
 
@@ -292,13 +292,13 @@ tools:
   - billing.refund:     "'billing:refund' in context.permissions"
 ```
 
-The conditional-tool expressions are plain Python evaluated against `context.*` and `input.*`, validated at deploy time — no runtime cost. See the [tools-list patterns section](agent-yaml.md#tools-list--patterns) for the full conditional-tool syntax.
+Conditional-tool expressions use a restricted expression grammar and are evaluated for each run against `context.*` and `input.*`. If an expression cannot be evaluated, the tool is unavailable for that run. See the [tools-list patterns section](agent-yaml.md#tools-list--patterns) for the full syntax.
 
 Notes:
 
 - **Don't map end users to Connic project membership or permission groups.** The Owner, Members, and their groups are for the humans who develop, deploy, and audit the project; there is no API to create a Connic Member per end user.
 - **Cache external auth lookups in module scope, not in `context`.** A Redis client or a JWKS client should be a module-level singleton — `context` is per-run.
-- **Identity gets recorded.** Once `context["user_id"]` is set in `before`, it shows up in run logs and traces — that's how every run becomes attributable for audit purposes (relevant for EU AI Act and similar regimes).
+- **Identity can be recorded.** A `user_id` stored in context is persisted with the run and can be used to search and attribute runs.
 - **Forward identity to downstream MCP servers.** When a downstream MCP server gates on the end-user (compliance, per-tenant data, audit-trail), use `${context.<key>}` interpolation inside `mcp_servers[].headers` so each MCP call carries the right user. Connic substitutes the value per run from the same `context` you populated in `before`; missing values fail the run rather than silently sending an unauthenticated request. See the [MCP header interpolation section](guardrails-schemas-mcp.md#header-interpolation-deploy-time-vs-per-run).
 - **Hooks complement, don't replace, this.** Use `hooks/<agent>.py::before` for cross-cutting checks on tool arguments (e.g. "this customer_id matches `context.customer_id`") that are easier to write once than to encode as a conditional-tool expression.
 
@@ -327,7 +327,7 @@ async def after(tool_name: str, params: dict, result, context: dict):
 
 Scope: hooks fire for local tools, predefined Connic tools, and API-spec tools. They **do not** fire for tools exposed via remote MCP servers.
 
-Both hook phases may be synchronous or asynchronous and may omit `context`. `before` returns the params dict passed to the tool. `after` returns the value passed back to the LLM; returning `None` preserves the original result. `AbortTool` skips execution but marks that tool trace as an error. An ordinary hook exception fails the tool call and is returned to the LLM.
+Both hook phases may be synchronous or asynchronous and may omit `context`. `before` can return a dict whose keys are merged into the original tool parameters; returning `None` leaves the parameters unchanged. `after` returns the value passed back to the LLM; returning `None` preserves the original result. `AbortTool` skips execution but marks that tool trace as an error. An ordinary hook exception fails the tool call and is returned to the LLM.
 
 ## Custom guardrails (`guardrails/<name>.py`)
 
@@ -360,7 +360,7 @@ async def check(content: str, context: dict) -> GuardrailResult:
 
 Lives for one run, shared by middleware → tools → hooks → after.
 
-System fields (auto-populated by the runtime, available from `before`, tools, hooks, and `after`):
+System fields populated by Connic and available from `before`, tools, hooks, and `after`:
 
 - `run_id` (str)
 - `agent_name` (str)
@@ -374,10 +374,10 @@ Anything else (`user_id`, `is_admin`, `permissions`, etc.) is whatever middlewar
 
 ## Common mistakes
 
-- **Forgetting type hints on a tool parameter** — the parameter is still exposed but defaults to `{"type": "string"}` in the LLM-facing schema, which silently coerces numeric/boolean inputs. Always type-hint params so the LLM can pass the right types.
+- **Forgetting type hints on a tool parameter** — the parameter is still exposed but defaults to `{"type": "string"}` in the LLM-facing schema, which gives the model the wrong guidance for numeric or boolean values. Type-hint parameters so the model can pass the right types.
 - **Writing tools without docstrings** — the LLM gets `"No description provided."` and won't know when to call the tool. Docstring is the primary triggering signal.
-- **`_`-prefixed files and functions are skipped by the loader** — `tools/_helpers.py`, `tools/utils.py::_internal_fn`, and `__init__.py` are all invisible to the runtime. Use the leading underscore to hide module-internal helpers; drop it to expose them as tools.
-- **Importing `connic` for tools that don't need it** — adds startup cost for nothing.
-- **Not returning from `before` / `after`.** This is the single most common middleware bug. Both functions must return their primary argument — `return content` from `before`, `return response` from `after`. Implicit `return None` makes the run fail. Particularly easy to miss when the body delegates to a helper: `await authenticate(content, context)` on its own is *wrong* — add `return content` on the next line.
-- **Sharing module-level state across runs** — runs share the Python process, so a module-level dict will leak between invocations. Use the `context` dict instead.
-- **Naming an LLM-facing parameter `context`** — the runtime will hide it from the LLM and inject runtime state instead. Pick another name.
+- **`_`-prefixed files and functions are not exposed as tools** — this includes `tools/_helpers.py`, `tools/utils.py::_internal_fn`, and `__init__.py`. Use a leading underscore for module-private helpers; remove it from functions that should be available as tools.
+- **Importing `connic` for tools that don't need it** — import only the SDK types, exceptions, or predefined tools the file uses.
+- **Not returning from `before` / `after`.** Both functions must return their primary argument — `return content` from `before`, `return response` from `after`. Implicit `return None` makes the run fail. When the body delegates to a helper, `await authenticate(content, context)` on its own is incomplete; return the content on the next line.
+- **Sharing mutable module-level state across runs** — use the per-run `context` dict for invocation state.
+- **Naming an LLM-facing parameter `context`** — Connic hides it from the LLM and supplies the run context instead. Pick another name.
