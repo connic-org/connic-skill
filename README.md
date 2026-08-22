@@ -2,7 +2,7 @@
 
 A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, Connic MCP, the Composer SDK, and the platform.
 
-This repo follows the open [SKILL.md](https://github.com/anthropics/skills) format. Every installation method below uses `plugins/connic/skills/connic/`.
+This repo follows the open [SKILL.md](https://github.com/anthropics/skills) format and the portable [Agent Plugins v1 specification](https://agent-plugins.org/specification). Every installation method below uses `plugins/connic/skills/connic/`.
 
 Installing the full Connic plugin through the ChatGPT/Codex, Claude, or Cursor marketplace also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
 
@@ -131,6 +131,8 @@ The eval suite covers representative standalone and live Connic MCP behavior. Se
 │   └── marketplace.json               # Cursor marketplace catalog
 ├── plugins/
 │   └── connic/                        # the plugin itself
+│       ├── plugin.json                # portable Agent Plugins v1 manifest
+│       ├── LICENSE                    # Apache-2.0 license distributed with the plugin
 │       ├── .mcp.json                  # bundled production Connic MCP connection
 │       ├── .claude-plugin/
 │       │   └── plugin.json            # Claude Code plugin manifest
@@ -140,8 +142,7 @@ The eval suite covers representative standalone and live Connic MCP behavior. Se
 │       │   └── plugin.json            # Cursor plugin manifest
 │       ├── assets/
 │       │   └── connic-icon.png         # shared plugin icon
-│       ├── codex.mcp.json              # Codex MCP connection
-│       ├── mcp.json                    # Cursor MCP connection
+│       ├── mcp.json                    # portable MCP connection (also used by Cursor)
 │       └── skills/
 │           └── connic/
 │               ├── SKILL.md           # entry point — always loaded
@@ -177,4 +178,4 @@ The entry point is `plugins/connic/skills/connic/SKILL.md`; on-demand reference 
 
 ## License
 
-Apache-2.0 — same as the Connic Composer SDK.
+[Apache-2.0](plugins/connic/LICENSE).

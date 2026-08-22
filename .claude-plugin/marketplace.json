@@ -1,5 +1,5 @@
 {
-  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "connic",
   "description": "Connic agent skills for Claude Code and any SKILL.md-compatible agent.",
   "owner": {
@@ -11,9 +11,9 @@
       "name": "connic",
       "source": "./plugins/connic",
       "description": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance.",
-      "version": "1.2.4",
       "author": {
-        "name": "Connic"
+        "name": "Connic",
+        "email": "support@connic.co"
       },
       "homepage": "https://connic.co",
       "repository": "https://github.com/connic-org/connic-skill",

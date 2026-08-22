@@ -21,7 +21,7 @@ You are likely working inside a **Connic project** on disk. Confirm by looking f
 - an `agents/` directory containing `*.yaml` files with `version: "1.0"` at the top
 - `connic-composer-sdk` in `requirements.txt`
 
-There is no `connic.yaml` / `connic.yml` manifest — the on-disk directory layout *is* the manifest. If none of the indicators above exist and the user asks about Connic generally, answer from the references; don't fabricate file paths.
+There is no `connic.yaml` manifest — the on-disk directory layout *is* the manifest. If none of the indicators above exist and the user asks about Connic generally, answer from the references; don't fabricate file paths.
 
 The reference files in `references/` are organized by topic. **Load only the ones relevant to the current question** — they are detailed and burning all of them upfront wastes context. The references are:
 
