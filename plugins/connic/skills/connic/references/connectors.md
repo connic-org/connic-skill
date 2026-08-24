@@ -1,10 +1,10 @@
 # Connectors
 
-Connectors define how agents are triggered, what input they receive, and where results go. Each connector can link to one or more agents; one trigger dispatches its input to every linked agent. There is **no** native Slack, Discord, GitHub, or Notion connector — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
+Connectors define how agents are triggered, what input they receive, and where results go. Each connector can link to one or more agents; one trigger dispatches its input to every linked agent. Slack is native. Discord, GitHub, and Notion are not connector types — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
 
 Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST API is for project management, not starting event-driven runs.
 
-Connectors are configured per environment in the **Dashboard**, not in YAML. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's input. Outbound email and Telegram connectors consume the agent output; outbound webhook, Kafka, and SQS publish a full run envelope instead.
+Connectors are configured per environment in the **Dashboard**, not in YAML. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's input. Automatic outbound connectors for Email, Telegram, and Slack can consume the final agent output; automatic outbound connectors for webhook, Kafka, and SQS publish a full run envelope instead. Agent-tool and middleware outbound connectors use a connector-owned payload schema and do not constrain the final response.
 
 The full list and the modes each one supports:
 
@@ -17,12 +17,38 @@ The full list and the modes each one supports:
 | `postgres` | Inbound | LISTEN/NOTIFY-driven trigger. |
 | `s3` | Inbound | React to S3 object events (via SNS/EventBridge). |
 | `sqs` | Inbound (Consumer) / Outbound (Producer) | Consume from / produce to an SQS queue. |
+| `slack` | Inbound (Mentions) / Outbound | Trigger from bot mentions; reply to a thread or post to a channel. |
 | `stripe` | Inbound | React to Stripe webhook events. |
 | `telegram` | Inbound / Outbound | Telegram bot — receive messages, send replies. |
 | `webhook` | Inbound / Outbound / Sync | Generic HTTP. Sync = HTTP request/response; Inbound = fire-and-forget; Outbound = call out to your URL. |
 | `websocket` | Sync (real-time chat) | Persistent bidirectional session. |
 
 Common dashboard flow: open the agent's detail page → **+** on Connector Flow → **Create New Connector** → pick a type → configure → save. Supported connectors such as Postgres and outbound webhook can also reach private endpoints via **Connic Bridge** — set the Bridge in the connector config. Private MCP servers that an agent consumes use `mcp_servers[].bridge` in agent YAML instead.
+
+## Outbound connector modes
+
+An outbound connector has one mode:
+
+- **Automatic outbound connector** — sends once after a completed run. Choose **All runs**, or choose **Only selected inputs** to send only when `run.connector_id` matches one of the selected inbound or sync connector IDs. All runs also includes manual, cron, and `trigger_agent` runs with no inbound source. Existing links without outbound connector settings remain **Automatic / All runs**.
+- **Agent-tool outbound connector** — injects an editable connector tool into an LLM agent. Its default `action_name` is `send_to_<normalized connector name>`. Keep it unique across that agent's custom, predefined, connector, and MCP tools. The model decides whether and when to call it and may call several agent-tool outbound connectors in one run.
+- **Middleware outbound connector** — project code calls it with `await send_connector(action_name, payload)`, and the model cannot access it.
+
+Source filters and `StopProcessing(..., publish_outbound=False)` apply only to automatic outbound connectors. The flag does not undo an agent-tool or middleware outbound connector call.
+
+Deployment tests do not deliver outbound messages. Automatic outbound connectors are suppressed, while calls to agent-tool and middleware outbound connectors are recorded as mocked tool calls for assertions.
+
+Each outbound connector owns its payload schema, credentials, destination resolution, wire formatting, retries, and Bridge routing. The model and middleware receive no stored secrets or destination values. Agent-tool and middleware outbound connector payloads are:
+
+| Connector | Payload |
+| --- | --- |
+| HTTP Webhook | `{"payload": { ... }}` |
+| Kafka | `{"payload": { ... }, "key": "optional-string"}` |
+| SQS | `{"payload": { ... }}` |
+| Email | `{"body": "required", "to"?: string \| string[], "subject"?: string, "html_body"?: string, "cc"?: string \| string[], "bcc"?: string \| string[], "reply_to"?: string}` |
+| Telegram | `{"text": "required", "chat_id"?: string \| integer}` |
+| Slack | `{"text": "required", "channel_id"?: string, "thread_ts"?: string}` |
+
+Unknown top-level payload fields are rejected. Routing fields are optional when the connector has a configured default or trusted matching inbound origin. For automatic outbound connectors, the final run output keeps the legacy connector-specific contract documented below. `output_schema` constrains only that final response; it does not combine or replace outbound connector payload schemas.
 
 Custom domains apply to HTTP Webhook, MCP Server, S3, Stripe, Telegram, and WebSocket connector URLs.
 
@@ -79,7 +105,7 @@ Inbound payload — the keys the agent sees:
 
 Attachments over 10 MB are listed as metadata only (no content). Supported content includes common images, PDF/text/data formats, and DOCX/XLSX/PPTX; tracking pixels, tiny inline/signature images, and unknown formats are filtered out. Field names are `filename`, `content_type`, `content` — not `name`, `mime_type`, `data`.
 
-Outbound: configure SMTP server / port / username / password / From address / From name, and optionally a Default Recipient. The agent's *output* is JSON with `to`, `subject`, `body`, and optional `cc`, `bcc`, `html_body`, `reply_to`. A recipient is required — it comes from the output's `to` or the connector's Default Recipient; with neither, the send fails. `subject` defaults to `"Agent Response"` when omitted. The connector does **not** automatically reply to the inbound sender — your agent must echo the right `to` (or rely on the Default Recipient). A bare (non-JSON) string is sent as the body, so it only delivers when a Default Recipient is configured.
+Automatic outbound connector behavior: configure SMTP server / port / username / password / From address / From name, and optionally a Default Recipient. The agent's final *output* is JSON with `to`, `subject`, `body`, and optional `cc`, `bcc`, `html_body`, `reply_to`. A bare string becomes the body. Agent-tool and middleware outbound connectors instead use the Email payload schema above; `body` is required. Recipient precedence is explicit `to`, Default Recipient, then trusted matching inbound email context. Without an explicit subject, replies reuse the inbound subject with `Re:`; other sends use `"Agent Response"`.
 
 ## kafka
 
@@ -87,8 +113,8 @@ Inbound (Consumer) and Outbound (Producer) modes.
 
 - **Connection**: environment-scoped dashboard fields for bootstrap servers, SASL credentials, topic name, and consumer group (inbound).
 - **Inbound payload**: the parsed message value. Metadata is exposed at `_kafka` inside the payload: `{topic, partition, offset, timestamp, key}` — not in `context`. JSON-object values are dispatched with their top-level fields plus `_kafka`; anything else is wrapped under a `message` key — non-JSON values as `{"message": "<raw text>", "_kafka": ...}`, null values (compaction tombstones) as `{"message": null, "_kafka": ...}`. Tombstones DO trigger runs; use `_kafka.key` to identify the deleted entity.
-- **Outbound**: publishes a run envelope with `run_id`, `agent_name`, `status`, `output`, `error`, `started_at`, `ended_at`, and `token_usage`. If the run was triggered by inbound Kafka, its key is preserved for partition ordering; otherwise the Kafka key falls back to `run_id`.
-- **Outbound delivery gating** (applies to every outbound connector, not just Kafka): only runs that end `completed` are delivered — failed and cancelled runs are skipped. A run ended via `StopProcessing` counts as completed and IS published (the stop message becomes `output`) unless raised with `publish_outbound=False` — see [StopProcessing](tools-and-python.md). Returning `None`/empty output does not suppress delivery.
+- **Automatic outbound connector**: publishes a run envelope with `run_id`, `agent_name`, `status`, `output`, `error`, `started_at`, `ended_at`, and `token_usage`. If the run was triggered by inbound Kafka, its key is preserved for partition ordering; otherwise the Kafka key falls back to `run_id`. An agent-tool or middleware outbound connector publishes its `payload` as the message value and may set `key` explicitly.
+- **Automatic outbound connector gating** (applies to every outbound connector, not just Kafka): only runs that end `completed` are delivered — failed and cancelled runs are skipped. A run ended via `StopProcessing` counts as completed and is published (the stop message becomes `output`) unless raised with `publish_outbound=False` — see [StopProcessing](tools-and-python.md). Returning `None` or empty output does not suppress the automatic outbound connector.
 
 ## mcp (server mode)
 
@@ -130,7 +156,7 @@ Inbound (Consumer) and Outbound (Producer).
 - **Inbound payload**: a JSON object keeps its top-level fields; any non-object body is wrapped under `message`. `_sqs: {message_id, receipt_handle, queue_url, approximate_receive_count, sent_timestamp}` is added in both cases.
 - **IAM**: inbound consumers need `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:ChangeMessageVisibility`; outbound producers need `sqs:SendMessage`.
 - **Delivery semantics**: the message is deleted only after **all linked agent runs** succeed; if any fails, it remains for retry. Connic tracks dispatched runs and extends message visibility while they are still running. FIFO queues are supported via a Message Group ID.
-- **Outbound**: sends the same full run envelope as Kafka (`run_id`, `agent_name`, `status`, `output`, `error`, timestamps, and `token_usage`) to the configured queue.
+- **Automatic outbound connector**: sends the same full run envelope as Kafka (`run_id`, `agent_name`, `status`, `output`, `error`, timestamps, and `token_usage`) to the configured queue. An agent-tool or middleware outbound connector sends its nested `payload` as the message body.
 
 ## stripe
 
@@ -167,9 +193,22 @@ Telegram bot. **Inbound** and **Outbound** are separate connectors (different mo
 
   There is no top-level `user_id` — the sender id is `message.from_id`. Optional `Allowed User IDs` allowlist gates which users the bot responds to. Inbound auth is verified by Connic via the `X-Telegram-Bot-Api-Secret-Token` header that Telegram sends.
 
-- **Outbound**: the agent's output can be JSON with `text` (also accepts `message` or `body`) and optionally `chat_id`, or a bare string (sent as the message text). `chat_id` is **not** automatically resolved from the triggering run — either echo it from `input.chat_id` in the agent's output, or set a default Chat ID on the outbound connector; with neither, the send fails. Messages are always sent with `parse_mode: HTML` — the agent cannot override it.
+- **Automatic outbound connector**: the final output can be JSON with `text` (also accepts `message` or `body`) and optionally `chat_id`, or a bare string. Agent-tool and middleware outbound connectors use required `text` plus optional `chat_id`. An explicit chat wins, followed by the connector's default Chat ID, then trusted matching inbound Telegram context. Messages use `parse_mode: HTML`.
 
-There are no `telegram.send_message` or `telegram.send_photo` predefined tools. Sending photos / files / richer messages isn't supported by the outbound connector itself — for that, write a custom tool that hits the Telegram Bot API directly.
+There is no universal `telegram.send_message` or `telegram.send_photo` predefined tool. An agent-tool outbound connector for Telegram injects only its chosen `action_name`. This outbound connector does not support photos, files, or richer messages; use a custom tool for those Telegram Bot API methods.
+
+## slack
+
+Inbound Slack connectors trigger linked agents from signed `app_mention` events. Origin-thread replies require the inbound and outbound connectors to use the same verified Slack Connection.
+
+Configure Slack in the Dashboard: create a Slack Connection, open the generated app manifest, save the Signing Secret, verify the Events request URL, install the app, and save its `xoxb-` Bot User OAuth Token. Then create the inbound or outbound connector and invite the bot to every channel where it should receive mentions or post messages. Connic MCP can read Slack connectors but cannot create them because creation requires this Connection setup flow.
+
+One Slack Connection can have one inbound connector. Link additional agents to that connector; outbound connectors can reuse the Connection.
+
+- **Inbound payload**: includes `text`, `user_id`, `team_id`, `channel_id`, `thread_ts`, and `event_id`.
+- **Automatic outbound connector**: a plain final response is sent as text; JSON may use `text`, `message`, or `body` plus optional `channel_id` and `thread_ts`.
+- **Agent-tool / middleware outbound connector**: `text` is required; `channel_id` and `thread_ts` are optional. An explicit route wins, then trusted origin context from an inbound connector using the same Slack Connection, then the configured default channel.
+- Connection credentials, origin routing, rate-limit handling, and retries stay connector-owned.
 
 ## webhook
 
@@ -179,7 +218,7 @@ The most flexible HTTP connector. Three independent modes — pick the one that 
 | --- | --- |
 | **Sync (Request-Response)** | Caller `POST`s; connector blocks until the agent finishes and returns the result. 5-minute hard timeout. |
 | **Inbound (Fire & Forget)** | Caller `POST`s; connector returns immediately with `{status, dispatched_to, run_ids[]}`. |
-| **Outbound** | The full completed-run envelope is `POST`ed to a URL you configure, with `X-Connic-Signature` and `X-Connic-Timestamp` headers. |
+| **Outbound** | Automatic outbound connectors POST the full completed-run envelope. Agent-tool and middleware outbound connectors POST their nested `payload`. Both use the configured URL and signature headers. |
 
 Inbound and Sync also accept `GET` (query params become the payload, with the authentication `secret` stripped), `application/x-www-form-urlencoded`, and `multipart/form-data` (file uploads up to 10 MB; images, PDFs, Office docs etc. are passed as inline data to the LLM).
 
@@ -236,7 +275,7 @@ Sync response:
 
 The URL itself is provisioned per connector — copy it from the connector's detail drawer in the dashboard. Don't hard-code an assumed URL format.
 
-For sync, the agent's response (string or — if `output_schema` is set — structured object) is what populates `result.output`. For inbound, the response is the dispatch confirmation; the run's output is visible in the dashboard. Outbound sends the same run envelope as Kafka and SQS (`run_id`, `agent_name`, `status`, `output`, `error`, timestamps, and `token_usage`). Verify its hex HMAC-SHA256 over `timestamp + "." + raw_body` using the connector signing secret and a constant-time comparison; reject timestamps outside a five-minute window.
+For sync, the agent's response (string or — if `output_schema` is set — structured object) is what populates `result.output`. For inbound, the response is the dispatch confirmation; the run's output is visible in the dashboard. An automatic outbound connector sends the same run envelope as Kafka and SQS (`run_id`, `agent_name`, `status`, `output`, `error`, timestamps, and `token_usage`); agent-tool and middleware outbound connectors send their nested `payload`. Verify the request's hex HMAC-SHA256 over `timestamp + "." + raw_body` using the connector signing secret and a constant-time comparison; reject timestamps outside a five-minute window.
 
 ## websocket
 

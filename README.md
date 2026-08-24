@@ -106,7 +106,7 @@ Activates whenever a developer is working in a Connic project (anything with a `
 - How to use EU-hosted `connic/*` models and configured BYOK providers
 - Exact signatures for Python tools, middleware, hooks, and custom guardrails
 - The predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
-- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, stripe, telegram, webhook, websocket), including directions and payload shapes
+- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, slack, stripe, telegram, webhook, websocket), including directions and payload shapes
 - The differences between Connic MCP, agent-side MCP servers, and the MCP connector
 - Supported `connic` CLI commands and flags
 - The dashboard concepts (Project credit and billing, environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, Bridge, REST API)

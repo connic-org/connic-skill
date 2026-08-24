@@ -388,7 +388,7 @@ def mock_data_customer_add_customer(tool_name, params, context):
     return {"id": "cust_test_1", **params}
 ```
 
-Only custom file tool implementations are eligible. Predefined tools (`db_find`, `web_search`, `trigger_agent`, …) and `api:` tool implementations always run for real.
+Only custom file tool implementations are eligible. Predefined tools (`db_find`, `web_search`, `trigger_agent`, …) and `api:` tool implementations run for real. Agent-tool outbound connectors and middleware outbound connectors called through `send_connector` are the exception: tests record those calls and skip delivery.
 
 #### Middleware replacements
 

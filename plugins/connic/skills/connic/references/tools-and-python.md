@@ -99,7 +99,7 @@ def gated(resource: str, context: dict) -> str:
     return f"Edited {resource}"
 ```
 
-- `StopProcessing(msg, publish_outbound=True)` — raise from a tool, middleware, or hook. Ends the *entire run* gracefully (status `completed`, the message becomes the run's output). Used when a precondition isn't met but it's not an error. Pass `publish_outbound=False` to keep outbound connectors from publishing this completed run.
+- `StopProcessing(msg, publish_outbound=True)` — raise from a tool, middleware, or hook. Ends the *entire run* gracefully (status `completed`, the message becomes the run's output). Used when a precondition isn't met but it's not an error. Pass `publish_outbound=False` to suppress the **automatic outbound connector** for this completed run. It does not undo an agent-tool or middleware outbound connector call.
 - `AbortTool(result)` — **only** valid inside a `hooks/<agent>.py::before()`. Aborts just *this* tool call, returns `result` to the LLM in place of the real result, and the agent continues. Not for use from inside tool functions.
 - Any other unhandled exception → tool call fails, LLM sees the error and may retry or give up.
 
@@ -229,6 +229,26 @@ async def before(content, context):
 ```
 
 Use `content` when you want to **change what the agent sees** — attach a document, prepend customer context, redact PII before reasoning, etc. The two are independent: mutating `content` doesn't change `context["payload"]`, and vice versa.
+
+### Calling an outbound connector from middleware
+
+Set the outbound connector's mode to **Middleware** and call it by its configured name. The default is `send_to_<normalized connector name>`, but it is editable in the Dashboard.
+
+```python
+from connic.tools import send_connector
+
+async def after(response, context):
+    if context.get("payload", {}).get("priority") == "urgent":
+        await send_connector(
+            "send_to_ops_slack",
+            {"text": response},
+        )
+    return response
+```
+
+`send_connector(action_name, payload)` accepts the same connector-owned payload as the agent-tool outbound connector. Connic resolves the connector, destination, credentials, transport formatting, and retries server-side; those stored values are not injected into middleware. See [Outbound connector modes](connectors.md#outbound-connector-modes) for every payload schema.
+
+Pass `idempotency_key="stable-call-id"` when middleware may retry the same send. Reusing that key within the run returns the existing connector delivery instead of creating another one.
 
 ### When middleware re-runs
 

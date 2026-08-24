@@ -118,7 +118,7 @@ Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (
 
 ## Bridge
 
-A tunnel from Connic's cloud to a private network (your VPC, on-prem services). Provision a Bridge under **Project Settings → Bridge**, copy its token when it is shown once, then install the Bridge agent on a machine inside your network. The agent requires `BRIDGE_TOKEN` and a comma-separated `ALLOWED_HOSTS`; optional settings are `RELAY_URL` (default `wss://relay.connic.co`) and `LOG_LEVEL` (default `INFO`). The Bridge ID can then be referenced from four kinds of consumer:
+A tunnel from Connic's cloud to a private network (your VPC, on-prem services). Provision a Bridge under **Project Settings → Bridge**, copy its token when it is shown once, then install the Bridge agent on a machine inside your network. The agent requires `BRIDGE_TOKEN`. `ALLOWED_HOSTS` is an optional comma-separated exact `host:port` allowlist; when it is unset or empty, every target reachable from the bridge's network is allowed. Other optional settings are `RELAY_URL` (default `wss://relay.connic.co`) and `LOG_LEVEL` (default `INFO`). The Bridge ID can then be referenced from four kinds of consumer:
 
 1. **Connectors** — pick the Bridge in the connector config dropdown. Bridge-capable types are Kafka and SQS (both directions), Postgres, email (both directions), S3 file downloads, and outbound webhook callbacks.
 2. **Custom LLM providers** — pick the Bridge in the provider config.
