@@ -271,6 +271,8 @@ Steps:
 3. Override the base URL if needed.
 4. Configure auth: Bearer token, API Key (header), or Basic. Credentials are stored securely and injected at request time.
 
+`$ref` expansion must be acyclic and is capped at 50 levels, 100,000 traversals, 100,000 resolved nodes, and 8 MiB of resolved output.
+
 Tool naming:
 
 - With `operationId`: converted to snake_case with the action verb at the end (`createCharge` → `charge_create`). If no verb is detected, the HTTP method is appended.

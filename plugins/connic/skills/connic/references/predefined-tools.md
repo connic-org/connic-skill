@@ -129,6 +129,8 @@ children = await retrieval_list_namespaces(parent="policies", depth=1)
 # {"parent": {...}, "namespaces": [...]}
 ```
 
+`retrieval_query` inherits the current run's remaining deadline. If the deadline has already been reached or expires before a response arrives, it returns `{"error": "...", "results": []}` instead of matches.
+
 Retrieval queries and metadata-filter deletes operate on committed index entries. A pending `retrieval_store` job is not searchable; for an existing namespace and `entry_id`, its committed content and metadata remain queryable until the replacement job commits atomically. Agents cannot poll a `job_id`, so schedule dependent cleanup as a later run with `trigger_agent_at` rather than inline.
 
 ### Metadata filters on `retrieval_query` and `retrieval_delete`
@@ -263,7 +265,9 @@ filter = {
 
 `max_results` is capped at 10.
 
-Every `web_search` or `web_read_page` call consumes one additional Project-credit run unit. A base agent run that makes two web-tool calls therefore counts as three run units.
+Each successful `web_search` costs €0.015. `web_read_page` costs €0.015 per extracted page, including each extracted PDF page. Web-tool charges are billed separately and do not increase the number of agent runs.
+
+`web_read_page` does not support `x.com`, `twitter.com`, or their subdomains. These requests return an `error` and are not charged.
 
 ```python
 await web_search(query="connic.co pricing", max_results=5, country=None, include_news=False)

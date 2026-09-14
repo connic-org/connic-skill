@@ -102,7 +102,7 @@ connic dev my-feature         # named session, persists between runs
 Behavior:
 
 - Opens an isolated cloud development environment for the project.
-- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, and `requirements.txt`. Changes to `requirements.txt` trigger a re-install on the next sync — no restart needed. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
+- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, and `tests/` with hot reload. Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
 - Watches local files and syncs edits automatically.
 - The dev environment has its own variables, database, Retrieval data, and connectors, separated from standard environments. Unnamed environments are deleted on exit; named environments and their data persist so you can reattach later.
 - In an interactive terminal, `r` uploads immediately, `t` runs `tests/` against the active dev environment, and `q` stops with normal cleanup (`Ctrl+C` is the fallback).
@@ -161,7 +161,7 @@ tests:
 Available assertion fields (these are the only ones):
 
 - `expected_result` — an expression evaluated against the bindings `output`, `error`, `status`, `context` (plus `true` / `false` / `null`). See "What `expected_result` can and cannot do" below.
-- `expected_tool_calls` — bare tool names or `tool_name: <expr>` mappings. Names match either a local function name or its qualified ref. Expressions can use `invocations`, `params`, and builder `context`; repeat a tool in separate entries to require distinct argument matches.
+- `expected_tool_calls` — bare tool names or `tool_name: <expr>` mappings. Names match either a local function name or its qualified ref. Expressions can use `invocations`, `params`, the returned `result`, and builder `context`; repeat a tool in separate entries to require distinct matches.
 - `expected_tool_call_order` — tool names that must appear in this relative order in the trace; unrelated calls may occur between them.
 - `expected_no_tool_calls` — list of tool names that must not be called.
 - `expected_child_agents` — map of triggered agent name → assertions for that child run (`expected_payload`, `expected_result`, `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, `expected_triggered`, plus a nested `expected_child_agents`). See "Asserting on triggered agents" below.
@@ -214,7 +214,7 @@ expected_result: 'any(k in output for k in ["a", "b"])'             # generator
 
 For anything that requires parsing the output, regex, schema validation, or cross-field checks, put the check in a builder `cleanup` function.
 
-`expected_tool_calls` uses the same safe expression grammar with three bindings: `invocations` is the number of matching calls, `params` is one call's arguments, and `context` is the builder dict. A bare tool name means at least one call. Tool names match either the local function name or the qualified ref. Top-level `and` separates per-invocation `params` filters from `invocations` predicates over the filtered count; if an expression contains only params predicates, `invocations >= 1` is implied. Repeat the same tool in multiple list entries to require distinct argument patterns. Use `expected_tool_call_order` separately when relative order matters.
+`expected_tool_calls` uses the same safe expression grammar with four bindings: `invocations` is the number of matching calls, `params` is one call's arguments, `result` is that call's returned value after after-hooks, and `context` is the builder dict. A call with no recorded return cannot match a `result` predicate, while explicit `null` and `false` values remain matchable. A bare tool name means at least one call. Tool names match either the local function name or the qualified ref. Top-level `and` separates per-call `params` and `result` filters from `invocations` predicates over the filtered count; the parameter and result filters must match the same call. If an expression contains only per-call predicates, `invocations >= 1` is implied. Repeat the same tool in multiple list entries to require distinct matches. Use `expected_tool_call_order` separately when relative order matters.
 
 ### Asserting on triggered agents
 

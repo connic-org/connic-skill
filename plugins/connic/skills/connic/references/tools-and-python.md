@@ -107,7 +107,7 @@ These Python exceptions apply to project code. Errors from a remote MCP server a
 
 ### Logging
 
-`print(...)` is captured at INFO level, writes to `sys.stderr` at ERROR, and stdlib `logging` at the level you called. Logger names must start with `tools.`, `middleware.`, `hooks.`, or `guardrails.`; `logging.getLogger(__name__)` naturally does so for discovered project modules. Lines appear in **Dashboard → Logs** and the run detail with a source such as `tool.<tool_name>`, `middleware.before`, `hook.<tool_name>`, or `guardrail.<name>`. Connic retains up to 500 lines per run. Unhandled custom-code exceptions capture the traceback; intentional `StopProcessing` and `AbortTool` control flow does not log as an error. Don't log secrets — there is no automatic redaction for arbitrary log content.
+`print(...)` is captured at INFO level, writes to `sys.stderr` at ERROR, and stdlib `logging` at the level you called. Logger names must start with `tools.`, `middleware.`, `hooks.`, or `guardrails.`; `logging.getLogger(__name__)` naturally does so for discovered project modules. Lines appear in **Dashboard → Logs** and the run detail with a source such as `tool.<tool_name>`, `middleware.before`, `hook.<tool_name>`, or `guardrail.<name>`. Connic retains up to 500 lines per run. Unhandled custom-code exceptions capture the traceback; intentional `StopProcessing` and `AbortTool` control flow does not log as an error. Environment redaction can replace configured, case-sensitive JSON paths in new structured log records. Serialize the object with `json.dumps(...)` and log that JSON string without a text prefix. Plain text, invalid JSON, and JSON embedded in a longer message are not redacted, so do not log secrets in those forms.
 
 ### Environment variables
 

@@ -35,6 +35,8 @@ Every project starts with one default environment and can have more standard env
 
 Configure under **Project Settings → Git & Environments**. Variable keys must be uppercase; sensitive values can be marked **Sensitive**, and the raw editor accepts `KEY=VALUE` lines. Map a Git branch to each environment for auto-deploy on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
 
+Each environment uses its plan's log-retention period by default and can set a shorter period from 1 hour up to the plan limit. Log retention deletes runs automatically. Sensitive-data redaction replaces values at configured, case-sensitive JSON paths in newly recorded structured inputs, outputs, tool calls, logs, and traces. Agents, tools, and callers keep the original values. Existing history, plain text, invalid JSON, and JSON embedded in longer text are not redacted.
+
 ## Deployment
 
 Two paths:
@@ -50,7 +52,7 @@ Environment variables are injected at deploy time. Changing a variable requires 
 
 ### PR Testing
 
-Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When it's on, every GitHub pull request or GitLab merge request whose target branch matches the environment's branch runs the project's test suite — the same tests `connic test` runs — and the result is posted back as `connic/pr-tests`.
+Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When PR Testing is enabled, Connic runs the project's test suite for GitHub pull requests and GitLab merge requests whose source branch is in the connected repository and whose target branch matches the environment's branch. Connic runs the same tests as `connic test` and posts the result as `connic/pr-tests`. Fork-based pull requests and merge requests do not trigger PR Testing.
 
 PR Testing defaults to on for Git-connected environments with a branch. CLI-only projects don't have it.
 
@@ -75,7 +77,9 @@ PR Testing is supported on GitHub and GitLab.
 
 There's a 500-log-lines-per-run cap. Agent Runs filters include Status, Date Range, Deployment, and Search; Logs can be filtered and searched across captured lines.
 
-A run detail includes the raw/formatted input, output, final context, error, parent/connector metadata, token breakdown, duration, and a hierarchical trace. Span types cover logical LLM steps, physical provider calls and retries, local tools, MCP tools, middleware, sequential steps, and the root run/loop. **Run Again** repeats the same agent and input; queued or running executions can be cancelled.
+A run detail includes the raw/formatted input, output, final context, error, parent/connector metadata, token breakdown, duration, and a hierarchical trace. Span types cover logical LLM steps, physical provider calls and retries, local tools, MCP tools, middleware, triggered-agent links, and the root run/loop. Each sequential step is persisted as a separate child run; follow its Triggered Agent span to inspect it. The completed-run header excludes recorded approval waits; run lists and aggregate metrics use backend active duration, which also excludes sequential child-run waits. Cancelling a sequential parent also cancels its unfinished child chain. **Run Again** repeats the same agent and input; queued or running executions can be cancelled.
+
+Completed runs can be deleted individually or in bulk after their background processing has finished. Deletion is permanent. Log retention deletes runs automatically after the configured period.
 
 The **Observability** tab also supports multiple drag-and-drop dashboards. Widgets include stat cards, area and bar charts, recent-log lists, and shared text/select inputs; select options can come from Database collections. Dashboards have global date ranges, per-widget agent/connector filters, shared variables, and optional 10-second refresh. An agent's detail page has its own run statistics, status breakdown, configuration, filtered history, and manual trigger.
 
@@ -190,7 +194,7 @@ The immutable audit log under **Project Settings → Audit Log** records the act
 
 Token-cost **alerts** notify without stopping runs; **limits** hold affected new runs. Either can be global, environment-scoped, or agent-scoped and reset daily at midnight UTC or monthly on the first. Held runs are released when the limit is disabled/deleted, raised above current spend, or its period resets. Optional anomaly detection compares each completed run with that agent's 30-day rolling average (default threshold `3x`, minimum five completed runs). Weekly reports arrive Monday at 09:00 UTC for the prior seven days; monthly reports arrive on the first at 09:00 UTC for the prior month.
 
-**Project → Billing** shows the Project credit balance and consumption across runs, compute, storage, retrieval, and `connic/*` model tokens. Connic grants a one-time welcome credit to the first Basic Project created in an account. Additional Basic Projects do not receive one. Developer and Pro include monthly credit. Standard Projects can buy credit or configure capped auto-refill. Prepaid usage stops when credit is insufficient. Approved Enterprise Projects can use monthly postpaid billing. Stripe handles payments, receipts, and invoices.
+**Project → Billing** shows the Project credit balance and consumption across LLM run starts, completed judge evaluations, runtime, web tools, storage, retrieval, and `connic/*` model tokens. Connic grants a one-time welcome credit to the first Basic Project created in an account. Additional Basic Projects do not receive one. Developer and Pro use a selected monthly credit amount and a 1-, 12-, or 24-month term; longer terms are paid upfront, while credit is released monthly. Monthly credit expires at the end of its cycle, while purchased credit remains available for the active Project. Optional run packages discount LLM run starts, completed judge run units, runtime, storage, and retrieval, but not managed inference or web tools. Tool and sequential agents have no run-start fee; their runtime is still charged. Standard Projects can buy credit or configure capped auto-refill, and prepaid usage stops when credit is insufficient. Enterprise pricing and commercial terms are negotiated individually. Stripe handles payments, receipts, and invoices. See https://connic.co/pricing for current rates and plan thresholds.
 
 Architectural recommendations should start with fit, reliability, and maintainability, then compare cost and latency among choices that meet those requirements. Use the dashboard's usage and budget tools to manage spend and make the tradeoff explicit.
 
