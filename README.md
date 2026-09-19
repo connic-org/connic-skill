@@ -102,15 +102,15 @@ All installation methods use the same skill files.
 Activates whenever a developer is working in a Connic project (anything with a `.connic` file or an `agents/*.yaml` pattern) or asks anything about Connic. The skill teaches the agent:
 
 - The on-disk project layout (`agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`)
-- Agent YAML fields, defaults, and validation rules
+- Agent YAML fields, defaults, voice configuration, and validation rules
 - How to use EU-hosted `connic/*` models and configured BYOK providers
 - Exact signatures for Python tools, middleware, hooks, and custom guardrails
 - The predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
-- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, slack, stripe, telegram, webhook, websocket), including directions and payload shapes
+- Built-in connectors (cron, email, kafka, mcp, postgres, s3, SIP Voice, sqs, slack, stripe, telegram, Twilio Messaging, Twilio Voice, webhook, websocket), including directions and payload shapes
 - The differences between Connic MCP, agent-side MCP servers, and the MCP connector
 - Supported `connic` CLI commands and flags
 - The dashboard concepts (Project credit and billing, environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, Bridge, REST API)
-- Best practices the docs recommend: wrap predefined tools, ship with guardrails, write tests as deploy gates
+- Best practices the docs recommend: wrap predefined tools, and use guardrails and deploy-gate tests where supported
 
 ## Why this exists
 

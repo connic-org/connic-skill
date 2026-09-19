@@ -462,9 +462,9 @@ connic deploy --skip-tests                 # bypass the test gate (hotfix only)
 
 There is no `--message` / `-m` flag. The `--env` value is an **environment UUID** (copy from the dashboard), not the human-readable name.
 
-**`connic deploy` refuses to run on a project that has a connected Git repo.** Use `git push` to the configured branch in that case — that triggers the same pipeline (build → tests → deploy). The CLI deploy is for projects without Git integration.
+**`connic deploy` refuses to run on a project that has a connected Git repo.** Push to the configured branch or start a manual deployment from the Deployments page in that case. The CLI deploy is for projects without Git integration.
 
-Failing tests gate deploys. Use `--skip-tests` only as an escape hatch; Git-triggered deploys cannot skip tests.
+Failing tests gate deployments. Use `--skip-tests` only as an escape hatch for a CLI deployment. For a manual Git deployment, the Dashboard's **Deploy & skip tests** option bypasses the gate. Automatic Git deployments triggered by a push always run it.
 
 ## `connic migrate`
 

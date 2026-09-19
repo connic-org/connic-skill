@@ -2,7 +2,7 @@
 
 Every agent is one YAML file in `agents/`. There are three agent types: `llm` (default), `sequential`, and `tool`.
 
-## LLM agent — full schema
+## Text LLM agent — full schema
 
 Required fields: `version`, `name`, `description`. LLM agents also require `model` and `system_prompt`; sequential agents require `agents`; tool agents require `tool_name`. Everything else is optional with defaults noted inline.
 
@@ -114,6 +114,47 @@ retrieval:
 For `type: llm`, `attempts` is the request budget for the model being retried and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. Without a fallback, the primary uses that budget. With `fallback_model`, the primary is tried once and the fallback uses the budget. Request retries preserve tool results already produced in the run, tool failures are returned to the LLM instead of blindly re-invoked, `Retry-After` and backoff count against the overall `timeout`, and no retry or fallback occurs after streaming output begins. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
 
 For `type: tool` and `type: sequential`, the same fields control operation-level attempts. `attempts` always includes the first attempt.
+
+## Voice LLM agent
+
+Connic Voice is in beta. Add `voice_config` to an LLM agent that uses a native realtime audio model. An empty `voice_config: {}` enables provider defaults.
+
+```yaml
+version: "1.0"
+name: phone-assistant
+type: llm
+model: openai/gpt-realtime
+description: "Phone support agent"
+system_prompt: |
+  Keep replies short and natural.
+  Say what you are checking before calling a tool.
+voice_config:
+  voice: alloy
+  language: en
+  transcription_model: gpt-realtime-whisper
+  greeting: "Hi! How can I help?"
+  thinking_sound: true
+  hang_up_allowed: true
+  turn_detection:
+    silence_ms: 500
+  interruptions:
+    enabled: true
+  idle_timeout_seconds: 60
+tools:
+  - support.lookup_account
+```
+
+All `voice_config` fields are optional except `interruptions.enabled` when the `interruptions` object is present. `thinking_sound` and `hang_up_allowed` default to `true`; omitting `interruptions` leaves interruptions enabled, and omitting `greeting` lets the caller speak first. `silence_ms` and `idle_timeout_seconds` must be greater than zero.
+
+For OpenAI, `transcription_model` selects the model that transcribes caller speech. For Azure, it names an existing transcription deployment in the same resource. Omit it to disable caller transcription for those providers. Gemini and Vertex AI provide native transcription without this setting.
+
+Voice agents require `type: llm` and a model prefixed with `openai/`, `azure/`, `gemini/`, or `vertex_ai/`. The selected provider determines which realtime model and voice IDs are available. Managed `connic/*` models are not supported for voice.
+
+Set `reasoning_effort` to request a reasoning level. Connic passes the setting to the provider, which rejects unsupported settings or values. Omit it or use `auto` for the model default.
+
+Python tools, retrieval, MCP servers, conditional and discoverable tools, tool hooks, delegation, and middleware remain available. Connic rejects input and output guardrails, `approval`, `output_schema`, `output_schema_dict`, `fallback_model`, and `context_compression` because it streams voice audio immediately. Automated test suites do not run voice sessions; use `connic lint`, deploy the agent, and test it in a live conversation.
+
+Twilio Voice connects an existing voice-capable Twilio number to exactly one deployed voice agent. SIP Voice accepts incoming calls from a phone provider or phone system and also links to one voice agent. Configure the connection and connector in the Dashboard, not in agent YAML. See [connectors.md](connectors.md#twilio-voice) and [connectors.md](connectors.md#sip-voice).
 
 ## Sequential agent
 

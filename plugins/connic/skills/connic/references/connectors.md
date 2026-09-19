@@ -1,10 +1,10 @@
 # Connectors
 
-Connectors define how agents are triggered, what input they receive, and where results go. Each connector can link to one or more agents; one trigger dispatches its input to every linked agent. Slack is native. Discord, GitHub, and Notion are not connector types — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
+Connectors define how agents are triggered, what input they receive, and where results go. Most connectors can link to one or more agents; one trigger dispatches its input to every linked agent. SIP Voice and Twilio Voice each link to exactly one voice agent. Slack is native. Discord, GitHub, and Notion are not connector types — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
 
 Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST API is for project management, not starting event-driven runs.
 
-Connectors are configured per environment in the **Dashboard**, not in YAML. Each connector is linked to one or more agents. For inbound connectors, the incoming event becomes the agent's input. Automatic outbound connectors for Email, Telegram, and Slack can consume the final agent output; automatic outbound connectors for webhook, Kafka, and SQS publish a full run envelope instead. Agent-tool and middleware outbound connectors use a connector-owned payload schema and do not constrain the final response.
+Connectors are configured per environment in the **Dashboard**, not in YAML. For inbound connectors, the incoming event becomes the agent's input. Automatic outbound connectors for Email, Telegram, Slack, and Twilio Messaging can consume the final agent output; automatic outbound connectors for webhook, Kafka, and SQS publish a full run envelope instead. Agent-tool and middleware outbound connectors use a connector-owned payload schema and do not constrain the final response.
 
 The full list and the modes each one supports:
 
@@ -16,10 +16,13 @@ The full list and the modes each one supports:
 | `mcp` | Inbound (Sync / Inbound) | Expose Connic agents as MCP tools to external MCP clients. |
 | `postgres` | Inbound | LISTEN/NOTIFY-driven trigger. |
 | `s3` | Inbound | React to S3 object events (via SNS/EventBridge). |
+| `sip` | Sync (incoming voice) | Receive calls from a phone provider or phone system over SIP. |
 | `sqs` | Inbound (Consumer) / Outbound (Producer) | Consume from / produce to an SQS queue. |
 | `slack` | Inbound (Mentions) / Outbound | Trigger from bot mentions; reply to a thread or post to a channel. |
 | `stripe` | Inbound | React to Stripe webhook events. |
 | `telegram` | Inbound / Outbound | Telegram bot — receive messages, send replies. |
+| `twilio_messaging` | Inbound / Outbound | Receive and send SMS/MMS, WhatsApp, and RCS messages. |
+| `twilio` | Sync (incoming voice) | Connect an existing Twilio phone number to one deployed voice agent. |
 | `webhook` | Inbound / Outbound / Sync | Generic HTTP. Sync = HTTP request/response; Inbound = fire-and-forget; Outbound = call out to your URL. |
 | `websocket` | Sync (real-time chat) | Persistent bidirectional session. |
 
@@ -47,6 +50,7 @@ Each outbound connector owns its payload schema, credentials, destination resolu
 | Email | `{"body": "required", "to"?: string \| string[], "subject"?: string, "html_body"?: string, "cc"?: string \| string[], "bcc"?: string \| string[], "reply_to"?: string}` |
 | Telegram | `{"text": "required", "chat_id"?: string \| integer}` |
 | Slack | `{"text": "required", "channel_id"?: string, "thread_ts"?: string}` |
+| Twilio Messaging | `{"text"?: string, "to"?: string, "media_urls"?: string[], "content_sid"?: string, "content_variables"?: object}`; supply text, media, or template content |
 
 Unknown top-level payload fields are rejected. Routing fields are optional when the connector has a configured default or trusted matching inbound origin. For automatic outbound connectors, the final run output keeps the legacy connector-specific contract documented below. `output_schema` constrains only that final response; it does not combine or replace outbound connector payload schemas.
 
@@ -197,6 +201,47 @@ Telegram bot. **Inbound** and **Outbound** are separate connectors (different mo
 
 There is no universal `telegram.send_message` or `telegram.send_photo` predefined tool. An agent-tool outbound connector for Telegram injects only its chosen `action_name`. This outbound connector does not support photos, files, or richer messages; use a custom tool for those Telegram Bot API methods.
 
+## sip voice
+
+SIP Voice is in beta. It connects incoming calls from a phone provider or phone system to one deployed agent with `voice_config`. It runs in sync mode and does not place outbound calls. The provider must offer G.711 μ-law or A-law audio.
+
+Choose one connection setup:
+
+- **Connic logs in to the provider:** enter the provider's SIP server, username, password, and transport. Add a separate authentication username or outbound proxy only when the provider supplies one. Connic registers with the provider, while the required IP or CIDR allowlist identifies the servers permitted to send calls.
+- **The provider sends calls to Connic:** route the number to the generated SIP address. Authenticate incoming calls with trusted provider IPs or the generated SIP username and password.
+
+Each connector selects a called number or SIP username and links it to one deployed voice agent. A saved connection can serve several destinations, but every destination must be unique within that connection, including across environments. Disabling or deleting a connector stops new calls to its destination. Run details show agent speech, tools, timings, errors, and user speech when transcription is enabled.
+
+Full setup: [SIP Voice documentation](https://connic.co/docs/v1/connectors/sip).
+
+## twilio messaging
+
+Use separate inbound and outbound `twilio_messaging` connectors for SMS/MMS, WhatsApp, or RCS. Both reuse saved `twilio` connections with Voice: Account SID, region, and regional Auth Token. US1 supports all three channels; IE1 supports SMS text only and excludes +1 senders and recipients; AU1 supports Voice only.
+
+- **Config**: required `connection_id`, `mode`, `channel` (`sms`, `whatsapp`, or `rcs`), and `sender`. Sender formats are `+E164`, `whatsapp:+E164`, or `rcs:sender-id`; Connic adds omitted channel prefixes. Outbound settings optionally include `to`, `messaging_service_sid`, `content_sid`, and `content_variables` (a JSON object).
+- **Inbound setup**: Connic registers the generated webhook automatically for SMS/MMS numbers and registered WhatsApp or RCS senders. It removes the old webhook when the sender changes or the connector is deleted, but only if the webhook still belongs to that connector. The WhatsApp Sandbox requires manual setup: copy the generated URL into **When a Message Comes in**, select HTTP POST, and update or remove it manually later. Messaging setup leaves Voice handling unchanged.
+- **Inbound payload**: `text`, `from`, `to`, `channel`, `message_sid`, and a stable `conversation_id`. Downloaded media uses standard Connic `files` input, limited to 10 MiB total per message.
+- **Conversation history**: explicitly configure the agent with `session: {key: input.conversation_id, ttl: 86400}` and redeploy it. The connector does not enable sessions automatically.
+- **Outbound content**: automatic delivery accepts a plain string or the structured payload above. Agent-tool and middleware delivery uses the structured payload. Text has a 1,600-character limit; media URLs must be public HTTP/HTTPS URLs without embedded credentials and satisfy the selected channel's media limits.
+- **Recipient precedence**: explicit payload `to`, configured default `to`, then the customer from trusted matching inbound context. Reply fallback requires the same saved connection, account, region, channel, and Twilio sender. RCS recipient addresses use `rcs:+E164`, without automatic SMS fallback.
+- **WhatsApp templates**: outside the 24-hour customer service window, use an approved `content_sid` (`HX…`) with `content_variables`. Explicit template content cannot be combined with `text` or `media_urls`. A configured Content SID ignores plain generated text; send variables to fill the template.
+- **Delivery status**: a completed outbound connector run means Twilio accepted the API request. Check Twilio Messaging Logs for final delivery status.
+
+Full setup: [Twilio Messaging documentation](https://connic.co/docs/v1/connectors/twilio-messaging).
+
+## twilio voice
+
+Twilio Voice is in beta. It connects incoming calls on an existing customer-owned Twilio number to one deployed agent with `voice_config`. It runs in sync mode and does not place outbound calls.
+
+1. Deploy a voice agent using a supported realtime model.
+2. In Twilio, open a voice-capable number and confirm its incoming-call region. Clear any existing incoming-call webhook, TwiML Application, or SIP trunk in that region.
+3. In Connic, create a Twilio connection with the Account SID, region, and that region's Auth Token. Supported regions are US1, IE1, and AU1; US1 is the default.
+4. Add the Twilio Voice connector to the agent, reuse the saved connection, and select the number. Connic installs the number's incoming-call webhook with HTTP POST.
+
+The Auth Token must match the selected region; an API key SID and secret are not accepted in its place. One connection can be reused for other numbers in the same account and region. Changing numbers installs the new webhook and removes Connic's webhook from the previous number. Deleting the connector removes the webhook only while it still points to Connic.
+
+Run details show the conversation transcript when transcription is available, tool calls, timings, and errors. Voice configuration and limitations are in [agent-yaml.md](agent-yaml.md#voice-llm-agent).
+
 ## slack
 
 Inbound Slack connectors trigger linked agents from signed `app_mention` events. Origin-thread replies require the inbound and outbound connectors to use the same verified Slack Connection.
@@ -288,9 +333,9 @@ A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each c
 - **`connector_run_id`** is returned on connect and identifies the session.
 - Conversation history persists only for that connection; closing it ends the session.
 
-## Linking one connector to multiple agents
+## Linking a connector to multiple agents
 
-All agents linked to a single connector are triggered in parallel for each event. Useful for fan-out (a webhook hitting both an `intake` agent and an `audit` agent) — each linked agent runs independently with its own input, logs, and result.
+Connectors that support multiple agents trigger every linked agent in parallel for each event. This supports fan-out, such as one webhook starting both an `intake` agent and an `audit` agent. Each agent runs independently with its own input, logs, and result. SIP Voice and Twilio Voice are single-agent and do not support fan-out.
 
 ## Where the payload ends up
 
