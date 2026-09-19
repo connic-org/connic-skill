@@ -154,7 +154,7 @@ Set `reasoning_effort` to request a reasoning level. Connic passes the setting t
 
 Python tools, retrieval, MCP servers, conditional and discoverable tools, tool hooks, delegation, and middleware remain available. Connic rejects input and output guardrails, `approval`, `output_schema`, `output_schema_dict`, `fallback_model`, and `context_compression` because it streams voice audio immediately. Automated test suites do not run voice sessions; use `connic lint`, deploy the agent, and test it in a live conversation.
 
-Twilio Voice connects an existing voice-capable Twilio number to exactly one deployed voice agent. SIP Voice accepts incoming calls from a phone provider or phone system and also links to one voice agent. Configure the connection and connector in the Dashboard, not in agent YAML. See [connectors.md](connectors.md#twilio-voice) and [connectors.md](connectors.md#sip-voice).
+Use Connic connectors to link incoming phone calls to a deployed voice agent. Configure the connection and connector in the Dashboard, not in agent YAML. See [connectors.md](connectors.md) for setup instructions.
 
 ## Sequential agent
 

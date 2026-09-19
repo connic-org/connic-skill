@@ -2,7 +2,7 @@
 name: connic
 description: Use when the user works in a Connic project or asks about Connic agents, Connic Voice, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
 metadata:
-  version: "1.2.6"
+  version: "1.2.7"
 ---
 
 # Connic
@@ -32,7 +32,7 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [tools-and-python.md](references/tools-and-python.md) | Writing `tools/*.py`, returning files with `ToolFile`, middleware, hooks, the `context` dict, `StopProcessing` / `AbortTool`, logging, env vars |
 | [predefined-tools.md](references/predefined-tools.md) | Built-in tools: `trigger_agent`, `retrieval_query`, `db_find`, `web_search`, etc. — including filter operators |
 | [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) | Input/output guardrails, JSON output schemas, agents consuming external MCP servers, API spec tools |
-| [connectors.md](references/connectors.md) | Built-in connectors (cron, email, kafka, mcp, postgres, s3, SIP Voice, sqs, slack, stripe, telegram, Twilio Messaging, Twilio Voice, webhook, websocket) — how they trigger or receive from agents |
+| [connectors.md](references/connectors.md) | Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, slack, stripe, telegram, Twilio Messaging, Twilio Voice, webhook, websocket) — how they trigger or receive from agents |
 | [cli-and-dev.md](references/cli-and-dev.md) | The `connic` CLI, `connic dev` hot-reload, `connic test` declarative test suites, `connic lint`, `connic migrate` |
 | [ab-testing.md](references/ab-testing.md) | A/B test variants, Confidence and Exploratory modes, traffic assignment, safety rules, results, and lifecycle |
 | [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
@@ -77,7 +77,7 @@ Discovery rules to keep in mind:
 
 **Adding a new tool.** Create the function in `tools/<module>.py` with type hints and a docstring (the LLM uses the docstring to decide when to call it). Reference it in an agent's `tools:` list. See [tools-and-python.md](references/tools-and-python.md).
 
-**Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram`/`slack` for those transports, Twilio Messaging for SMS/MMS, WhatsApp, and RCS, Twilio Voice for incoming calls on a Twilio number, SIP Voice for incoming calls from a phone provider or phone system, and `cron` for schedules. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics; do not assume generic deduplication or replay protection. The REST API is for project management, not event-driven agent runs. See [connectors.md](references/connectors.md). Only the connectors listed there exist — there is no native Discord or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
+**Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram`/`slack` for those transports, Twilio Messaging for SMS/MMS, WhatsApp, and RCS, voice connectors for incoming phone calls, and `cron` for schedules. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics; do not assume generic deduplication or replay protection. The REST API is for project management, not event-driven agent runs. See [connectors.md](references/connectors.md). Only the connectors listed there exist — there is no native Discord or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
 
 **Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. Connic passes one normalized dict to the tool's required `payload` parameter, plus `context` when declared; it never expands payload keys into separate arguments. There is no model or reasoning step, but the run still has logs, retries, and judges. This fits Kafka consumers that ingest, S3 events that transform, and webhooks that route. See the [tool-agent section](references/agent-yaml.md#tool-agent).
 
