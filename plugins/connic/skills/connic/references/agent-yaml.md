@@ -26,7 +26,7 @@ max_concurrent_runs: 20            # default 1; minimum 1
 reasoning_effort: medium           # auto is the default; supported overrides are model-specific
 reasoning_budget: 4096             # optional; only for models that accept a raw token budget
 
-tools:                              # max 100 tools per agent
+tools:                              # max 100 combined with generated approval.inputs tools
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
   - math.calculator.*               # all public funcs in tools/math/calculator.py
   - search.web_*                    # prefix wildcard (fnmatch)
@@ -68,9 +68,11 @@ mcp_servers:                        # max 50 servers per agent
     discoverable: false
     bridge: ${INTERNAL_BRIDGE_ID}   # optional Connic Bridge id for private MCP endpoints
 
-session:
-  key: context.chat_id              # dot-path into context or input; min ttl 60s
-  ttl: 86400                        # seconds (omit = never expire)
+session:                           # true = one shared session; false/null/omitted = off
+  key: context.chat_id              # optional context.* or input.* path; omitted/null = shared
+  ttl: 86400                        # inactivity seconds, min 60; omitted/null = no expiry
+  history: true                     # retain conversation history across runs
+  browser: true                     # retain browser cookies and local storage across runs
 
 context_compression:                # LLM agents only; omitted = compression off
   enabled: true                     # default true when block is present
@@ -90,6 +92,14 @@ approval:
     - charge_customer
     - admin.delete: context.role == 'admin'    # conditions use param.* or context.*
     - refund: param.amount > 50                # `param.*` references the tool's arguments
+  inputs:                                      # LLM agents only; generated human-input tools
+    - get_mfa:
+        prompt: Use this tool when authentication requires an MFA code.
+        label: MFA code
+        sensitive: true
+        params:
+          - reason: str
+          - account_email: str
   timeout: 3600                     # min 30s, max 604800s (7 days)
   message: "Confirm this action"
   on_rejection: fail                # fail (default) | continue (skip the tool and keep going)
@@ -270,15 +280,19 @@ async def before(content, context):
 
 ## Sessions
 
-Persist conversation state across runs for the same key.
+`session: true` uses one shared session across the agent’s runs. An object with no `key` or `key: null` uses the same shared session. `false`, `null`, or omitting `session` disables persistence.
+
+`history` and `browser` default to `true`. This example keeps cookies and local storage per chat while starting every run with fresh conversation history:
 
 ```yaml
 session:
-  key: context.chat_id    # dot-path; must resolve to non-empty value
-  ttl: 86400              # seconds; omit = never expire
+  key: context.chat_id
+  ttl: 86400
+  history: false
+  browser: true
 ```
 
-Each unique value of the key gets its own conversation history. Useful for chat-style agents triggered by webhooks where each user keeps state.
+The optional `key` is a `context.*` or `input.*` path; each resolved value gets a separate session. `ttl` is an inactivity timeout in seconds, at least 60; omitted or `null` means no expiry. `browser: false` disables profile persistence while browser tools remain available with fresh state.
 
 For long-running LLM sessions, add `context_compression` to keep prompts within the model context window:
 
@@ -294,7 +308,7 @@ Compression is off unless the block is configured. Once configured, provider con
 
 Active sessions can be viewed and deleted in the dashboard under **Storage > Sessions**. Sessions are scoped per environment.
 
-The key has to resolve to a non-empty value before the run starts, so `context.chat_id` needs to be populated in middleware (or come from `input.*` directly). Pull it from the raw connector payload — don't try to parse it out of the user's text message:
+A configured key path has to resolve to a non-empty value before the run starts, so `context.chat_id` needs to be populated in middleware (or come from `input.*` directly). Pull it from the raw connector payload — don't try to parse it out of the user's text message:
 
 ```python
 # middleware/<agent>.py
@@ -326,12 +340,22 @@ approval:
     - charge_customer
     - admin.delete: context.role == 'admin'    # condition: context.* or param.*
     - refund: param.amount > 50                # gate only when the argument exceeds threshold
+  inputs:
+    - get_mfa:
+        prompt: Use this tool when authentication requires an MFA code.
+        label: MFA code
+        sensitive: true
+        params:
+          - reason: str
+          - account_email: str
   timeout: 3600           # min 30s, max 604800s
   message: "Approve this action"
   on_rejection: fail      # fail = stop run (default); continue = skip the tool and keep going
 ```
 
 The run pauses at the gated tool call until a reviewer approves or rejects in **Dashboard → Approvals**. Approval conditions use `param.*` (the tool's arguments) and `context.*`; `input.*` is **not** valid here (unlike tool conditions in `tools:`). If a condition cannot be evaluated because a parameter or context value is missing, Connic fails safe and requires approval.
+
+`approval.inputs` is available only on LLM agents. Each entry creates a tool that pauses for required human text and returns that text to the agent; no Python function or top-level `tools` entry is needed. Input-tool names must be unique ASCII identifiers of at most 64 characters, cannot be `search_tools` or `use_tool`, and cannot collide with `tools`, `discoverable_tools`, or `approval.tools`. Generated input tools count toward the 100-tool limit. `params` names must be unique ASCII identifiers, cannot be Python keywords or `context`, and use `str`, `int`, `float`, or `bool`; every declared parameter is required. `sensitive: true` masks the field and protects the response in storage and logs while still returning it to the model.
 
 ## Cascading defaults with `_defaults.yaml`
 
@@ -368,6 +392,7 @@ Applied recursively as the chain is folded together:
 - **Dicts** (`database`, `retrieval`, `retry_options`, `approval`, `session`, `concurrency`, `guardrails`, `database.collections`, `retrieval.namespaces`, …) — recursive deep merge, per-key. Defaults can supply some collections; an agent can add more without losing the inherited ones.
 - **Lists** — concat with dedup, so children **add to** rather than replace inherited lists:
   - `tools`, `discoverable_tools`, `approval.tools` — dedup by tool ref. An agent re-declaring an inherited tool (e.g. with a different condition) overrides the inherited entry.
+  - `approval.inputs` — dedup by input-tool name. A deeper declaration replaces the inherited configuration for that name.
   - `mcp_servers` — dedup by server `name`. An agent's full server config replaces the inherited one on collision.
   - `guardrails.input`, `guardrails.output` — dedup by rule `name` if present; otherwise appended.
   - Sequential `agents:` — dedup by string.

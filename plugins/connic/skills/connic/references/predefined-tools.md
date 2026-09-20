@@ -265,7 +265,7 @@ filter = {
 
 `max_results` is capped at 10.
 
-Each successful `web_search` costs €0.015. `web_read_page` costs €0.015 per extracted page, including each extracted PDF page. Web-tool charges are billed separately and do not increase the number of agent runs.
+Each successful `web_search` costs €0.015. `web_read_page` costs €0.015 per extracted page, including each extracted PDF page.
 
 `web_read_page` does not support `x.com`, `twitter.com`, or their subdomains. These requests return an `error` and are not charged.
 
@@ -280,6 +280,52 @@ await web_read_page(url="https://example.com", follow_redirects=True)
 ```
 
 `follow_redirects` defaults to `True`. Pass `False` when you only want to read the exact URL you asked for — the call errors and returns the target in `redirect_url`.
+
+### Browser control
+
+Use `web_browser_*` in the agent's `tools:` list to enable browser control:
+
+```yaml
+tools:
+  - web_browser_*
+```
+
+This enables `web_browser_open`, `web_browser_observe`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_upload`, and `web_browser_download`. The agent calls these tools directly. Custom Python tools can import the individual functions from `connic.tools`.
+
+```python
+# tools/browser.py
+from connic.tools import web_browser_open, web_browser_observe, web_browser_close
+
+await web_browser_open("https://example.com")
+# {"status": "active", "url": "...", "snapshot": "..."}
+await web_browser_observe()
+await web_browser_close()
+```
+
+Each run uses one browser, selected automatically for every browser tool call. Calling `web_browser_open(url)` again returns `{"status": "active", "message": "Browser already open"}` without navigating. Use `web_browser_tabs(action="new", url="...")` for another page.
+
+`web_browser_observe()` reads the current page. `web_browser_act(action, target=None, value=None)` performs an action and returns a new snapshot. Use element references from the latest snapshot, because navigation or page updates can change them.
+
+| Action | `target` | `value` |
+| --- | --- | --- |
+| `click`, `double_click` | Current element reference, such as `@e1` | Omit |
+| `fill` | Current input reference | Text to replace the field contents |
+| `type` | Optional current element reference; omit for the focused field | Text to insert |
+| `select` | Current select reference | Option value |
+| `press` | Optional current element reference | Key, such as `Enter` |
+| `keydown`, `keyup` | Optional current element reference | Key to hold or release, such as `Shift` |
+| `scroll` | Omit | `up`, `down`, `left`, or `right` |
+| `navigate` | Omit | HTTP or HTTPS URL |
+| `back` | Omit | Omit |
+| `wait` | Omit | Milliseconds from `100` to `10000` |
+
+`web_browser_screenshot()` returns a PNG attachment for the model to inspect. `web_browser_mouse(action, ...)` controls the pointer using viewport coordinates. `web_browser_tabs(action="list")` returns tab IDs for switching or closing tabs. `web_browser_dialog(action, text=None)` accepts or dismisses a pending JavaScript dialog.
+
+`web_browser_download(target, include_content)` returns `download_id`, `name`, and `mime_type`. Set `include_content=True` to attach the file for the agent to read, or `False` for metadata only. `web_browser_upload(target, download_id)` selects a previously downloaded file for upload. Files remain available until the browser closes.
+
+The browser closes when its run ends. With sessions enabled, `session.browser` defaults to `true`: runs in the same Connic session reuse saved cookies and local storage. `session: true` shares one session across the agent’s runs. Set `session.history: false` to retain the browser profile without conversation history. Runs without a session or with `session.browser: false` use a fresh profile. See [pricing](https://connic.co/pricing) for browser usage rates and environment limits.
+
+Errors are returned in `error`. If an action returns `outcome_unknown`, observe the browser before deciding whether to act again.
 
 ## When to use predefined tools vs custom wrappers
 

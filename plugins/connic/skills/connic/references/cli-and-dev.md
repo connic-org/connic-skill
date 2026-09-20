@@ -356,8 +356,17 @@ tests:
     expected_result: status == "completed"
 ```
 
-- `tool` is the canonical tool ref. Optional `params` is a safe expression with `params`, builder `context`, `true`, `false`, and `null` bindings; omit it to match any parameters for that tool.
-- `decision` is `approve`, `reject`, or `timeout`; `reason` is optional. Rejections and timeouts honor the approval's `on_rejection` setting, so they either terminate the run or resume it with rejection context.
+For a generated human-input tool, approve with the text that the tool should return:
+
+```yaml
+approval_decisions:
+  - tool: get_mfa
+    decision: approve
+    response: "012345"
+```
+
+- `tool` is the canonical tool ref or a name from `approval.inputs`. Optional `params` is a safe expression with `params`, builder `context`, `true`, `false`, and `null` bindings; omit it to match any parameters for that tool.
+- `decision` is `approve`, `reject`, or `timeout`; `reason` is optional. For a tool from `approval.inputs`, `approve` requires a nonblank `response` string of at most 16,384 characters, which becomes the tool result. Omit `response` for `reject` and `timeout`. Rejections and timeouts honor the approval's `on_rejection` setting, so they either terminate the run or resume it with rejection context.
 - Each entry is consumed at most once per invocation.
 - With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored.
 - Set `strict_approval_decisions: true` per case or in `defaults` to fail on unmatched pending approvals and unused entries.

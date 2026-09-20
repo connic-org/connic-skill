@@ -2,7 +2,7 @@
 name: connic
 description: Use when the user works in a Connic project or asks about Connic agents, Connic Voice, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
 metadata:
-  version: "1.2.7"
+  version: "1.2.8"
 ---
 
 # Connic
@@ -185,13 +185,15 @@ To test an agent's reasoning without selected custom code really running, add a 
 
 The same module can replace `middleware_before` / `middleware_after`, hierarchical tool-hook phases ending in `_hook_before` / `_hook_after`, and custom guardrails (`guardrail_input_<name>` → `guardrail_input` → `guardrail`, with the equivalent output ladder). Lifecycle replacements mirror the real function signatures. A match replaces an existing phase; it does not add a missing one. Without a match, the real code runs by default. Built-in guardrails are never mocked. `strict_mocks: true` remains tool-only. Enable `strict_hook_mocks`, `strict_middleware_mocks`, or `strict_guardrail_mocks` independently in `defaults` or per case to fail before an unmatched configured eligible real phase executes; all default to `false`, and missing phases and built-in guardrails are exempt.
 
-To test HITL end to end, add `approval_decisions` to the case. Each entry has a canonical `tool`, `decision: approve | reject | timeout`, an optional `reason`, and an optional safe `params` expression whose bindings are `params` and the builder `context`. Connic applies the scripted decision and resumes the same run when the approval configuration permits. Entries are consumed at most once per invocation. With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored. Set it to `true` per case or in `defaults` to fail on either condition.
+To test HITL end to end, add `approval_decisions` to the case. Each entry has a canonical tool ref or `approval.inputs` name in `tool`, `decision: approve | reject | timeout`, an optional `reason`, and an optional safe `params` expression whose bindings are `params` and the builder `context`. Approving a tool from `approval.inputs` also requires a nonblank `response` string of at most 16,384 characters; it becomes the tool result, and `reject` or `timeout` must omit it. Connic applies the scripted decision and resumes the same run when the approval configuration permits. Entries are consumed at most once per invocation. With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored. Set it to `true` per case or in `defaults` to fail on either condition.
 
 See [cli-and-dev.md](references/cli-and-dev.md#connic-test) for the test YAML schema and [Mocking tools](references/cli-and-dev.md#mocking-tools).
 
-### 4. Use sessions when you mean "remember", not "log"
+### 4. Configure what sessions retain
 
-`session.key` makes the agent treat runs sharing that key as one ongoing conversation. Use it for chat-style interactions where the LLM should see prior turns. Don't use it as a substitute for proper persistence — for actual stored state (orders, tickets, user records), use the `db_*` tools (wrapped — see best practice 1).
+`session: true` shares one session across the agent’s runs. Use an optional `session.key` from `context.*` or `input.*` to separate sessions. `history` and `browser` both default to `true`; set `history: false` to retain browser cookies and local storage without carrying conversation history across runs. `session: false`, `null`, or omission disables persistence. See [session configuration](references/agent-yaml.md#sessions).
+
+For stored business records such as orders, tickets, and users, use the `db_*` tools (wrapped; see best practice 1).
 
 ### 5. Lock down `temperature` and `output_schema` when the consumer is code
 
