@@ -75,7 +75,7 @@ PR Testing is supported on GitHub and GitLab.
 - Reasoning traces (whenever the provider returns them; controlled by `reasoning_effort` on the agent).
 - Unhandled exceptions are captured automatically with their tracebacks.
 
-Open **Playground** from the project navigation to run an active text, tool, or sequential agent with Text or JSON input. Choose the base agent or a deployed test variant; the run uses the selected environment's tools and connections and shows output, traces, logs, and recent manual runs in place. Voice agents are not available in Playground. Using it requires `agents.view`, `runs.view`, and `runs.trigger`; viewing its recent-run list also requires `stats.view`.
+Open **Playground** from the project navigation to run an active text, tool, or sequential agent with Text or JSON input. Attach files up to 10 MB total or schedule the run for a future date and time. Choose the base agent or a deployed test variant; the run uses the selected environment's tools and connections and shows output, traces, logs, and recent manual runs in place. Voice agents are not available in Playground. Using it requires `agents.view`, `runs.view`, and `runs.trigger`; viewing its recent-run list also requires `stats.view`.
 
 There's a 500-log-lines-per-run cap. Agent Runs filters include Status, Date Range, Deployment, and Search; Logs can be filtered and searched across captured lines.
 

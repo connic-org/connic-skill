@@ -253,7 +253,7 @@ Use `discoverable_tools` for tools the agent should find by natural-language sea
 
 Reference by bare name in `tools:`:
 
-`trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`.
+`trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `web_browser_open`, `web_browser_observe`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_upload`, `web_browser_download`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`.
 
 See [predefined-tools.md](predefined-tools.md) for full signatures. Per [SKILL.md](../SKILL.md#best-practices-apply-these-by-default) best practice 1, prefer wrapping these in purpose-driven custom tools rather than handing them to the LLM raw.
 
