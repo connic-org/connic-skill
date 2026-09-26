@@ -29,7 +29,7 @@ result = await trigger_agent(
     wait_for_response=True,
     timeout_seconds=60,
 )
-# {"run_id": "...", "status": "completed"|"failed"|"cancelled"|"awaiting_approval"|"timeout", "response": ..., "error": ...?}
+# {"run_id": "...", "status": "completed"|"failed"|"blocked"|"cancelled"|"awaiting_approval"|"timeout", "response": ..., "error": ...?}
 ```
 
 Pass a dict or list for structured JSON. Strings can contain plain text or encoded JSON.

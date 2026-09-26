@@ -12,7 +12,7 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
 | `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery — locally, no upload. |
 | `connic tools` | List the custom Python tools discovered in the current project. |
-| `connic dev [name]` | Open a cloud dev environment, sync local files, hot-reload on save. Named sessions persist; unnamed are ephemeral. |
+| `connic dev` | Choose a reusable named cloud dev environment or a quick test with Up/Down and Enter. A reusable environment is selected by default; a valid saved preference comes first. Sync local files and hot-reload on save. |
 | `connic test` | Run declarative test suites from `tests/` against an environment. `--env <id>` picks the environment; `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report; `--json` emits machine-readable output. |
 | `connic deploy` | Deploy current files to a Connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
 | `connic migrate [--source <path>] [--dest <path>]` | Scan a LangChain or Google ADK project and emit a Connic-shaped project skeleton; omitted paths are prompted for. |
@@ -37,7 +37,7 @@ cd my-project
 connic skill
 ```
 
-Installs the Connic skill in `.agents/skills/connic/` and `.claude/skills/connic/`. It is the existing-project equivalent of `connic init --skill`. In an interactive terminal, it also offers to install the full plugin for each detected Codex or Claude Code client. The plugin bundles the skill and Connic MCP; the local copies remain skill-only. See [AI agent setup](https://connic.co/docs/v1/ai-agent-setup).
+Installs the Connic skill in `.agents/skills/connic/` and `.claude/skills/connic/`. It is the existing-project equivalent of `connic init --skill`. In an interactive terminal, it also offers to install the full plugin for each detected Codex or Claude Code client. The plugin bundles the skill and Connic MCP; the local copies remain skill-only. See [Coding agent setup](https://connic.co/docs/v1/ai-agent-setup).
 
 ## `connic update`
 
@@ -95,20 +95,23 @@ Prints every custom function discovered under `tools/`, grouped by module. Use t
 The main iteration loop.
 
 ```bash
-connic dev                    # ephemeral session, auto-cleaned on exit
+connic dev                    # choose a reusable named environment or a quick test
+connic dev --quick            # temporary session, auto-cleaned on exit
 connic dev my-feature         # named session, persists between runs
 ```
 
 Behavior:
 
+- Without arguments, opens a menu with a reusable environment selected by default. Use Up/Down to move and Enter to select. A new reusable environment requires a name. The CLI saves the preferred named environment in `.connic`; when valid, it appears first and is selected by default on the next run. Quick tests preserve this preference.
 - Opens an isolated cloud development environment for the project.
+- For unattended runs, pass either `--quick` or an explicit name.
 - Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, and `tests/` with hot reload. Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
 - Watches local files and syncs edits automatically.
 - The dev environment has its own variables, database, Retrieval data, and connectors, separated from standard environments. Unnamed environments are deleted on exit; named environments and their data persist so you can reattach later.
 - In an interactive terminal, `r` uploads immediately, `t` runs `tests/` against the active dev environment, and `q` stops with normal cleanup (`Ctrl+C` is the fallback).
 - Only one process can attach to a given named dev environment at a time. Use another name or an unnamed session for parallel work.
 
-The `.connic` file is **not** synced — it's local auth only.
+The `.connic` file stores local credentials and the preferred reusable dev environment. It is **not** synced.
 
 For CI or shared shells, authentication can instead come from `CONNIC_API_KEY` and `CONNIC_PROJECT_ID` environment variables.
 
@@ -214,7 +217,7 @@ expected_result: 'any(k in output for k in ["a", "b"])'             # generator
 
 For anything that requires parsing the output, regex, schema validation, or cross-field checks, put the check in a builder `cleanup` function.
 
-`expected_tool_calls` uses the same safe expression grammar with four bindings: `invocations` is the number of matching calls, `params` is one call's arguments, `result` is that call's returned value after after-hooks, and `context` is the builder dict. A call with no recorded return cannot match a `result` predicate, while explicit `null` and `false` values remain matchable. A bare tool name means at least one call. Tool names match either the local function name or the qualified ref. Top-level `and` separates per-call `params` and `result` filters from `invocations` predicates over the filtered count; the parameter and result filters must match the same call. If an expression contains only per-call predicates, `invocations >= 1` is implied. Repeat the same tool in multiple list entries to require distinct matches. Use `expected_tool_call_order` separately when relative order matters.
+`expected_tool_calls` uses the same safe expression grammar with four bindings: `invocations` is the number of matching calls, `params` is one call's arguments, `result` is that call's returned value after after-hooks, and `context` is the builder dict. A call with no recorded return cannot match a `result` predicate, while explicit `null` and `false` values remain matchable. For remote MCP tools, `result` exposes `is_error` and `parts`; text parts use `text`, and JSON parts use `value`, so a text assertion can read `result.parts[0].text`. A bare tool name means at least one call. Tool names match either the local function name or the qualified ref. Top-level `and` separates per-call `params` and `result` filters from `invocations` predicates over the filtered count; the parameter and result filters must match the same call. If an expression contains only per-call predicates, `invocations >= 1` is implied. Repeat the same tool in multiple list entries to require distinct matches. Use `expected_tool_call_order` separately when relative order matters.
 
 ### Asserting on triggered agents
 
@@ -464,12 +467,14 @@ Test exit codes are `0` when every case passes, `1` for a failed or cancelled te
 ## `connic deploy`
 
 ```bash
-connic deploy                              # deploys to the project's default environment
-connic deploy --env=<environment-uuid>     # target a specific env (UUID, not name)
+connic deploy                              # select an environment by name, then confirm
+connic deploy --list                       # list available targets without deploying
+connic deploy --env staging                # select a target directly, then confirm
+connic deploy --env staging --yes          # explicit target and confirmation for CI
 connic deploy --skip-tests                 # bypass the test gate (hotfix only)
 ```
 
-There is no `--message` / `-m` flag. The `--env` value is an **environment UUID** (copy from the dashboard), not the human-readable name.
+The interactive command lists environments by name. Use Up/Down to move and Enter to select an environment, then confirm before uploading. `--env` accepts a name or environment UUID. For unattended deployments, pass both `--env` and `--yes` (short form `-y`). There is no `--message` / `-m` flag.
 
 **`connic deploy` refuses to run on a project that has a connected Git repo.** Push to the configured branch or start a manual deployment from the Deployments page in that case. The CLI deploy is for projects without Git integration.
 
@@ -500,7 +505,7 @@ Always inspect the report and generated code: migration is a starting point, not
 5. connic dev                        # cloud hot-reload (trigger via webhook / dashboard "Run")
 6. connic test                       # validate
 7. git push                          # auto-deploy on Git-connected projects
-   # OR (only if not Git-connected): connic deploy --env=<uuid>
+   # OR (only if not Git-connected): connic deploy
 ```
 
 ## When a flag isn't in this doc

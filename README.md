@@ -6,7 +6,7 @@ This repo follows the open [SKILL.md](https://github.com/anthropics/skills) form
 
 Installing the full Connic plugin through the ChatGPT/Codex, Claude, or Cursor marketplace also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
 
-See [AI agent setup](https://connic.co/docs/v1/ai-agent-setup) for client-specific plugin, skill, MCP, and OAuth instructions.
+See [Coding agent setup](https://connic.co/docs/v1/ai-agent-setup) for client-specific plugin, skill, MCP, and OAuth instructions.
 
 ## Install
 
@@ -106,7 +106,7 @@ Activates whenever a developer is working in a Connic project (anything with a `
 - How to use EU-hosted `connic/*` models and configured BYOK providers
 - Exact signatures for Python tools, middleware, hooks, and custom guardrails
 - The predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
-- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, slack, stripe, telegram, Twilio Messaging, Twilio Voice, webhook, websocket), including directions and payload shapes
+- Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, slack, stripe, telegram, Telnyx Messaging, Telnyx Voice, Twilio Messaging, Twilio Voice, webhook, websocket), including directions and payload shapes
 - The differences between Connic MCP, agent-side MCP servers, and the MCP connector
 - Supported `connic` CLI commands and flags
 - The dashboard concepts (Project credit and billing, environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, Bridge, REST API)

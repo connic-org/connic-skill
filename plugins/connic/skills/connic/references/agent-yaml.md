@@ -234,6 +234,7 @@ tools:
   - api:stripe.charge_create       # API-spec tool (see guardrails-schemas-mcp.md)
   - api:stripe.*                   # all tools from an API spec
   - retrieval_query               # predefined tool (no module prefix)
+  - db_*                          # all predefined database tools
   - admin.nuke: context.role == 'admin'      # conditional — only available when expr is true
   - web_search: input.internet_enabled       # conditional on payload field
   - alerts.page: context.urgent              # truthy check on a context value
@@ -245,7 +246,7 @@ tools:
 
 A tool cannot appear in both the unconditional list and a conditional entry — no duplicates.
 
-Every exact tool reference must resolve, and a wildcard must match at least one eligible tool; a zero-match wildcard fails deployment rather than silently producing an empty set.
+Every exact tool reference must resolve. A wildcard without a dot matches predefined tool names, so `db_*` expands to every predefined database tool. Every wildcard must match at least one eligible tool; a zero-match wildcard fails deployment rather than silently producing an empty set.
 
 Use `discoverable_tools` for tools the agent should find by natural-language search instead of loading upfront. It accepts the same exact references, wildcards, and conditions as `tools`. When any local or MCP tools are discoverable, Connic provides `search_tools` and `use_tool` automatically; do not list them yourself. A function cannot appear in both `tools` and `discoverable_tools`, and exposed function names must be unique across both lists.
 

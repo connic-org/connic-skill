@@ -1,10 +1,10 @@
 # Connectors
 
-Connectors define how agents are triggered, what input they receive, and where results go. Most connectors can link to one or more agents; one trigger dispatches its input to every linked agent. Twilio Voice links to exactly one voice agent. Slack is native. Discord, GitHub, and Notion are not connector types — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
+Connectors define how agents are triggered, what input they receive, and where results go. Most connectors can link to one or more agents; one trigger dispatches its input to every linked agent. Twilio Voice and Telnyx Voice each link to exactly one voice agent. Slack is native. Discord, GitHub, and Notion are not connector types — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
 
 Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST API is for project management, not starting event-driven runs.
 
-Connectors are configured per environment in the **Dashboard**, not in YAML. For inbound connectors, the incoming event becomes the agent's input. Automatic outbound connectors for Email, Telegram, Slack, and Twilio Messaging can consume the final agent output; automatic outbound connectors for webhook, Kafka, and SQS publish a full run envelope instead. Agent-tool and middleware outbound connectors use a connector-owned payload schema and do not constrain the final response.
+Connectors are configured per environment in the **Dashboard**, not in YAML. For inbound connectors, the incoming event becomes the agent's input. Automatic outbound connectors for Email, Telegram, Slack, Telnyx Messaging, and Twilio Messaging can consume the final agent output; automatic outbound connectors for webhook, Kafka, and SQS publish a full run envelope instead. Agent-tool and middleware outbound connectors use a connector-owned payload schema and do not constrain the final response.
 
 The full list and the modes each one supports:
 
@@ -19,6 +19,8 @@ The full list and the modes each one supports:
 | `sqs` | Inbound (Consumer) / Outbound (Producer) | Consume from / produce to an SQS queue. |
 | `slack` | Inbound (Mentions) / Outbound | Trigger from bot mentions; reply to a thread or post to a channel. |
 | `stripe` | Inbound | React to Stripe webhook events. |
+| `telnyx_messaging` | Inbound / Outbound | Receive and send SMS/MMS, WhatsApp, and RCS messages. |
+| `telnyx` | Sync (incoming voice) | Connect an existing Telnyx phone number to one deployed voice agent. |
 | `telegram` | Inbound / Outbound | Telegram bot — receive messages, send replies. |
 | `twilio_messaging` | Inbound / Outbound | Receive and send SMS/MMS, WhatsApp, and RCS messages. |
 | `twilio` | Sync (incoming voice) | Connect an existing Twilio phone number to one deployed voice agent. |
@@ -49,6 +51,7 @@ Each outbound connector owns its payload schema, credentials, destination resolu
 | Email | `{"body": "required", "to"?: string \| string[], "subject"?: string, "html_body"?: string, "cc"?: string \| string[], "bcc"?: string \| string[], "reply_to"?: string}` |
 | Telegram | `{"text": "required", "chat_id"?: string \| integer}` |
 | Slack | `{"text": "required", "channel_id"?: string, "thread_ts"?: string}` |
+| Telnyx Messaging | `{"text"?: string, "to"?: string, "media_urls"?: string[], "media_type"?: "image" \| "video" \| "document" \| "audio" \| "sticker", "whatsapp_template"?: object}`; supply text, media, or template content |
 | Twilio Messaging | `{"text"?: string, "to"?: string, "media_urls"?: string[], "content_sid"?: string, "content_variables"?: object}`; supply text, media, or template content |
 
 Unknown top-level payload fields are rejected. Routing fields are optional when the connector has a configured default or trusted matching inbound origin. For automatic outbound connectors, the final run output keeps the legacy connector-specific contract documented below. `output_schema` constrains only that final response; it does not combine or replace outbound connector payload schemas.
@@ -168,6 +171,22 @@ Inbound (Consumer) and Outbound (Producer).
 - **Connic side**: configure a connector with a name and a **signing secret** (the `whsec_…` value from Stripe). Without the secret, events are rejected.
 - **Stripe side**: in the Stripe Dashboard, create a webhook pointing at the connector's URL and pick the event types you want. **Event filtering happens in Stripe, not in Connic.** The Connic connector accepts whatever Stripe sends.
 - **Inbound payload**: the parsed Stripe `Event` object.
+
+## telnyx messaging
+
+Use separate inbound and outbound `telnyx_messaging` connectors for SMS/MMS, WhatsApp, or RCS. Both reuse a saved `telnyx` connection containing the account API key and base64-encoded Ed25519 public key.
+
+- **Inbound setup**: choose a channel and sender. Connic installs the incoming-message webhook on the number's messaging profile or the selected RCS agent. An externally hosted WhatsApp number also needs its `whatsapp_profile_id` and manual webhook API version 2 setup in Telnyx.
+- **Inbound payload**: includes `text`, `from`, `to`, `channel`, `message_id`, a stable `conversation_id`, and the original Telnyx message payload under `raw`. Downloaded media appears in `files`, with up to 10 attachments and a combined 10 MiB limit. Set `session.key` to `input.conversation_id` when conversations need history; the connector does not enable sessions automatically.
+- **Outbound content**: send text, public media URLs, or an approved WhatsApp template. An explicit `to` wins, followed by the configured default recipient and then trusted matching inbound context. A successful connector run records Telnyx's API acceptance and message ID; check Telnyx for final delivery.
+
+Full setup: [Telnyx Messaging documentation](https://connic.co/docs/v1/connectors/telnyx-messaging).
+
+## telnyx voice
+
+Telnyx Voice connects incoming calls on an existing Telnyx number to one deployed agent with `voice_config`. It runs in sync mode and does not place outbound calls. Save the account API key and base64-encoded Ed25519 public key, select a voice-capable number, and link exactly one deployed voice agent. Connic creates a dedicated Call Control application and replaces the number's incoming-call routing; removing the connector does not restore the previous assignment.
+
+Full setup: [Telnyx Voice documentation](https://connic.co/docs/v1/connectors/telnyx-voice).
 
 ## telegram
 
@@ -321,7 +340,7 @@ A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each c
 
 ## Linking a connector to multiple agents
 
-Connectors that support multiple agents trigger every linked agent in parallel for each event. This supports fan-out, such as one webhook starting both an `intake` agent and an `audit` agent. Each agent runs independently with its own input, logs, and result. Twilio Voice is single-agent and does not support fan-out.
+Connectors that support multiple agents trigger every linked agent in parallel for each event. This supports fan-out, such as one webhook starting both an `intake` agent and an `audit` agent. Each agent runs independently with its own input, logs, and result. Twilio Voice and Telnyx Voice are single-agent connectors and do not support fan-out.
 
 ## Where the payload ends up
 
