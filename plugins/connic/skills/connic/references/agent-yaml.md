@@ -41,6 +41,7 @@ output_schema: invoice              # schemas/invoice.json
 
 retry_options:
   attempts: 3                       # attempts for the model being retried/operation; max 10
+  attempt_timeout: 120              # positive seconds per full LLM request/stream; capped by remaining run time
   initial_delay: 10                 # initial delay; range 0–300 seconds
   max_delay: 30                     # generated backoff cap; range 1–300 seconds
   rerun_middleware: false           # tool/sequential operation retries only; ignored for LLM agents
@@ -121,9 +122,15 @@ retrieval:
     public: {}
 ```
 
-For `type: llm`, `attempts` is the request budget for the model being retried and also controls the tool-failure reflection budget; Connic never restarts the whole LLM agent. Without a fallback, the primary uses that budget. With `fallback_model`, the primary is tried once and the fallback uses the budget. Request retries preserve tool results already produced in the run, tool failures are returned to the LLM instead of blindly re-invoked, `Retry-After` and backoff count against the overall `timeout`, and no retry or fallback occurs after streaming output begins. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
+## LLM retries and timeouts
 
-For `type: tool` and `type: sequential`, the same fields control operation-level attempts. `attempts` always includes the first attempt.
+For `type: llm`, every failed model request can use the configured retry or fallback path while time and attempts remain. There is no retryability filter. `attempts` includes the first ordinary request and defaults to three: without `fallback_model`, the primary gets that budget; with a fallback, the primary is tried once and the fallback gets up to `attempts` requests. The single context-compression repair described below is separate from these counts. Connic never restarts the whole LLM agent.
+
+`attempt_timeout` defaults to 120 seconds and accepts positive, finite seconds, including fractions. It caps each complete request or entire stream at the remaining run time, whichever is shorter. Receiving stream chunks does not restart the timer. Retries do not divide the remaining time into smaller budgets. Run expiry or cancellation stops all attempts; once text, reasoning, or tool-call output has been streamed, Connic never retries, switches models, or repairs context for that request.
+
+Switching to a fallback is immediate. Retrying the same model honors `Retry-After` when supplied, otherwise the configured backoff. These waits count against the run deadline; Connic stops if a wait leaves no time for another attempt. Request retries preserve tool results already produced in the run, and tool failures are returned to the LLM instead of blindly re-invoked. `attempts` also controls the tool-failure reflection budget. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
+
+For `type: tool` and `type: sequential`, `attempts`, `initial_delay`, `max_delay`, and `rerun_middleware` control operation-level retries. `attempts` includes the first attempt; `attempt_timeout` is ignored.
 
 ## Voice LLM agent
 
@@ -305,7 +312,9 @@ context_compression:
   max_prompt_tokens: 100000
 ```
 
-Compression is off unless the block is configured. Once configured, provider context-window errors trigger compression and an automatic retry. `model` is optional and is used only to generate context and stored-history compression summaries; when omitted, summaries use the agent model. Normal agent calls and the automatic retry always use the agent model. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. `context_compression` is only valid on `type: llm` agents.
+Compression is off unless the block is configured. When enabled, a context-window error permits one reactive compression recovery per logical model call, shared across primary and fallback. If compression changes the request, Connic makes one extra request to the same active model before considering fallback. That repair request is outside the ordinary `attempts` budget and uses the same per-request timeout and remaining run deadline. It does not reset counters or return from fallback to primary. Failed or unchanged compression uses up the recovery allowance, then ordinary retry or fallback continues with the last usable request. A second context overflow does not trigger another repair. No recovery occurs after streaming output begins.
+
+`model` is optional and selects only the context and stored-history summary model; when omitted, summaries use the agent model. Summary requests have their own bounded attempt sequence, share the run deadline and `attempt_timeout`, and cannot recursively compress. The repaired agent request stays on whichever primary or fallback model overflowed. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. `context_compression` is only valid on `type: llm` agents.
 
 Active sessions can be viewed and deleted in the dashboard under **Storage > Sessions**. Sessions are scoped per environment.
 

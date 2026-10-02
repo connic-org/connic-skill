@@ -103,6 +103,7 @@ Activates whenever a developer is working in a Connic project (anything with a `
 
 - The on-disk project layout (`agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`)
 - Agent YAML fields, defaults, voice configuration, and validation rules
+- LLM request timeouts and retries, including the 120-second default per request, fallback attempt counts, and one context-compression repair
 - How to use EU-hosted `connic/*` models and configured BYOK providers
 - Exact signatures for Python tools, middleware, hooks, and custom guardrails
 - The predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools

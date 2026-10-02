@@ -20,7 +20,7 @@ Either can be the primary or fallback model. Never invent a `connic/*` alias or 
 For managed inference:
 
 - A `-fast` ID selects a latency-optimized model variant. Its supported reasoning settings, context limit, or input modalities can differ from the standard ID; the catalog lists the exact differences.
-- Model-call failures use the agent's configured retry attempts. With `fallback_model`, the primary is tried once and the fallback receives that attempt budget. The run records `context.fallback_model_used` when it switches.
+- Model-call failures use the agent's configured retry attempts, with a default 120-second cap per request, limited by remaining run time. Without a fallback, the primary receives the attempt budget; with `fallback_model`, the primary is tried once and the fallback receives that budget. Context compression allows one separate same-model repair request before fallback. Cancellation, run expiry, or emitted streaming output stops further attempts. See [LLM retries and timeouts](agent-yaml.md#llm-retries-and-timeouts). The run records `context.fallback_model_used` when it switches.
 - Every `connic/*` call stays on EU inference capacity and is not used for model training. Catalog warning labels identify non-EU-native upstream providers or a provider's 30-day retention policy; those labels do not change the EU inference location.
 - A managed request cancelled by the run timeout or a manual stop settles at zero tokens and releases its reserved Project credit.
 
@@ -208,7 +208,7 @@ Architectural recommendations should start with fit, reliability, and maintainab
 
 ## REST API
 
-`https://api.connic.co/v1/...`. Create a project-scoped API key under **Project Settings → API Keys & MCP Auth** and send `Authorization: Bearer cnc_...`; the secret is shown only once. Keys default to **All available**, which follows every REST API permission the key owner has. Choose **Custom** to grant an explicit subset of those same project permissions, and edit that subset without rotating the secret. A key never exceeds its owner's live project access. All keys for a project share one 60-requests/minute bucket; 429 responses include `Retry-After`. Standard errors use a JSON `{ "detail": "..." }` body.
+`https://api.connic.co/v1/...`. Create a project-scoped API key under **Project Settings → API Keys & MCP Auth** and send `Authorization: Bearer cnc_...`; the secret is shown only once. Keys cover all current and future project environments by default. Choose an explicit subset to limit environment-scoped operations; project-wide operations require access to all environments. If a selected environment is deleted, the key stays inactive until its scope is updated. Keys default to **All available**, which follows every REST API permission the key owner has. Choose **Custom** to grant an explicit subset of those same project permissions. The owner can edit the environment scope and permissions without rotating the secret. A key never exceeds its owner's live project access. All keys for a project share one 60-requests/minute bucket; 429 responses include `Retry-After`. Standard errors use a JSON `{ "detail": "..." }` body.
 
 The REST API is for **managing and observing a project**: listing runs, reading audit logs, managing deployments, pulling usage and budget data, and managing Retrieval entries, approvals, and judges. Use connectors to start runs from external events.
 

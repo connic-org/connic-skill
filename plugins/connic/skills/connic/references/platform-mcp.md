@@ -34,7 +34,7 @@ The client owns the OAuth session. Never read `.connic`, ask the user to paste a
 
 Every authorization belongs to one user, one OAuth client, and one project. It can cover all current and future project environments or an explicit environment subset.
 
-Write tools are available only when the user enables write access during consent. The permission picker uses the same action-level permissions as Team & Permissions. **Allow all read permissions** and **Allow all write actions** include all eligible permissions; turn either switch off to choose individual permissions. The user who authorized the client can edit its permissions later. Revocation, permission edits, role changes, membership removal, an enforced MFA policy, and environment deletion take effect immediately.
+Write tools are available only when the user enables write access during consent. The permission picker uses the same action-level permissions as Team & Permissions. **Allow all read permissions** and **Allow all write actions** include all eligible permissions; turn either switch off to choose individual permissions. The user who authorized the client can edit its environment scope and permissions later. Those edits, revocation, role changes, membership removal, an enforced MFA policy, and environment deletion take effect immediately.
 
 Tool arguments never choose a project. Tools can accept `environment_id` when a request must choose one environment, and reject environments outside the authorization. `get_agent` requires one because an agent name alone is not unique across environments.
 

@@ -2,7 +2,7 @@
 name: connic
 description: Use when the user works in a Connic project or asks about Connic agents, Connic Voice, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
 metadata:
-  version: "1.2.9"
+  version: "1.2.10"
 ---
 
 # Connic
@@ -74,6 +74,8 @@ Discovery rules to keep in mind:
 ## Common workflows
 
 **Adding a new agent.** Create `agents/<name>.yaml` with `version: "1.0"`, `name`, and `description`, then add the fields its type requires: `model` and `system_prompt` for an LLM agent, `agents` for a sequential agent, or `tool_name` for a tool agent. `tools` is optional and only applies to LLM agents. Run `connic lint` to validate, then use the user's existing development workflow to iterate. See [agent-yaml.md](references/agent-yaml.md).
+
+**Configuring LLM retries and timeouts.** `retry_options.attempt_timeout` defaults to 120 seconds for each complete request or stream, capped by the remaining run time. `attempts` defaults to three primary requests without a fallback, or one primary plus up to three fallback requests. Request failures use that bounded path without a retryability filter; emitted streaming output prevents replay. Context compression permits one separate same-model repair request before fallback. Read [agent-yaml.md](references/agent-yaml.md#llm-retries-and-timeouts) before changing these controls.
 
 **Adding a new tool.** Create the function in `tools/<module>.py` with type hints and a docstring (the LLM uses the docstring to decide when to call it). Reference it in an agent's `tools:` list. See [tools-and-python.md](references/tools-and-python.md).
 
