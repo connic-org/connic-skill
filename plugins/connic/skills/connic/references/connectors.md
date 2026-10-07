@@ -29,6 +29,8 @@ The full list and the modes each one supports:
 
 Common dashboard flow: open the agent's detail page → **+** on Connector Flow → **Create New Connector** → pick a type → configure → save. Supported connectors such as Postgres and outbound webhook can also reach private endpoints via **Connic Bridge** — set the Bridge in the connector config. Private MCP servers that an agent consumes use `mcp_servers[].bridge` in agent YAML instead.
 
+File inputs accept up to 10 complete files, with 10 MiB per file and 10 MiB combined. Invalid or unavailable optional files are omitted individually. At the first count or size overflow, Connic keeps the files already accepted and omits that file and all later files. `file_issues` records omissions; input review can also omit file content that exceeds its budget. Runs can continue with only text and metadata. Under **Linked Agents**, enable **Files required** (link config `files_required: true`) to fail before execution if files are absent or any file is omitted.
+
 ## Outbound connector modes
 
 An outbound connector has one mode:
@@ -109,7 +111,7 @@ Inbound payload — the keys the agent sees:
 }
 ```
 
-Attachments over 10 MB are listed as metadata only (no content). Supported content includes common images, PDF/text/data formats, and DOCX/XLSX/PPTX; tracking pixels, tiny inline/signature images, and unknown formats are filtered out. Field names are `filename`, `content_type`, `content` — not `name`, `mime_type`, `data`.
+For emails larger than 10 MiB, Connic fetches headers, body, and selected attachments separately within bounded limits. Attachment limits apply to decoded content. Supported content includes common images, PDF/text/data formats, and DOCX/XLSX/PPTX; tracking pixels and tiny inline/signature images are filtered out. Omitted attachments have `content: null` and reasons in `file_issues`; by default, the body and metadata still reach the agent even if no attachments are accepted. Field names are `filename`, `content_type`, `content` — not `name`, `mime_type`, `data`.
 
 Automatic outbound connector behavior: configure SMTP server / port / username / password / From address / From name, and optionally a Default Recipient. The agent's final *output* is JSON with `to`, `subject`, `body`, and optional `cc`, `bcc`, `html_body`, `reply_to`. A bare string becomes the body. Agent-tool and middleware outbound connectors instead use the Email payload schema above; `body` is required. Recipient precedence is explicit `to`, Default Recipient, then trusted matching inbound email context. Without an explicit subject, replies reuse the inbound subject with `Re:`; other sends use `"Agent Response"`.
 
@@ -117,7 +119,7 @@ Automatic outbound connector behavior: configure SMTP server / port / username /
 
 Inbound (Consumer) and Outbound (Producer) modes.
 
-- **Connection**: environment-scoped dashboard fields for bootstrap servers, SASL credentials, topic name, and consumer group (inbound).
+- **Connection**: environment-scoped dashboard fields for bootstrap servers, SASL credentials, topic name, and consumer group (inbound). Direct connections require bootstrap and discovered brokers to resolve only to public IP addresses; private brokers require `bridge_id`.
 - **Inbound payload**: the parsed message value. Metadata is exposed at `_kafka` inside the payload: `{topic, partition, offset, timestamp, key}` — not in `context`. JSON-object values are dispatched with their top-level fields plus `_kafka`; anything else is wrapped under a `message` key — non-JSON values as `{"message": "<raw text>", "_kafka": ...}`, null values (compaction tombstones) as `{"message": null, "_kafka": ...}`. Tombstones DO trigger runs; use `_kafka.key` to identify the deleted entity.
 - **Automatic outbound connector**: publishes a run envelope with `run_id`, `agent_name`, `status`, `output`, `error`, `started_at`, `ended_at`, and `token_usage`. If the run was triggered by inbound Kafka, its key is preserved for partition ordering; otherwise the Kafka key falls back to `run_id`. An agent-tool or middleware outbound connector publishes its `payload` as the message value and may set `key` explicitly.
 - **Automatic outbound connector gating** (applies to every outbound connector, not just Kafka): only runs that end `completed` are delivered — failed and cancelled runs are skipped. A run ended via `StopProcessing` counts as completed and is published (the stop message becomes `output`) unless raised with `publish_outbound=False` — see [StopProcessing](tools-and-python.md). Returning `None` or empty output does not suppress the automatic outbound connector.
@@ -128,6 +130,7 @@ Exposes Connic agents *as* MCP tools to external clients (Claude Desktop, IDEs, 
 
 - The connector provisions an MCP endpoint URL.
 - Each agent linked to the connector becomes one MCP tool. The tool name is lowercased, with spaces and hyphens replaced by underscores; the tool description is `"Invoke the <Agent Name> agent"`. The tool input schema is fixed: `{message: string (required), payload: object (optional)}`. Keys from `payload` are merged into the agent input alongside `message`.
+- Attachments use `payload.files` with `name`, `mime_type`, and base64-encoded `data`. Attachment summaries report `accepted`, `omitted`, and `issues` under `structuredContent`. In Sync mode, failed, cancelled, or blocked agent runs return `isError: true`; structured input errors appear under `structuredContent.error`. The complete JSON-RPC body is limited to 16 MiB; larger bodies return HTTP 413 with JSON-RPC error data `code: "request_too_large"`.
 - Modes: **Sync** (recommended; returns the agent's result as the MCP tool result, 5-minute timeout) or **Inbound** (returns a run ID immediately; this is Connic fire-and-forget behavior, not MCP Tasks).
 - Protocols: stateless `2026-07-28`; Streamable HTTP `2025-11-25`, `2025-06-18`, and `2025-03-26`; and HTTP/SSE `2024-11-05`.
 - Authentication uses the connector's pre-shared secret in `Authorization: Bearer` or `X-Connic-Secret`; it has no MCP OAuth discovery or interactive authorization flow. Requests with a browser `Origin` header are rejected, so use a native or server-side MCP client.
@@ -148,7 +151,8 @@ There are no `postgres.query` / `postgres.fetch_one` tools. To read or write Pos
 
 **Inbound only**, driven by S3 object events. Wire S3 → SNS HTTP subscription → connector URL, **or** S3 → EventBridge → connector URL.
 
-- **Config**: AWS access key and secret, region, bucket, event mode (**Object Created** by default, or **All Events** to include deletes/restores), optional **prefix/suffix filters**, optional "Include Content", and max file size 1–100 MB.
+- **Config**: AWS access key and secret, region, bucket, event mode (**Object Created** by default, or **All Events** to include deletes/restores), optional **prefix/suffix filters**, optional "Include Content", and max file size (an integer from 1 to 10 MiB, default 10). Each object event produces one input; content downloads use the configured limit, and omitted content arrives as event metadata with `content.skipped: true` and reasons in `file_issues`.
+- An optional `endpoint_url` sets a custom S3 origin (scheme, host, and optional port), without credentials, query parameters, or fragments. Direct downloads require public HTTPS; private HTTP(S) endpoints require `bridge_id`.
 - **Inbound payload**: `{bucket, key, size, etag, event_name, event_time, content?, _s3: {event_source, aws_region, request_id, source_ip}}`. When content is included it is `{text, content_type, size_bytes, encoding}`; UTF-8 text uses `encoding: "utf-8"` and binary uses base64.
 - **SNS / EventBridge setup**: send to `<connector-url>?secret=<secret-key>`. SNS subscriptions can confirm against this URL; EventBridge can use it as an API Destination.
 
@@ -211,7 +215,7 @@ Telegram bot. **Inbound** and **Outbound** are separate connectors (different mo
   }
   ```
 
-  Photos, voice messages, audio, videos, video notes, documents, and animations are downloaded when available. The largest photo size is used. Each downloaded item appears in top-level `files` as `{name, mime_type, data, size}`, with `data` base64-encoded.
+  Photos, voice messages, audio, videos, video notes, documents, and animations are downloaded when available. File limits apply per message or album; optional omissions still allow an agent run. The largest photo size is used. Each downloaded item appears in top-level `files` as `{name, mime_type, data, size}`, with `data` base64-encoded. Album items are collected until two seconds pass without a new item, then dispatched once per linked agent in message order. The input includes `media_group_id`, `messages`, and `raw_updates`; `text` combines the messages and captions.
 
   There is no top-level `user_id` — the sender id is `message.from_id`. Optional `Allowed User IDs` allowlist gates which users the bot responds to. Inbound auth is verified by Connic via the `X-Telegram-Bot-Api-Secret-Token` header that Telegram sends.
 
@@ -270,7 +274,7 @@ The most flexible HTTP connector. Three independent modes — pick the one that 
 | **Inbound (Fire & Forget)** | Caller `POST`s; connector returns immediately with `{status, dispatched_to, run_ids[]}`. |
 | **Outbound** | Automatic outbound connectors POST the full completed-run envelope. Agent-tool and middleware outbound connectors POST their nested `payload`. Both use the configured URL and signature headers. |
 
-Inbound and Sync also accept `GET` (query params become the payload, with the authentication `secret` stripped), `application/x-www-form-urlencoded`, and `multipart/form-data` (file uploads up to 10 MB; images, PDFs, Office docs etc. are passed as inline data to the LLM).
+Inbound and Sync also accept `GET` (query params become the payload, with the authentication `secret` stripped), `application/x-www-form-urlencoded`, and `multipart/form-data` (images, PDFs, Office docs etc. are passed as inline data to the LLM). The complete request body is limited to 16 MiB, including encoding and metadata; larger bodies return HTTP 413 with `code: "request_too_large"`.
 
 For multipart, `context["payload"]` is normalised to the same shape `trigger_agent` uses for [passing files](predefined-tools.md#passing-files-to-the-triggered-agent):
 
@@ -285,7 +289,7 @@ For multipart, `context["payload"]` is normalised to the same shape `trigger_age
 }
 ```
 
-If no supported file is accepted, the payload contains only the top-level form fields and no `files` key. File parts use a fixed allowlist (images, PDF, text/CSV/JSON/XML, Office, ODF, EPUB) and a 10 MB per-file limit. Unsupported or oversized parts are omitted. Validate in `before` if a missing upload should reject the request.
+Form fields and any `file_issues` remain available when no files are accepted. Multipart file parts use a fixed allowlist (images, PDF, text/CSV/JSON/XML, Office, ODF, EPUB). JSON requests can supply `files` with `name`, `mime_type`, and base64-encoded `data`. Both follow the file limits and **Files required** setting above.
 
 The LLM-facing `content` is reconstructed automatically: each `files[*]` entry becomes a binary part, and the leading text part is the payload with only `files` removed. A `{message, files}` payload renders as the plain `message` string; any richer shape is JSON-serialised.
 
@@ -333,7 +337,7 @@ A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each c
 
 - **Auth**: governed by the same **Require Authentication** toggle as the webhook connector (default on). When on, send `{"secret": "<connector secret>"}` as the first message after connecting, or pass `X-Connic-Secret` as a query param / header during the handshake. When off, the WS endpoint is open and authentication is your responsibility — typically a JWT in the first message that you verify in `middleware/<agent>.py::before`. Turn it off when each connection already carries a stronger per-user credential than a shared secret would provide.
 - **Message protocol**: client sends the canonical `{type: "message", id?, payload: {message, context}}` envelope; shorthand `{"message": "..."}` and `{"content": "..."}` forms are also accepted. Server replies `ack` → `stream_start` → `stream_chunk` (multiple) → `stream_end` (with `full_response`, `token_usage`) when streaming is on; or a single `response` message when streaming is off. Agents with output guardrails still use the streaming event contract, but send one `stream_chunk` after the run completes so guardrails can inspect the full response before any text is released.
-- **Files / multimodal**: the payload may carry a top-level `files` array in the same shape as the [webhook multipart normalization](#webhook) (`{name, mime_type, data: "<base64>", size}`); each entry becomes a binary part of the LLM-facing `content`. This path has no Connic MIME allowlist or per-file size cap, so provider limits apply. Validate uploads in `before` when needed.
+- **Files / multimodal**: the payload may carry a top-level `files` array in the same shape as the [webhook multipart normalization](#webhook) (`{name, mime_type, data: "<base64>", size}`); each accepted entry becomes a binary part of the LLM-facing `content`. There is no fixed MIME allowlist, but the file limits and **Files required** setting above apply.
 - **Config**: streaming toggle, session timeout (60–86,400 seconds, default 3,600), max messages per session (1–10,000, default 100).
 - **`connector_run_id`** is returned on connect and identifies the session.
 - Conversation history persists only for that connection; closing it ends the session.

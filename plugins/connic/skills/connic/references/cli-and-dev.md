@@ -74,7 +74,7 @@ Catches:
 - Tool references that don't resolve (`tools: [billing.missing_function]`).
 - Duplicate agent names across files.
 - Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
-- Middleware/hooks/guardrails modules that fail to import.
+- Middleware/hooks modules that cannot be parsed or discovered, and guardrails that fail to import.
 
 Run this before every deploy. There is no `--json` flag — `lint` only takes `--verbose` / `-v`.
 

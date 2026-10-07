@@ -268,7 +268,7 @@ Steps:
 
 1. Set a name used as the prefix, e.g. `stripe`: at most 64 characters, starting with a lowercase letter and containing only lowercase letters, digits, and underscores.
 2. Upload a JSON/YAML spec or supply a URL (refresh on demand).
-3. Override the base URL if needed.
+3. Override the base URL if needed. Only public HTTP(S) destinations are supported.
 4. Configure auth: Bearer token, API Key (header), or Basic. Credentials are stored securely and injected at request time.
 
 `$ref` expansion must be acyclic and is capped at 50 levels, 100,000 traversals, 100,000 resolved nodes, and 8 MiB of resolved output.
@@ -299,5 +299,5 @@ Tool hooks in `hooks/<agent>.py` fire for local custom tools, predefined Connic 
 - **Output schemas** — when downstream code parses the agent's response. Replaces brittle prompt-engineering for JSON.
 - **Guardrails** — when you need policy enforcement for PII, topic scope, or prompt injection at run boundaries.
 - **MCP servers** — when the tools you need already exist as an MCP server (Context7, your internal tools, third-party MCP catalogs).
-- **API spec tools** — when you want every endpoint of an existing REST API exposed without writing wrapper functions.
+- **API spec tools** — when you want endpoints of a public HTTP(S) REST API exposed without writing wrapper functions.
 - **Custom Python tools** — when you need project-specific logic, want to combine multiple API calls, or need to bake in defaults the LLM shouldn't have to think about.
