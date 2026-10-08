@@ -111,11 +111,10 @@ These Python exceptions apply to project code. Errors from a remote MCP server a
 
 ### Environment variables
 
-Read with `os.environ.get(...)`. Configure in **Dashboard → Project Settings → Variables** (per environment). Sensitive variables are masked in logs.
+Project tools read their runtime variables with `os.environ.get(...)`. Configure these in **Dashboard → Project Settings → Variables** (per environment). Sensitive variables are masked in logs. This example reads a non-secret URL setting.
 
 ```python
 import os
-api_key = os.environ.get("STRIPE_API_KEY")
 base_url = os.environ.get("BASE_URL", "https://api.example.com")
 ```
 

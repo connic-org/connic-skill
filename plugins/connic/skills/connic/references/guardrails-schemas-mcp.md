@@ -209,14 +209,14 @@ The `check` function can be synchronous or asynchronous, and its signature is **
 
 Connect external MCP (Model Context Protocol) servers to expose their tools to the agent. Tools from a configured server are **auto-loaded** into the agent — you do **not** list them again under `tools:`.
 
-`mcp_servers:` connects to remote Streamable HTTP endpoints.
+`mcp_servers:` connects a Connic agent to remote Streamable HTTP endpoints. These connections are separate from the plugin's bundled Connic MCP connection, which uses OAuth.
 
 ```yaml
 mcp_servers:
   - name: docs
     url: https://mcp.context7.com/mcp
     headers:
-      Authorization: "Bearer ${MCP_TOKEN}"      # ${VAR} resolves at deploy time from env vars
+      X-Tenant-Id: "${TENANT_ID}"               # ${VAR} resolves at deploy time from Project variables
       X-User-Id: "${context.user_id}"           # ${context.<path>} resolves per run from the run context
       X-Customer: "${context.customer.id}"      # dotted paths into nested dicts work
     tools: [read_file, list_directory]          # optional filter — limits which tools are exposed
@@ -226,6 +226,8 @@ mcp_servers:
     url: http://mcp.internal:8080/mcp
     bridge: ${INTERNAL_BRIDGE_ID}                # tunnel through Connic Bridge for private endpoints
 ```
+
+If a server requires authentication, use credentials issued for that server and configure them in **Project Settings → Variables** before referencing them in its required headers.
 
 The optional `tools:` field **inside** the `mcp_servers[]` block filters which of the server's tools the agent sees. There is no `api:` prefix for MCP tools — that prefix is reserved for API-spec tools (next section). MCP tools appear in the agent's tool list under their own names.
 
