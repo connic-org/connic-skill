@@ -10,6 +10,7 @@
   },
   "homepage": "https://connic.co",
   "privacyPolicyUrl": "https://connic.co/legal/privacy",
+  "termsOfServiceUrl": "https://connic.co/legal/terms",
   "icon": "./assets/connic-icon.png",
   "repository": "https://github.com/connic-org/connic-skill",
   "license": "Apache-2.0",
