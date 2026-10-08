@@ -6,6 +6,8 @@ Every agent is one YAML file in `agents/`. There are three agent types: `llm` (d
 
 Required fields: `version`, `name`, `description`. LLM agents also require `model` and `system_prompt`; sequential agents require `agents`; tool agents require `tool_name`. Everything else is optional with defaults noted inline.
 
+This YAML configures a Connic agent, separate from the plugin's bundled Connic MCP connection.
+
 ```yaml
 version: "1.0"
 name: support-assistant            # kebab-case; filename should match but isn't required to
@@ -63,7 +65,7 @@ mcp_servers:                        # max 50 servers per agent
   - name: docs
     url: https://mcp.context7.com/mcp
     headers:
-      Authorization: "Bearer ${GITHUB_TOKEN}"   # ${VAR} = env var (resolved at deploy time)
+      X-Tenant-Id: "${TENANT_ID}"               # ${VAR} = Project variable (resolved at deploy time)
       X-User-Id: "${context.user_id}"           # ${context.*} = per-run value from middleware
     tools: [read_file]              # optional filter; omit for all of the server's tools
     discoverable: false

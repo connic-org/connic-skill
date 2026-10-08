@@ -8,6 +8,8 @@
     "url": "https://connic.co"
   },
   "homepage": "https://connic.co",
+  "privacyPolicyUrl": "https://connic.co/legal/privacy",
+  "icon": "./assets/connic-icon.png",
   "repository": "https://github.com/connic-org/connic-skill",
   "license": "Apache-2.0",
   "keywords": ["connic", "agents", "composer", "mcp", "ai-agents"]
