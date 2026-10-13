@@ -64,7 +64,7 @@ def export_invoice(invoice_id: str) -> ToolFile:
     )
 ```
 
-`name` and `size_bytes` are optional. Inline byte size is inferred; if supplied, `size_bytes` must match the data length. A tool may return one `ToolFile` or include files alongside JSON and text values in a list or tuple. Raw `bytes` are rejected because they do not identify a MIME type. URI accessibility and supported media formats depend on the selected model provider.
+`name` and `size_bytes` are optional. Inline byte size is inferred; if supplied, `size_bytes` must match the data length. A tool may return one `ToolFile` or include files alongside JSON and text values in a list or tuple. Raw `bytes` are rejected because they do not identify a MIME type. URI accessibility and supported media formats depend on the selected model provider. For `connic/*` models, return documents as inline `data`.
 
 ### The `context` parameter (auto-injected)
 
@@ -101,6 +101,7 @@ def gated(resource: str, context: dict) -> str:
 
 - `StopProcessing(msg, publish_outbound=True)` — raise from a tool, middleware, or hook. Ends the *entire run* gracefully (status `completed`, the message becomes the run's output). Used when a precondition isn't met but it's not an error. Pass `publish_outbound=False` to suppress the **automatic outbound connector** for this completed run. It does not undo an agent-tool or middleware outbound connector call.
 - `AbortTool(result)` — **only** valid inside a `hooks/<agent>.py::before()`. Aborts just *this* tool call, returns `result` to the LLM in place of the real result, and the agent continues. Not for use from inside tool functions.
+- `TransferCall(number)` — voice agents only. Raise from a tool or hook to transfer the caller to an E.164 number listed in the voice connector's transfer numbers. See [agent-yaml.md](agent-yaml.md#voice-llm-agent).
 - Any other unhandled exception → tool call fails, LLM sees the error and may retry or give up.
 
 These Python exceptions apply to project code. Errors from a remote MCP server are returned to the LLM as tool failures instead. If parallel project tool calls raise `StopProcessing`, the first one observed ends the run.
@@ -344,7 +345,7 @@ async def after(tool_name: str, params: dict, result, context: dict):
     return result
 ```
 
-Scope: hooks fire for local tools, predefined Connic tools, and API-spec tools. They **do not** fire for tools exposed via remote MCP servers.
+Scope: hooks fire for local tools, predefined Connic tools, API-spec tools, and tools exposed via `mcp_servers` (active and discoverable). For an MCP tool, `tool_name` is the server's tool name, `AbortTool` skips the server call, and `after` receives the raw MCP result dict (`content`, `structuredContent`, `isError`), already validated against the tool's output schema. Returning a dict with a `content` list keeps the MCP format (text, files, `isError`); any other value replaces the result as with local tools.
 
 Both hook phases may be synchronous or asynchronous and may omit `context`. `before` can return a dict whose keys are merged into the original tool parameters; returning `None` leaves the parameters unchanged. `after` returns the value passed back to the LLM; returning `None` preserves the original result. `AbortTool` skips execution but marks that tool trace as an error. An ordinary hook exception fails the tool call and is returned to the LLM.
 
@@ -389,7 +390,7 @@ System fields populated by Connic and available from `before`, tools, hooks, and
 - `token_usage` (dict, available in middleware `after`)
 - `duration_ms` (number, available in middleware `after`)
 
-Anything else (`user_id`, `is_admin`, `permissions`, etc.) is whatever middleware/tools put there. Keep custom values JSON-serializable and do not overwrite system keys. The full final context is persisted with the run and can be viewed in run details or retrieved through the API. Document a project's expected context keys in a README so collaborators know what's available.
+Anything else (`user_id`, `is_admin`, `permissions`, etc.) is whatever middleware/tools put there. Keep custom values JSON-serializable and do not overwrite system keys. The full final context is persisted with the run and can be viewed in run details or retrieved through the API; the environment's [sensitive-data redaction](platform.md#environments) paths apply to it. Document a project's expected context keys in a README so collaborators know what's available.
 
 ## Common mistakes
 

@@ -22,13 +22,13 @@ system_prompt: |
   Use tools when helpful.
 
 temperature: 0.1                   # default 1.0; range 0.0–2.0
-timeout: 45                        # seconds for one run; minimum 5; no default
+timeout: 45                        # seconds for one run; minimum 5; no default; capped by the plan's run timeout (connic.co/pricing)
 max_iterations: 8                  # default 100; minimum 1
 max_concurrent_runs: 20            # default 1; minimum 1
 reasoning_effort: medium           # auto is the default; supported overrides are model-specific
 reasoning_budget: 4096             # optional; only for models that accept a raw token budget
 
-tools:                              # max 100 combined with generated approval.inputs tools
+tools:                              # max 100 combined with generated approval.inputs tools; MCP server tools and discoverable_tools don't count
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
   - math.calculator.*               # all public funcs in tools/math/calculator.py
   - search.web_*                    # prefix wildcard (fnmatch)
@@ -70,6 +70,12 @@ mcp_servers:                        # max 50 servers per agent
     tools: [read_file]              # optional filter; omit for all of the server's tools
     discoverable: false
     bridge: ${INTERNAL_BRIDGE_ID}   # optional Connic Bridge id for private MCP endpoints
+    condition: context.user_id != null  # optional; connect only when true (conditional-tool grammar)
+    optional: false                 # true = run continues without this server if connecting fails
+    oauth:                          # optional per-user sign-in; no Authorization header allowed with it
+      app: docs                     # OAuth app name in the environment (Settings → OAuth Apps)
+      user: context.user_id         # context.* path holding the end user's ID
+      connect_tool: false           # true = connect_<server> tool returns a sign-in link when not connected
 
 session:                           # true = one shared session; false/null/omitted = off
   key: context.chat_id              # optional context.* or input.* path; omitted/null = shared
@@ -88,7 +94,7 @@ context_compression:                # LLM agents only; omitted = compression off
 
 concurrency:
   key: process_id                   # dot-path into the raw trigger payload
-  on_conflict: queue                # queue | drop
+  on_conflict: queue                # queue | drop | coalesce
 
 approval:
   tools:
@@ -173,7 +179,22 @@ Set `reasoning_effort` to request a reasoning level. Connic passes the setting t
 
 Python tools, retrieval, MCP servers, conditional and discoverable tools, tool hooks, delegation, and middleware remain available. Connic rejects input and output guardrails, `approval`, `output_schema`, `output_schema_dict`, `fallback_model`, and `context_compression` because it streams voice audio immediately. Automated test suites do not run voice sessions; use `connic lint`, deploy the agent, and test it in a live conversation.
 
-Use Connic connectors to link incoming phone calls to a deployed voice agent. Configure the connection and connector in the Dashboard, not in agent YAML. See [connectors.md](connectors.md) for setup instructions.
+Use Connic connectors to link incoming phone calls to a deployed voice agent. Save the provider Connection in the Dashboard, and configure the connector there or in `connectors/*.yaml`, not in agent YAML. See [connectors.md](connectors.md) for setup instructions.
+
+A call starts the run with `call_id` (the provider's call identifier), `from`, `to`, `provider` (the voice connector that received the call), `caller_name` and `forwarded_from` when the provider sends them, and `raw`, the provider's complete incoming-call request. What each provider sends is in [connectors.md](connectors.md). Middleware reads it from `context["payload"]` and tools through their `context` parameter, and the model receives it as the first message unless `before` middleware replaces it. To give callers different tools by identity, look the caller up in `before` middleware, store the result in `context`, and gate tools with conditional tools. One call is one run, so the agent's `timeout`, capped by the subscription limit, is the maximum call length.
+
+To transfer a caller, raise `TransferCall("+4930123456789")` (from `connic`) in a tool or tool hook. Speech already playing finishes first; the number must be one of the voice connector's transfer numbers, otherwise the tool call returns an error. Keep any conditions for the transfer in the tool. The Playground shows the number instead of dialing it.
+
+`voice_config.keypad` maps keys (`0`-`9`, `*`, `#`) to tool refs that are also listed in `tools`; quote the keys in YAML. A key press runs the tool without a model turn, at any point in the call, so the tool cannot have required parameters. A keypad tool that raises `TransferCall` stops current speech and transfers immediately.
+
+```yaml
+tools:
+  - phone.transfer_to_operator
+voice_config:
+  greeting: "To reach an operator, press 0 at any time."
+  keypad:
+    "0": phone.transfer_to_operator
+```
 
 ## Sequential agent
 
@@ -257,7 +278,7 @@ A tool cannot appear in both the unconditional list and a conditional entry — 
 
 Every exact tool reference must resolve. A wildcard without a dot matches predefined tool names, so `db_*` expands to every predefined database tool. Every wildcard must match at least one eligible tool; a zero-match wildcard fails deployment rather than silently producing an empty set.
 
-Use `discoverable_tools` for tools the agent should find by natural-language search instead of loading upfront. It accepts the same exact references, wildcards, and conditions as `tools`. When any local or MCP tools are discoverable, Connic provides `search_tools` and `use_tool` automatically; do not list them yourself. A function cannot appear in both `tools` and `discoverable_tools`, and exposed function names must be unique across both lists.
+Use `discoverable_tools` for tools the agent should find by natural-language search instead of loading upfront. It accepts the same exact references, wildcards, and conditions as `tools`. When any local or MCP tools are discoverable, Connic provides `search_tools` and `use_tool` automatically; do not list them yourself. A function cannot appear in both `tools` and `discoverable_tools`, and exposed function names must be unique across both lists. `search_tools` matches the words of the query against tool names and descriptions, so descriptions must use the language the agent works in. Finding a tool costs an extra model step before the `use_tool` call; keep frequently used tools in `tools` and reserve discovery for large, rarely used sets.
 
 ### Full predefined-tool list
 
@@ -304,6 +325,8 @@ session:
 
 The optional `key` is a `context.*` or `input.*` path; each resolved value gets a separate session. `ttl` is an inactivity timeout in seconds, at least 60; omitted or `null` means no expiry. `browser: false` disables profile persistence while browser tools remain available with fresh state.
 
+Runs sharing a session are not serialized: if two overlap, the run that writes second fails. When runs for the same session can overlap, add `concurrency.key` on the same payload field (e.g. `concurrency.key: conversation_id` with `session.key: input.conversation_id`).
+
 For long-running LLM sessions, add `context_compression` to keep prompts within the model context window:
 
 ```yaml
@@ -316,7 +339,7 @@ context_compression:
 
 Compression is off unless the block is configured. When enabled, a context-window error permits one reactive compression recovery per logical model call, shared across primary and fallback. If compression changes the request, Connic makes one extra request to the same active model before considering fallback. That repair request is outside the ordinary `attempts` budget and uses the same per-request timeout and remaining run deadline. It does not reset counters or return from fallback to primary. Failed or unchanged compression uses up the recovery allowance, then ordinary retry or fallback continues with the last usable request. A second context overflow does not trigger another repair. No recovery occurs after streaming output begins.
 
-`model` is optional and selects only the context and stored-history summary model; when omitted, summaries use the agent model. Summary requests have their own bounded attempt sequence, share the run deadline and `attempt_timeout`, and cannot recursively compress. The repaired agent request stays on whichever primary or fallback model overflowed. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. `context_compression` is only valid on `type: llm` agents.
+`model` is optional and selects only the context and stored-history summary model; when omitted, summaries use the agent model. Summary requests have their own bounded attempt sequence, share the run deadline and `attempt_timeout`, and cannot recursively compress. The repaired agent request stays on whichever primary or fallback model overflowed. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. Every `interval`-th run ends by summarizing older stored history, keeping the last `keep_recent_runs` runs verbatim. Without it, each run loads the full stored history and compression only shortens requests. Stored history has no total size or run-count limit; each stored message can be up to 5 MB. `context_compression` is only valid on `type: llm` agents.
 
 Active sessions can be viewed and deleted in the dashboard under **Storage > Sessions**. Sessions are scoped per environment.
 
@@ -337,10 +360,12 @@ Limit how many runs of this agent execute simultaneously for a given key.
 ```yaml
 concurrency:
   key: data.tenant_id
-  on_conflict: queue      # queue = wait; drop = discard the new run
+  on_conflict: queue      # queue = wait; drop = discard the new run; coalesce = at most one waiting run, newest event wins
 ```
 
-`concurrency.key` is a dot-path into the **raw trigger payload**; unlike `session.key`, it does not use an `input.` prefix. If the path does not exist, per-key enforcement is skipped for that run. `max_concurrent_runs` is a hard cap on total parallelism; `concurrency.key` adds per-key serialization on top. Concurrency rules are supported on LLM and tool agents, not sequential agents.
+`concurrency.key` is a dot-path into the **raw trigger payload**; unlike `session.key`, it does not use an `input.` prefix. If the path does not exist, per-key enforcement is skipped for that run. `max_concurrent_runs` is a hard cap on total parallelism; `concurrency.key` adds per-key serialization on top, and runs waiting for their key don't take a slot. Concurrency rules are supported on LLM and tool agents, not sequential agents.
+
+Use `coalesce` when every event means "re-check the current state" (status updates, webhook bursts): events that arrive during a run collapse into one follow-up run with the latest payload, and replaced runs end as cancelled with `superseded_by` in their context. Prefer it over a dedup step in middleware. Waiting runs are persisted and survive deploys; a run paused for approval keeps its key and resumes before waiting runs; `queue` starts waiting runs in arrival order with no length cap or wait timeout.
 
 ## Approvals
 

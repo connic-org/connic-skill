@@ -70,6 +70,8 @@ Connic stores policy and evidence. It does not alter prompts, outputs, streams, 
 
 Transparency applications record whether a disclosure was `applied`, `failed`, or `delivery_unknown`. Use `customer_attestation` or `upstream_attestation` provenance and record the attesting party, timestamp, evidence reference, and factual basis. Reusing an idempotency key with identical content returns the existing record; conflicting reuse is rejected.
 
+A record can reference the run, agent, connector, environment, or deployment it documents, plus a SHA-256 `output_hash` of the delivered output. A run reference fills in its agent, environment, deployment, and connector. An API key with `compliance.manage` can record evidence, so an application can write one record per interaction.
+
 ## Monitoring and incidents
 
 Each system can have a monitoring plan with an owner, review cadence, signals, thresholds, and next-review date. An active plan needs an owner, a next-review date, and either signals or a documented monitoring procedure. Plans whose review date is due surface on the governance overview.

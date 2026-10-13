@@ -10,7 +10,7 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic skill` | Install the project skill under `.agents/skills/connic/` and `.claude/skills/connic/`, then offer full plugins for detected Codex and Claude Code clients. |
 | `connic update [--check|--sdk|--skill|--enable-reminders]` | Check for or install available SDK and skill updates, or enable automatic reminders. |
 | `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
-| `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery — locally, no upload. |
+| `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery, and `connectors/*.yaml` — locally, no upload. |
 | `connic tools` | List the custom Python tools discovered in the current project. |
 | `connic dev` | Choose a reusable named cloud dev environment or a quick test with Up/Down and Enter. A reusable environment is selected by default; a valid saved preference comes first. Sync local files and hot-reload on save. |
 | `connic test` | Run declarative test suites from `tests/` against an environment. `--env <id>` picks the environment; `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report; `--json` emits machine-readable output. |
@@ -75,6 +75,7 @@ Catches:
 - Duplicate agent names across files.
 - Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
 - Middleware/hooks modules that cannot be parsed or discovered, and guardrails that fail to import.
+- Connector files in `connectors/`: shape, types and modes, generated fields, `${VAR}` syntax, linked agents and outbound `source` keys that don't exist, and name clashes between files. Environment names, Connections, Bridges, Variables, and phone-number availability are only checked when a deploy starts. See [Connectors in code](connectors.md#connectors-in-code).
 
 Run this before every deploy. There is no `--json` flag — `lint` only takes `--verbose` / `-v`.
 
@@ -422,7 +423,7 @@ Hook replacements use the same tool hierarchy with the phase appended. For `data
 
 The after-hook ladder uses the same prefixes ending in `_hook_after`. Non-alphanumeric runs in each tool-ref segment normalize to `_`, so `api:weather-v2.lookup` resolves `mock_api_weather_v2_lookup_hook_before`. Before handlers have the signature `(tool_name, params, context) -> params`; after handlers use `(tool_name, params, result, context) -> result`.
 
-Hook replacement is independent of tool-result replacement: either, both, or neither may match. A missing hook replacement runs the real hook by default; `strict_hook_mocks` fails before it executes instead. Replacements follow normal hook scope; remote MCP tools do not run agent hooks, so they never resolve hook replacements.
+Hook replacement is independent of tool-result replacement: either, both, or neither may match. A missing hook replacement runs the real hook by default; `strict_hook_mocks` fails before it executes instead. Replacements follow normal hook scope.
 
 #### Custom guardrail replacements
 
@@ -475,6 +476,8 @@ connic deploy --skip-tests                 # bypass the test gate (hotfix only)
 ```
 
 The interactive command lists environments by name. Use Up/Down to move and Enter to select an environment, then confirm before uploading. `--env` accepts a name or environment UUID. For unattended deployments, pass both `--env` and `--yes` (short form `-y`). There is no `--message` / `-m` flag.
+
+`connic deploy` runs lint first and uploads `connectors/` with the other project directories. The deployment then creates, updates, or retires the declared connectors when it is activated.
 
 **`connic deploy` refuses to run on a project that has a connected Git repo.** Push to the configured branch or start a manual deployment from the Deployments page in that case. The CLI deploy is for projects without Git integration.
 

@@ -36,6 +36,8 @@ Pass a dict or list for structured JSON. Strings can contain plain text or encod
 
 When `wait_for_response=False`, it returns immediately with just `run_id` (no `status` or `response`).
 
+`timeout_seconds` has no upper limit of its own, but the calling run's `timeout` still applies. When the wait ends, the child run keeps running under its own timeout and the result has `status: "timeout"`.
+
 Tests can assert on agents invoked through `trigger_agent` or `trigger_agent_at` with `expected_child_agents` in `tests/*.yaml`. See [cli-and-dev.md](cli-and-dev.md#asserting-on-triggered-agents).
 
 #### Passing files to the triggered agent
@@ -246,7 +248,7 @@ Collection names are at most 50 characters, start with a lowercase letter, and c
 
 Field-equality shorthand: `{"status": "pending"}` is the same as `{"status": {"$eq": "pending"}}`. Use it for simple matches.
 
-Operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$and`, `$or`, `$not`, `$nor`, `$exists`, `$contains`, `$elemMatch`, `$regex`. `$regex` matching is always case-insensitive.
+Operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$and`, `$or`, `$not`, `$nor`, `$exists`, `$contains`, `$elemMatch`, `$regex`, `$near`. `$regex` matching is always case-insensitive.
 
 Nested fields use dot notation: `{"address.city": "Berlin"}`.
 
@@ -259,6 +261,24 @@ filter = {
         {"address.country": "DE"},
     ]
 }
+```
+
+### Distance search with `$near`
+
+Store coordinates as a `{"lat": number, "lng": number}` object. `$near` matches documents within `maxDistance` meters (optional) by great-circle distance. `db_find` returns them nearest first unless `sort` is set, and adds `_distance` in meters to each document. Use one `$near` per filter, at the top level (not inside `$or`, `$not`, or `$elemMatch`). Documents without numeric `lat`/`lng` never match. In `db_count`, `db_update`, `db_upsert`, and `db_delete` it only filters.
+
+```python
+await db_insert("workshops", {
+    "name": "Garching",
+    "services": ["tires", "inspection"],
+    "location": {"lat": 48.2489, "lng": 11.6532},
+})
+
+result = await db_find("workshops", filter={
+    "services": {"$contains": "tires"},
+    "location": {"$near": {"lat": 48.137, "lng": 11.575, "maxDistance": 25000}},
+}, limit=10)
+# {"documents": [{"name": "Garching", ..., "_distance": 13726.69...}, ...], "count": N}
 ```
 
 ## Web

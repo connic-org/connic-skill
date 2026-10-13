@@ -28,6 +28,8 @@ my-project/
 │   └── invoice.json
 ├── guardrails/                # *.py — custom guardrail modules
 │   └── domain_check.py
+├── connectors/                # *.yaml connectors, applied by deploys (flat, no nesting)
+│   └── order-events.yaml
 └── tests/                     # *.yaml — declarative test suites
     ├── support-assistant.yaml
     ├── files/                  # binary fixtures referenced by files:
@@ -35,7 +37,7 @@ my-project/
     └── mocks/                  # *.py — custom-code replacements referenced by mocks:
 ```
 
-`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the Connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/` as you need them.
+`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the Connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/`, `connectors/` as you need them.
 
 ## Auto-discovery rules
 
@@ -50,6 +52,7 @@ These are how files wire up. There is no central manifest — the layout *is* th
 | `tools/<module>.py` with function `foo` | Reference as `<module>.foo` in an agent's `tools:` list. Nested: `tools/math/calc.py::add` → `math.calc.add`. Wildcards (`module.*`, `module.search_*`) supported. |
 | `schemas/<name>.json` | Reference as `output_schema: <name>` in an agent. Valid JSON Schema (subset — see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#output-schemas)). |
 | `guardrails/<name>.py` | Reference as `name: <name>` inside a `guardrails: - type: custom` block — filename must match exactly. |
+| `connectors/<key>.yaml` | Declares one connector; the file name is its key and identity. Deploys create, update, or retire it per environment. See [Connectors in code](connectors.md#connectors-in-code). |
 
 Connic skips `_`-prefixed **files** and **functions** during tool discovery. So `tools/_helpers.py` is not exposed, and neither is `tools/utils.py::_internal_fn`. Use the leading underscore for module-private helpers. `__init__.py` is one example of a `_`-prefixed file; do not put tools there.
 
