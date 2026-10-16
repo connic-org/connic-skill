@@ -198,6 +198,13 @@ with open("docs/pricing.pdf", "rb") as f:
     content["parts"].append({"data": f.read(), "mime_type": "application/pdf"})
 ```
 
+File uploads arrive as separate parts next to the text part. To change the text the LLM reads, replace only the text part; setting `content["parts"]` to a text-only list drops every attachment:
+
+```python
+files = [part for part in content["parts"] if "text" not in part]
+content["parts"] = [{"text": new_text}, *files]
+```
+
 ### The raw connector payload (`context["payload"]`)
 
 `content` is **not** the raw thing the connector received — Connic has already shaped it into the LLM-facing message. The original connector payload (webhook JSON body, form fields, GET query string, Kafka message, etc.) is preserved in `context["payload"]` so middleware can read fields the LLM should never see — auth tokens, identity claims, routing metadata, idempotency keys.

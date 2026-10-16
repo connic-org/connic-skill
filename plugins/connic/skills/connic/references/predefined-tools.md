@@ -310,7 +310,7 @@ tools:
   - web_browser_*
 ```
 
-This enables `web_browser_open`, `web_browser_observe`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_upload`, and `web_browser_download`. The agent calls these tools directly. Custom Python tools can import the individual functions from `connic.tools`.
+This enables `web_browser_open`, `web_browser_observe`, `web_browser_read`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_eval`, `web_browser_console`, `web_browser_upload`, `web_browser_download`, and `web_browser_pdf`. The agent calls these tools directly. Custom Python tools can import the individual functions from `connic.tools`.
 
 ```python
 # tools/browser.py
@@ -324,11 +324,15 @@ await web_browser_close()
 
 Each run uses one browser, selected automatically for every browser tool call. Calling `web_browser_open(url)` again returns `{"status": "active", "message": "Browser already open"}` without navigating. Use `web_browser_tabs(action="new", url="...")` for another page.
 
-`web_browser_observe()` reads the current page. `web_browser_act(action, target=None, value=None)` performs an action and returns a new snapshot. Use element references from the latest snapshot, because navigation or page updates can change them.
+`web_browser_observe(interactive_only=False, selector=None, include_urls=False)` reads the current page. Snapshots are cut off at 32000 characters, so narrow long pages with `interactive_only=True` (only elements the agent can act on) or a CSS `selector` such as `main`. `include_urls=True` adds link URLs. `web_browser_read()` returns the current page as Markdown in `content`, using the rendered page and its login state; content over 32000 characters sets `content_truncated`.
+
+`web_browser_act(action, target=None, value=None)` performs an action and returns a new snapshot. Use element references from the latest snapshot, because navigation or page updates can change them.
 
 | Action | `target` | `value` |
 | --- | --- | --- |
-| `click`, `double_click` | Current element reference, such as `@e1` | Omit |
+| `click`, `double_click`, `hover` | Current element reference, such as `@e1` | Omit |
+| `check`, `uncheck` | Current checkbox or radio reference | Omit |
+| `scroll_into_view` | Current element reference | Omit |
 | `fill` | Current input reference | Text to replace the field contents |
 | `type` | Optional current element reference; omit for the focused field | Text to insert |
 | `select` | Current select reference | Option value |
@@ -336,12 +340,29 @@ Each run uses one browser, selected automatically for every browser tool call. C
 | `keydown`, `keyup` | Optional current element reference | Key to hold or release, such as `Shift` |
 | `scroll` | Omit | `up`, `down`, `left`, or `right` |
 | `navigate` | Omit | HTTP or HTTPS URL |
-| `back` | Omit | Omit |
+| `back`, `forward`, `reload` | Omit | Omit |
 | `wait` | Omit | Milliseconds from `100` to `10000` |
+| `wait_for_text` | Omit | Text to appear on the page |
+| `wait_for_url` | Omit | URL or pattern, such as `**/dashboard` |
+| `wait_for_selector` | Omit | CSS selector to appear on the page |
+| `wait_for_network_idle` | Omit | Omit |
 
-`web_browser_screenshot()` returns a PNG attachment for the model to inspect. `web_browser_mouse(action, ...)` controls the pointer using viewport coordinates. `web_browser_tabs(action="list")` returns tab IDs for switching or closing tabs. `web_browser_dialog(action, text=None)` accepts or dismisses a pending JavaScript dialog.
+The `wait_for_*` actions give up after 10 seconds and return an error with the current page.
 
-`web_browser_download(target, include_content)` returns `download_id`, `name`, and `mime_type`. Set `include_content=True` to attach the file for the agent to read, or `False` for metadata only. `web_browser_upload(target, download_id)` selects a previously downloaded file for upload. Files remain available until the browser closes.
+`web_browser_screenshot(full_page=False)` returns a PNG attachment for the model to inspect. `full_page=True` captures the whole scrollable page; use viewport screenshots for mouse coordinates. `web_browser_mouse(action, ...)` controls the pointer using viewport coordinates. `web_browser_tabs(action="list")` returns tab IDs for switching or closing tabs. `web_browser_dialog(action, text=None)` accepts or dismisses a pending JavaScript dialog.
+
+`web_browser_eval(script)` runs a JavaScript expression of up to 16384 characters in the active tab and returns its JSON value in `result`, along with a fresh snapshot. Promises are awaited; wrap statements that use `return` or `await` in `(async () => { ... })()`. Results over 32000 characters are cut off and set `result_truncated: true`; non-string values then come back as JSON text. A thrown error returns `error_code: "script_error"` with the message in `error`.
+
+```python
+from connic.tools import web_browser_eval
+
+await web_browser_eval("[...document.querySelectorAll('h2')].map(h => h.textContent.trim())")
+# {"status": "active", "result": ["Pricing", "FAQ"], "url": "...", "snapshot": "..."}
+```
+
+`web_browser_console()` returns `console_messages` (`type` and `text`, the 50 most recent) and `page_errors` (`text`, `line`, and `column`, the 20 most recent). Entries accumulate while the browser is open, newest last; `console_truncated` means older entries or long text were cut off.
+
+`web_browser_download(target, include_content)` returns `download_id`, `name`, and `mime_type`. Set `include_content=True` to attach the file for the agent to read, or `False` for metadata only. `web_browser_pdf(include_content)` saves the current page as a PDF and returns the same fields. `web_browser_upload(target, download_id)` selects a downloaded file or saved PDF for upload. Files are limited to 25 MiB and remain available until the browser closes.
 
 The browser closes when its run ends. With sessions enabled, `session.browser` defaults to `true`: runs in the same Connic session reuse saved cookies and local storage. `session: true` shares one session across the agent’s runs. Set `session.history: false` to retain the browser profile without conversation history. Runs without a session or with `session.browser: false` use a fresh profile. See [pricing](https://connic.co/pricing) for browser usage rates and environment limits.
 

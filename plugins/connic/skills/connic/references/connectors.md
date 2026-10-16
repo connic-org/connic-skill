@@ -134,7 +134,7 @@ Lifecycle:
 - Two active connectors (in any environment) can't use the same phone number, messaging sender, or Telegram bot; the deploy fails. A retired connector gives these up when another connector needs them and takes them back if it returns.
 - Activation is all or nothing: if a provider call fails, nothing is activated and the previous deployment stays live. **Deploy anyway** on the deployment page redeploys and skips the failing connectors. For a rollback, use **Activate anyway** in the activate dialog (REST: `POST /v1/projects/{project_id}/deployments/{deployment_id}/activate?force=true`). Skipped connectors keep their previous state and are retried on the next activation. The activate dialog lists what a rollback would change.
 - A code connector and a dashboard connector can't share a name in one environment; the deploy fails. The dashboard, REST API, and MCP refuse to create or rename a dashboard connector to a name a code connector uses (retired ones included).
-- Code connectors show an **In code** badge. Editing, deleting, and linking are disabled in the dashboard, and REST/MCP return 409; change the file and deploy instead. Pause/resume stays available.
+- Code connectors show an **In code** badge. Active code connectors cannot be edited, deleted, or linked in the dashboard, and REST/MCP return 409; change the file and deploy instead. Pause/resume stays available.
 
 `connic lint` checks connector files offline: shape, types and modes, generated fields, `${VAR}` syntax, that linked agents and outbound `source` keys exist, and name clashes between files. `connic deploy` runs lint first and uploads `connectors/`.
 

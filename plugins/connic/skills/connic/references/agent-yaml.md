@@ -132,7 +132,7 @@ retrieval:
 
 ## LLM retries and timeouts
 
-For `type: llm`, every failed model request can use the configured retry or fallback path while time and attempts remain. There is no retryability filter. `attempts` includes the first ordinary request and defaults to three: without `fallback_model`, the primary gets that budget; with a fallback, the primary is tried once and the fallback gets up to `attempts` requests. The single context-compression repair described below is separate from these counts. Connic never restarts the whole LLM agent.
+For `type: llm`, every failed model request can use the configured retry or fallback path while time and attempts remain. The only retryability filter is `unsupported_file_type`, which is not retried on the same model but can still switch to the fallback. `attempts` includes the first ordinary request and defaults to three: without `fallback_model`, the primary gets that budget; with a fallback, the primary is tried once and the fallback gets up to `attempts` requests. The single context-compression repair described below is separate from these counts. Connic never restarts the whole LLM agent.
 
 `attempt_timeout` defaults to 120 seconds and accepts positive, finite seconds, including fractions. It caps each complete request or entire stream at the remaining run time, whichever is shorter. Receiving stream chunks does not restart the timer. Retries do not divide the remaining time into smaller budgets. Run expiry or cancellation stops all attempts; once text, reasoning, or tool-call output has been streamed, Connic never retries, switches models, or repairs context for that request.
 
@@ -183,7 +183,7 @@ Use Connic connectors to link incoming phone calls to a deployed voice agent. Sa
 
 A call starts the run with `call_id` (the provider's call identifier), `from`, `to`, `provider` (the voice connector that received the call), `caller_name` and `forwarded_from` when the provider sends them, and `raw`, the provider's complete incoming-call request. What each provider sends is in [connectors.md](connectors.md). Middleware reads it from `context["payload"]` and tools through their `context` parameter, and the model receives it as the first message unless `before` middleware replaces it. To give callers different tools by identity, look the caller up in `before` middleware, store the result in `context`, and gate tools with conditional tools. One call is one run, so the agent's `timeout`, capped by the subscription limit, is the maximum call length.
 
-To transfer a caller, raise `TransferCall("+4930123456789")` (from `connic`) in a tool or tool hook. Speech already playing finishes first; the number must be one of the voice connector's transfer numbers, otherwise the tool call returns an error. Keep any conditions for the transfer in the tool. The Playground shows the number instead of dialing it.
+To transfer a caller, raise `TransferCall("+4930123456789")` (from `connic`) in a tool or tool hook. Speech already playing finishes first; the number must be one of the voice connector's transfer numbers, otherwise the tool call returns an error. Keep any conditions for the transfer in the tool. The Playground shows the number instead of dialing it. The transfer ends the run normally, so `after` middleware still runs; the tool's trace step shows the number, but `context` does not record it. If `after` needs to know, set a key such as `context["transferred_to"]` in the tool before raising.
 
 `voice_config.keypad` maps keys (`0`-`9`, `*`, `#`) to tool refs that are also listed in `tools`; quote the keys in YAML. A key press runs the tool without a model turn, at any point in the call, so the tool cannot have required parameters. A keypad tool that raises `TransferCall` stops current speech and transfers immediately.
 
@@ -284,7 +284,7 @@ Use `discoverable_tools` for tools the agent should find by natural-language sea
 
 Reference by bare name in `tools:`:
 
-`trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `web_browser_open`, `web_browser_observe`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_upload`, `web_browser_download`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`.
+`trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `web_browser_open`, `web_browser_observe`, `web_browser_read`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_eval`, `web_browser_console`, `web_browser_upload`, `web_browser_download`, `web_browser_pdf`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`.
 
 See [predefined-tools.md](predefined-tools.md) for full signatures. Per [SKILL.md](../SKILL.md#best-practices-apply-these-by-default) best practice 1, prefer wrapping these in purpose-driven custom tools rather than handing them to the LLM raw.
 
