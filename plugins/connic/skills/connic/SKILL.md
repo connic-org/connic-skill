@@ -1,8 +1,8 @@
 ---
 name: connic
-description: Use when the user works in a Connic project or asks about Connic agents, Connic Voice, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or LangChain/ADK migration. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, `connectors/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
+description: Use when the user works in a Connic project or asks about Connic agents, Connic Voice, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or migrating an existing app, script, LangChain, or ADK project to Connic. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, `connectors/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
 metadata:
-  version: "1.2.13"
+  version: "1.2.14"
 ---
 
 # Connic
@@ -38,6 +38,7 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
 | [platform.md](references/platform.md) | Dashboard concepts: models, billing, environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
 | [platform-mcp.md](references/platform-mcp.md) | Connecting an AI client to Connic MCP, live project/environment operations, OAuth scopes, tool selection, and revocation |
+| [migration.md](references/migration.md) | Migrating an existing app or agent framework project: inventory, source patterns mapped to Connic features, which data stores move or stay, data import, migration report |
 
 For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed.
 
@@ -86,7 +87,7 @@ Discovery rules to keep in mind:
 
 **Deploying.** For a Git-connected project, push to the branch mapped to the target environment or start a manual deployment from the Dashboard; `connic deploy` refuses to run on Git-connected projects. A push always runs the deploy gate. From the Deployments page, **Deploy & skip tests** bypasses it for a manual Git deployment. For non-Git projects, bare `connic deploy` lists environments by name and asks for confirmation. `--list` lists targets without deploying; `--env <name-or-id>` selects a target directly. For CI, pass both `--env` and `--yes`. `--skip-tests` bypasses the gate. See [cli-and-dev.md](references/cli-and-dev.md) and [platform.md](references/platform.md).
 
-**Migrating from LangChain or Google ADK.** `connic migrate` scans an existing project and generates a Connic project skeleton. See [cli-and-dev.md](references/cli-and-dev.md).
+**Migrating an existing app.** Read [migration.md](references/migration.md) before planning. Inventory the whole codebase, map every component to a Connic feature, move app-owned data into Connic, and show the plan before writing files. For LangChain or Google ADK projects, `connic migrate` generates a skeleton first; see [cli-and-dev.md](references/cli-and-dev.md#connic-migrate).
 
 ## Best practices (apply these by default)
 
@@ -231,6 +232,7 @@ When you suggest an architecture, evaluate **fit, reliability, and maintainabili
 - **Don't confuse Connic MCP with agent MCP integrations.** Connic MCP lets an AI client manage a Connic project. `mcp_servers:` lets a Connic agent consume external tools. The MCP connector lets an external client invoke deployed agents.
 - **Don't add `import connic` boilerplate to tool files.** Tools are plain functions that Connic discovers automatically. Import exported runtime symbols only when needed: `ToolFile`, `StopProcessing`, `AbortTool`, or middleware's `send_connector`; predefined tools such as `trigger_agent` come from `connic.tools`.
 - **Don't add decorators.** No `@tool`, no `@agent`. Discovery is by directory + filename + docstring.
+- **Don't keep state on the runtime's disk.** Files written at runtime are temporary: they can disappear between runs and are reset on every deploy. Store records in the Database, searchable documents in Retrieval, and conversation history in sessions. Never bridge to `localhost` or a developer machine to keep a local database.
 - **Don't run `connic dev` or `connic deploy` for the user** without asking. Both are network operations against the user's Connic account.
 
 ## When you're unsure

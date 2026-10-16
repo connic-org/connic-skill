@@ -42,7 +42,7 @@ Environment-scoped reads stay within the selected subset. Access to all environm
 
 ## Tools
 
-Availability depends on the user's permissions, OAuth read/write access, selected permission settings, and the project/environment boundary. Tool discovery returns only permitted tools. Use the live tool catalog rather than relying on a static list. Database tools cover environment-scoped stats, collections, inferred schemas, full document queries and counts, updates to existing rows, and document and collection deletion. The plugin, skill, and MCP setup guide is available at `https://connic.co/docs/v1/ai-agent-setup`.
+Availability depends on the user's permissions, OAuth read/write access, selected permission settings, and the project/environment boundary. Tool discovery returns only permitted tools. Use the live tool catalog rather than relying on a static list. Database tools cover environment-scoped stats, collections, inferred schemas, full document queries and counts, one-time imports into new or empty collections, updates to existing rows, and document and collection deletion. The plugin, skill, and MCP setup guide is available at `https://connic.co/docs/v1/ai-agent-setup`.
 
 Connic MCP does not start agent runs directly. Use a connector for event-driven runs. MCP does not expose payments, project deletion, or account-security operations.
 
