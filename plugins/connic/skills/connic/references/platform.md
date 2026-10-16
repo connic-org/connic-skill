@@ -108,6 +108,8 @@ Dashboard view: **Project → Retrieval** (scoped to the active environment). Up
 
 Use **dot-separated** namespace names for hierarchy, with a maximum depth of 10 — e.g. `policies.hr.leave`, `products.pricing`. Searching a namespace includes all descendants. Ingestion is asynchronous: `retrieval_store` returns a job ID and entries only become searchable once indexing completes.
 
+Text uploads (`POST /v1/projects/{project_id}/retrieval/text`, `upload_retrieval_text`, `retrieval_store`) accept up to 250,000 characters. Upload longer documents as a file: `POST /v1/projects/{project_id}/retrieval/file` takes up to 25 MB, `upload_retrieval_file` up to 512 KiB. Both upload types store metadata on every chunk, so `metadata_filter` can match it. Text uploads take a `metadata` object (`metadata_json` in `upload_retrieval_text`). File uploads take a `metadata` multipart form field holding a JSON object (`metadata_json` in `upload_retrieval_file`). Files always get `file_size` and `original_filename` from the upload, which replace user keys of the same name.
+
 Retrieval has no fixed entry-count cap. Stored content contributes to project storage usage and Project credit. Notion, Confluence Cloud, Superhuman Docs (Coda), Zendesk Help Center, and website sources can sync on a schedule or on demand; each successfully ingested source item uses Project credit at the retrieval-source rate.
 
 ## Database
