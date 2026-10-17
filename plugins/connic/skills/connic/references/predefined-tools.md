@@ -7,6 +7,7 @@ tools:
   - retrieval_query
   - trigger_agent
   - db_find
+  - file_list
   - web_search
 ```
 
@@ -281,6 +282,28 @@ result = await db_find("workshops", filter={
 # {"documents": [{"name": "Garching", ..., "_distance": 13726.69...}, ...], "count": N}
 ```
 
+## Files
+
+Project files: one folder tree per environment that keeps files between runs. Agents choose the path when they save; folders are just path prefixes and appear once a file lands in them.
+
+- `file_list(folder="", recursive=False, filter=None, scope="all", sort=None, limit=100, skip=0)` returns `{"folder", "folders", "files", "count"}`. `folders` lists direct subfolders when not recursive. `scope="session"` or `"run"` keeps only files written in the current session or run.
+- `file_read(path)` gives the model `{"file", "content"}` with the full text of text files, or the metadata plus an attachment for PDFs and images, up to 20 MiB. Other formats and larger files return an error; pass their path to `web_browser_upload` or a custom tool. In custom tools, `connic.tools.file_read` always returns `{"file": {...}, "content": bytes}`.
+- `file_write(path, content, mime_type=None, metadata=None, overwrite=False)` writes a text file of up to 16 MiB and creates missing folders. Without `overwrite`, a taken path stores the new file as `name (2).ext`; the result's `_path` is the real path.
+- `file_update(path, new_path=None, metadata=None)` moves or renames a file or a whole folder, and merges metadata into a file (`None` removes a field). Moving onto a taken path fails.
+- `file_delete(path, recursive=False)` deletes a file, or a folder with `recursive=True`.
+
+Every file carries system fields (`_path`, `_folder`, `_name`, `_mime_type`, `_size`, `_source`, `_agent`, `_run_id`, `_session_id`, `_id`, `_created_at`, `_updated_at`) plus custom metadata. Filters use the `db_find` operators on both. Custom metadata keys must not start with `_`.
+
+```python
+from connic.tools import file_list, file_update
+
+result = await file_list("invoices", recursive=True, filter={"status": "new", "_mime_type": "application/pdf"})
+for invoice in result["files"]:
+    await file_update(invoice["_path"], metadata={"status": "processing"})
+```
+
+Files are up to 1 GiB through the dashboard and REST API, 100 MiB through the browser tools. Restrict an agent with the `files:` block in agent YAML (see agent-yaml reference).
+
 ## Web
 
 `max_results` is capped at 10.
@@ -362,7 +385,7 @@ await web_browser_eval("[...document.querySelectorAll('h2')].map(h => h.textCont
 
 `web_browser_console()` returns `console_messages` (`type` and `text`, the 50 most recent) and `page_errors` (`text`, `line`, and `column`, the 20 most recent). Entries accumulate while the browser is open, newest last; `console_truncated` means older entries or long text were cut off.
 
-`web_browser_download(target, include_content)` returns `download_id`, `name`, and `mime_type`. Set `include_content=True` to attach the file for the agent to read, or `False` for metadata only. `web_browser_pdf(include_content)` saves the current page as a PDF and returns the same fields. `web_browser_upload(target, download_id)` selects a downloaded file or saved PDF for upload. Files are limited to 25 MiB and remain available until the browser closes.
+`web_browser_download(target, include_content, save_to=None)` returns `download_id`, `name`, `mime_type`, and `size`. Set `include_content=True` to attach the file for the agent to read, or `False` for metadata only. `web_browser_pdf(include_content, save_to=None)` saves the current page as a PDF and returns the same fields. `web_browser_upload(target, download_id=None, path=None)` selects a downloaded file or saved PDF (`download_id`), or a file from project files (`path`); pass exactly one. Downloads are limited to 25 MiB and remain available until the browser closes. With `save_to`, the file is also stored in project files (see Files below), up to 100 MiB, and the result includes `saved_path`; a `save_to` ending in `/` is a folder that keeps the downloaded name. Files over 25 MiB are saved without an attachment.
 
 The browser closes when its run ends. With sessions enabled, `session.browser` defaults to `true`: runs in the same Connic session reuse saved cookies and local storage. `session: true` shares one session across the agent’s runs. Set `session.history: false` to retain the browser profile without conversation history. Runs without a session or with `session.browser: false` use a fresh profile. See [pricing](https://connic.co/pricing) for browser usage rates and environment limits.
 

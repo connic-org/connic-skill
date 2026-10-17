@@ -113,7 +113,7 @@ approval:
   message: "Confirm this action"
   on_rejection: fail                # fail (default) | continue (skip the tool and keep going)
 
-# Access control for the predefined db_* and retrieval tools
+# Access control for the predefined db_*, retrieval and file_* tools
 database:
   prevent_delete: true              # block db_delete project-wide for this agent
   prevent_write: false              # block db_insert / db_update / db_upsert (per-collection rules also available)
@@ -128,6 +128,15 @@ retrieval:
     policies:
       prevent_write: true           # per-namespace override
     public: {}
+files:
+  prevent_delete: true              # block file_delete
+  prevent_write: false              # block file_write / file_update
+  session_only: true                # only files written in the current session; requires session
+  folders:                          # optional allowlist, covers each folder and everything below it
+    uploads: {}
+    templates:
+      session_only: false           # per-folder override, the most specific folder wins
+      prevent_write: true
 ```
 
 ## LLM retries and timeouts
@@ -284,7 +293,7 @@ Use `discoverable_tools` for tools the agent should find by natural-language sea
 
 Reference by bare name in `tools:`:
 
-`trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `web_browser_open`, `web_browser_observe`, `web_browser_read`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_eval`, `web_browser_console`, `web_browser_upload`, `web_browser_download`, `web_browser_pdf`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`.
+`trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `web_browser_open`, `web_browser_observe`, `web_browser_read`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_eval`, `web_browser_console`, `web_browser_upload`, `web_browser_download`, `web_browser_pdf`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`, `file_list`, `file_read`, `file_write`, `file_update`, `file_delete`.
 
 See [predefined-tools.md](predefined-tools.md) for full signatures. Per [SKILL.md](../SKILL.md#best-practices-apply-these-by-default) best practice 1, prefer wrapping these in purpose-driven custom tools rather than handing them to the LLM raw.
 

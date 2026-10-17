@@ -83,7 +83,7 @@ mode: inbound
 name: Order events                # optional, defaults to the file name
 connection: orders-kafka-staging  # saved Connection, by name
 bridge: staging-cluster           # Bridge name or ID
-config:                           # connector fields, same names as config_json in the REST API and MCP
+config:                           # connector fields, as in REST config and MCP config_json
   topic: ${ORDER_EVENTS_TOPIC}
 agents:
   - order-processor
@@ -116,7 +116,7 @@ agents:
 File rules:
 
 - **`type`**: any connector type except `slack` (Slack stays dashboard-only). Use `webhook` for HTTP webhooks (`http` also accepted); `twilio` and `telnyx` are the voice connectors. **`mode`** is required when the type has more than one mode; otherwise it defaults to the only one.
-- **`config`**: the connector's field names, as in `config_json` of the REST API and Connic MCP. The deploy rejects unknown fields and fields that belong to the Connection.
+- **`config`**: the connector's field names, as in the REST API's `config` object and Connic MCP's `config_json` string. The deploy rejects unknown fields and fields that belong to the Connection.
 - **`${VAR}`**: same syntax as `mcp_servers`; resolved once at deploy from the target environment's Variables. Allowed in `config`, `connection`, `bridge`, and `domain`. A missing Variable fails the deploy. Secrets the user supplies (Telegram `bot_token`, Stripe `webhook_secret`, and similar) must be `${VAR}` references; literal values fail the deploy.
 - **`connection`**: a saved Connection, by name. Required for `kafka`, `sqs`, `s3`, `postgres`, `email`, `twilio`, `twilio_messaging`, `telnyx`, and `telnyx_messaging`; their credentials never go in the file. **`bridge`**: Bridge name or ID. **`domain`**: hostname of an active custom domain, for types that support custom domains.
 - **Generated values** never go in the file, and `connic lint` rejects them: webhook URLs, webhook/WebSocket/MCP secrets, the outbound webhook signing secret, the S3 URL secret, and the Telegram secret token. Connic generates them on the first deploy and keeps them; the dashboard shows them as before. An omitted Kafka `group_id` is generated.
