@@ -1,27 +1,27 @@
 ---
 name: connic
-description: Use when the user works in a Connic project or asks about Connic agents, Connic Voice, Connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the Bridge, REST API, or migrating an existing app, script, LangChain, or ADK project to Connic. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, `connectors/*.yaml`, or `connic-composer-sdk`. Also trigger in a Connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
+description: Use when the user works in a connic project or asks about connic agents, connic voice, connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the bridge, REST API, or migrating an existing app, script, LangChain, or ADK project to connic. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, `connectors/*.yaml`, or `connic-composer-sdk`. Also trigger in a connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
 metadata:
   version: "1.2.14"
 ---
 
-# Connic
+# connic
 
-Connic is a code-first platform for building, testing, and deploying AI agents. Agents are defined declaratively in YAML, extended with Python (tools, middleware, hooks, guardrails), and run on Connic's managed cloud. The CLI is `connic` (from the `connic-composer-sdk` package). Public docs live at https://connic.co/docs/v1.
+connic is a code-first platform for building, testing, and deploying AI agents. Agents are defined declaratively in YAML, extended with Python (tools, middleware, hooks, guardrails), and run on connic's managed cloud. The CLI is `connic` (from the `connic-composer-sdk` package). Public docs live at https://connic.co/docs/v1.
 
 ## Start-of-session update check
 
-For local Connic project, CLI, or SDK work, run `connic update --check` once per agent session when the CLI is available. Skip this for an MCP-only session, standalone platform guidance, or when the CLI is not installed. If it reports updates, tell the user and offer `connic update` for both SDK and skill, `connic update --sdk` for the SDK only, or `connic update --skill` for the skill only. Do not install an update without the user's explicit consent.
+For local connic project, CLI, or SDK work, run `connic update --check` once per agent session when the CLI is available. Skip this for an MCP-only session, standalone platform guidance, or when the CLI is not installed. If it reports updates, tell the user and offer `connic update` for both SDK and skill, `connic update --sdk` for the SDK only, or `connic update --skill` for the skill only. Do not install an update without the user's explicit consent.
 
 ## When and how to use this skill
 
-You are likely working inside a **Connic project** on disk. Confirm by looking for any of:
+You are likely working inside a **connic project** on disk. Confirm by looking for any of:
 
 - a `.connic` file at the repo root (contains `api_key` and `project_id`)
 - an `agents/` directory containing `*.yaml` files with `version: "1.0"` at the top
 - `connic-composer-sdk` in `requirements.txt`
 
-There is no `connic.yaml` manifest — the on-disk directory layout *is* the manifest. If none of the indicators above exist and the user asks about Connic generally, answer from the references; don't fabricate file paths.
+There is no `connic.yaml` manifest — the on-disk directory layout *is* the manifest. If none of the indicators above exist and the user asks about connic generally, answer from the references; don't fabricate file paths.
 
 The reference files in `references/` are organized by topic. **Load only the ones relevant to the current question** — they are detailed and burning all of them upfront wastes context. The references are:
 
@@ -37,16 +37,16 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [ab-testing.md](references/ab-testing.md) | A/B test variants, Confidence and Exploratory modes, traffic assignment, safety rules, results, and lifecycle |
 | [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
 | [platform.md](references/platform.md) | Dashboard concepts: models, billing, environments, deployment, observability, Retrieval, database, judges, approvals, bridge, domains, team, usage, REST API |
-| [platform-mcp.md](references/platform-mcp.md) | Connecting an AI client to Connic MCP, live project/environment operations, OAuth scopes, tool selection, and revocation |
-| [migration.md](references/migration.md) | Migrating an existing app or agent framework project: inventory, source patterns mapped to Connic features, which data stores move or stay, data import, migration report |
+| [platform-mcp.md](references/platform-mcp.md) | Connecting an AI client to connic MCP, live project/environment operations, OAuth scopes, tool selection, and revocation |
+| [migration.md](references/migration.md) | Migrating an existing app or agent framework project: inventory, source patterns mapped to connic features, which data stores move or stay, data import, migration report |
 
 For any topic not covered locally, the canonical docs URL is `https://connic.co/docs/v1/<section>/<page>` (e.g. `https://connic.co/docs/v1/build/tools`). Fetch with WebFetch when needed.
 
 ### Choosing live tools or standalone guidance
 
-The ChatGPT/Codex, Claude, and Cursor plugin packages bundle the production MCP endpoint; standalone skill installations do not modify the client's MCP configuration. When Connic MCP tools are available, use them for authenticated live platform state and operations within the granted scope. Discover the available tools from the live authorization and use only the narrowest relevant one. Perform writes only when explicitly requested. Otherwise remain fully useful with the references, project files, CLI, dashboard, and REST API. Do not claim to have inspected live state when no Connic MCP tool is available.
+The ChatGPT/Codex, Claude, and Cursor plugin packages bundle the production MCP endpoint; standalone skill installations do not modify the client's MCP configuration. When connic MCP tools are available, use them for authenticated live platform state and operations within the granted scope. Discover the available tools from the live authorization and use only the narrowest relevant one. Perform writes only when explicitly requested. Otherwise remain fully useful with the references, project files, CLI, dashboard, and REST API. Do not claim to have inspected live state when no connic MCP tool is available.
 
-Connic MCP is the platform-management server. It is different from an agent's `mcp_servers:` configuration, where the agent consumes an external server, and from the MCP connector, where an external client invokes a deployed Connic agent. See [platform-mcp.md](references/platform-mcp.md).
+connic MCP is the platform-management server. It is different from an agent's `mcp_servers:` configuration, where the agent consumes an external server, and from the MCP connector, where an external client invokes a deployed connic agent. See [platform-mcp.md](references/platform-mcp.md).
 
 ## Project layout cheatsheet (most-used reference, inlined)
 
@@ -83,11 +83,11 @@ Discovery rules to keep in mind:
 
 **Triggering an agent from an external service.** Use a connector — `webhook` for HTTP request/response or fire-and-forget, `kafka`/`sqs` for queues, `email`/`telegram`/`slack` for those transports, Twilio Messaging or Telnyx Messaging for SMS/MMS, WhatsApp, and RCS, Twilio Voice or Telnyx Voice for incoming phone calls, and `cron` for schedules. Connectors provide transport-specific endpoints, authentication, sync/async behavior, and delivery semantics; do not assume generic deduplication or replay protection. The REST API is for project management, not event-driven agent runs. Create the connector in the Dashboard or declare it in `connectors/<key>.yaml` so deploys apply it (Slack stays dashboard-only). See [connectors.md](references/connectors.md). Only the connectors listed there exist — there is no native Discord or GitHub connector; bridge those through a webhook, MCP server, or custom tool.
 
-**Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. Connic passes one normalized dict to the tool's required `payload` parameter, plus `context` when declared; it never expands payload keys into separate arguments. There is no model or reasoning step, but the run still has logs, retries, and judges. This fits Kafka consumers that ingest, S3 events that transform, and webhooks that route. See the [tool-agent section](references/agent-yaml.md#tool-agent).
+**Non-LLM event consumption.** Any inbound connector can fire a `tool`-type agent instead of an LLM agent. connic passes one normalized dict to the tool's required `payload` parameter, plus `context` when declared; it never expands payload keys into separate arguments. There is no model or reasoning step, but the run still has logs, retries, and judges. This fits Kafka consumers that ingest, S3 events that transform, and webhooks that route. See the [tool-agent section](references/agent-yaml.md#tool-agent).
 
 **Deploying.** For a Git-connected project, push to the branch mapped to the target environment or start a manual deployment from the Dashboard; `connic deploy` refuses to run on Git-connected projects. A push always runs the deploy gate. From the Deployments page, **Deploy & skip tests** bypasses it for a manual Git deployment. For non-Git projects, bare `connic deploy` lists environments by name and asks for confirmation. `--list` lists targets without deploying; `--env <name-or-id>` selects a target directly. For CI, pass both `--env` and `--yes`. `--skip-tests` bypasses the gate. See [cli-and-dev.md](references/cli-and-dev.md) and [platform.md](references/platform.md).
 
-**Migrating an existing app.** Read [migration.md](references/migration.md) before planning. Inventory the whole codebase, map every component to a Connic feature, move app-owned data into Connic, and show the plan before writing files. For LangChain or Google ADK projects, `connic migrate` generates a skeleton first; see [cli-and-dev.md](references/cli-and-dev.md#connic-migrate).
+**Migrating an existing app.** Read [migration.md](references/migration.md) before planning. Inventory the whole codebase, map every component to a connic feature, move app-owned data into connic, and show the plan before writing files. For LangChain or Google ADK projects, `connic migrate` generates a skeleton first; see [cli-and-dev.md](references/cli-and-dev.md#connic-migrate).
 
 ## Best practices (apply these by default)
 
@@ -169,11 +169,11 @@ guardrails:
 
 Use prompt-injection detection plus PII redaction on input, and moderation plus system-prompt-leakage protection on output. For anything with tight topical scope, add `topic_restriction` (input).
 
-If the user is sketching a new text LLM agent, propose the guardrails in the same edit — don't wait to be asked. Connic rejects input and output guardrails for voice agents because it streams audio immediately. Tool agents have no LLM boundary; validate their payload and side effects in Python instead. See [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) for the full type list and modes.
+If the user is sketching a new text LLM agent, propose the guardrails in the same edit — don't wait to be asked. connic rejects input and output guardrails for voice agents because it streams audio immediately. Tool agents have no LLM boundary; validate their payload and side effects in Python instead. See [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) for the full type list and modes.
 
 ### 3. Tests gate deployment — write them when you write the agent
 
-Connic's deploy flow uses `tests/` as a deploy gate: a failing test blocks promotion. Treat the test file as part of the agent, not as an afterthought.
+connic's deploy flow uses `tests/` as a deploy gate: a failing test blocks promotion. Treat the test file as part of the agent, not as an afterthought.
 
 Automated test suites do not support voice sessions. Validate a voice agent with `connic lint`, then test the deployed agent in a live conversation.
 
@@ -189,7 +189,7 @@ To test an agent's reasoning without selected custom code really running, add a 
 
 The same module can replace `middleware_before` / `middleware_after`, hierarchical tool-hook phases ending in `_hook_before` / `_hook_after`, and custom guardrails (`guardrail_input_<name>` → `guardrail_input` → `guardrail`, with the equivalent output ladder). Lifecycle replacements mirror the real function signatures. A match replaces an existing phase; it does not add a missing one. Without a match, the real code runs by default. Built-in guardrails are never mocked. `strict_mocks: true` remains tool-only. Enable `strict_hook_mocks`, `strict_middleware_mocks`, or `strict_guardrail_mocks` independently in `defaults` or per case to fail before an unmatched configured eligible real phase executes; all default to `false`, and missing phases and built-in guardrails are exempt.
 
-To test HITL end to end, add `approval_decisions` to the case. Each entry has a canonical tool ref or `approval.inputs` name in `tool`, `decision: approve | reject | timeout`, an optional `reason`, and an optional safe `params` expression whose bindings are `params` and the builder `context`. Approving a tool from `approval.inputs` also requires a nonblank `response` string of at most 16,384 characters; it becomes the tool result, and `reject` or `timeout` must omit it. Connic applies the scripted decision and resumes the same run when the approval configuration permits. Entries are consumed at most once per invocation. With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored. Set it to `true` per case or in `defaults` to fail on either condition.
+To test HITL end to end, add `approval_decisions` to the case. Each entry has a canonical tool ref or `approval.inputs` name in `tool`, `decision: approve | reject | timeout`, an optional `reason`, and an optional safe `params` expression whose bindings are `params` and the builder `context`. Approving a tool from `approval.inputs` also requires a nonblank `response` string of at most 16,384 characters; it becomes the tool result, and `reject` or `timeout` must omit it. connic applies the scripted decision and resumes the same run when the approval configuration permits. Entries are consumed at most once per invocation. With `strict_approval_decisions: false` (the default), an unmatched pending approval returns `status == "awaiting_approval"`, and unused entries are ignored. Set it to `true` per case or in `defaults` to fail on either condition.
 
 See [cli-and-dev.md](references/cli-and-dev.md#connic-test) for the test YAML schema and [Mocking tools](references/cli-and-dev.md#mocking-tools).
 
@@ -209,7 +209,7 @@ If a text agent's response is parsed by code downstream, set `temperature: 0` *a
 
 `.connic` contains the project API key. Add it to `.gitignore` on first commit. Use **Dashboard → Settings → Variables** for any secret the agent or its tools need at runtime (mark them sensitive so they're masked in logs).
 
-Never read, print, copy, or pass `.connic` credentials as MCP tool arguments. A Connic MCP client authenticates through its own OAuth flow; the skill supplies workflow knowledge and never handles its access or refresh tokens.
+Never read, print, copy, or pass `.connic` credentials as MCP tool arguments. A connic MCP client authenticates through its own OAuth flow; the skill supplies workflow knowledge and never handles its access or refresh tokens.
 
 ### 7. Validate with `connic lint` before every deploy
 
@@ -222,18 +222,18 @@ When you suggest an architecture, evaluate **fit, reliability, and maintainabili
 ## Things to avoid
 
 - **Don't invent connectors.** The exhaustive list is in [connectors.md](references/connectors.md). Slack is native; Discord, GitHub, and Notion are not connector types.
-- **Don't invent model IDs.** Select managed models from the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). `connic/*` models need no provider key; BYOK model IDs must be supported by the configured provider.
+- **Don't invent model IDs.** Select managed models from the live [connic model catalog](https://connic.co/docs/v1/build/connic-models). `connic/*` models need no provider key; BYOK model IDs must be supported by the configured provider.
 - **Don't wire event-driven agent runs through the REST API.** Use the connector matching the transport.
 - **Don't invent CLI commands or flags.** Check [cli-and-dev.md](references/cli-and-dev.md). There is no `connic build`, `connic run`, `connic logs`, no `--json` flag on `lint`, no `--grep` flag on `test` (it's `--filter`), no `--message` on `deploy`, no `--env` on `dev`.
 - **Don't invent test assertions.** The only top-level assertions in `tests/*.yaml` are `expected_result` (a sandboxed expression with `output`, `error`, `status`, `context` bindings — `status` is `"completed"`, `"failed"`, `"cancelled"`, `"blocked"`, or `"awaiting_approval"`), `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, and `expected_child_agents` (a map keyed by triggered agent name; each entry can carry `expected_payload`, `expected_result`, `expected_tool_calls`, `expected_tool_call_order`, `expected_no_tool_calls`, `expected_triggered`, and its own nested `expected_child_agents` — see [cli-and-dev.md](references/cli-and-dev.md#asserting-on-triggered-agents)). There is no `expected_output_contains` or `expected_output_matches`. (`mocks`, the four independent `strict_*_mocks` flags, `approval_decisions`, and `strict_approval_decisions` are valid execution controls, not assertions. See [Mocking tools](references/cli-and-dev.md#mocking-tools) and [Testing approvals](references/cli-and-dev.md#testing-approvals-hitl).)
 - **Don't put function calls, lambdas, imports, or comprehensions in `expected_result`.** It's not real Python — it's a tight AST evaluator that allows only boolean ops, comparisons, subscripts, attribute access, and literals. `output.strip()`, `json.loads(...)`, `len(...)`, `re.search(...)`, `lambda ...`, `__import__(...)` all fail at parse time. For anything that needs to parse the output, normalize it, or check derived properties, write a **builder `cleanup`** function — it's ordinary Python, gets the full `run` dict, and can raise to fail the case. See [cli-and-dev.md](references/cli-and-dev.md#what-expected_result-can-and-cannot-do).
 - **Don't invent outbound connector call names.** An agent-tool outbound connector injects only its configured `action_name` (default `send_to_<normalized connector name>`) with that connector's documented payload schema. There is no universal `telegram.send_message`, `s3.get_object`, or `postgres.query` tool. Postgres and S3 remain inbound-only; use custom tools for direct service API calls they do not provide.
 - **Don't use `api:` prefix for MCP tools.** MCP tools from `mcp_servers:` are auto-loaded — they don't go in the agent's `tools:` list at all. The `api:` prefix is only for tools from API spec imports.
-- **Don't confuse Connic MCP with agent MCP integrations.** Connic MCP lets an AI client manage a Connic project. `mcp_servers:` lets a Connic agent consume external tools. The MCP connector lets an external client invoke deployed agents.
-- **Don't add `import connic` boilerplate to tool files.** Tools are plain functions that Connic discovers automatically. Import exported runtime symbols only when needed: `ToolFile`, `StopProcessing`, `AbortTool`, or middleware's `send_connector`; predefined tools such as `trigger_agent` come from `connic.tools`.
+- **Don't confuse connic MCP with agent MCP integrations.** connic MCP lets an AI client manage a connic project. `mcp_servers:` lets a connic agent consume external tools. The MCP connector lets an external client invoke deployed agents.
+- **Don't add `import connic` boilerplate to tool files.** Tools are plain functions that connic discovers automatically. Import exported runtime symbols only when needed: `ToolFile`, `StopProcessing`, `AbortTool`, or middleware's `send_connector`; predefined tools such as `trigger_agent` come from `connic.tools`.
 - **Don't add decorators.** No `@tool`, no `@agent`. Discovery is by directory + filename + docstring.
 - **Don't keep state on the runtime's disk.** Files written at runtime are temporary: they can disappear between runs and are reset on every deploy. Store records in the Database, searchable documents in Retrieval, and conversation history in sessions. Never bridge to `localhost` or a developer machine to keep a local database.
-- **Don't run `connic dev` or `connic deploy` for the user** without asking. Both are network operations against the user's Connic account.
+- **Don't run `connic dev` or `connic deploy` for the user** without asking. Both are network operations against the user's connic account.
 
 ## When you're unsure
 

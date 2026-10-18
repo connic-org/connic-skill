@@ -2,7 +2,7 @@
 
 Canonical docs: `https://connic.co/docs/v1/platform/ai-governance`
 
-AI Governance is an Enterprise documentation and evidence workspace for EU AI Act readiness. It creates versioned readiness records and evidence; it does not make legal determinations or certify compliance.
+AI Governance is an enterprise documentation and evidence workspace for EU AI Act readiness. It creates versioned readiness records and evidence; it does not make legal determinations or certify compliance.
 
 ## Contents
 
@@ -18,7 +18,7 @@ AI Governance is an Enterprise documentation and evidence workspace for EU AI Ac
 
 ## Access and permissions
 
-AI Governance requires an Enterprise plan; compliance API routes return `403` for other plans. Four project permissions control access:
+AI Governance requires an enterprise plan; compliance API routes return `403` for other plans. Four project permissions control access:
 
 | Permission | Allows |
 | --- | --- |
@@ -41,7 +41,7 @@ An AI system is a project-scoped use-case record, independent of any single agen
 
 ## Preliminary assessments
 
-Assessments are immutable, versioned answer sets covering EU scope, operator roles, prohibited practices, high-risk routes, and Article 50 dimensions. Connic derives a deterministic preliminary result using a pinned catalog version and records the reviewed regulatory source.
+Assessments are immutable, versioned answer sets covering EU scope, operator roles, prohibited practices, high-risk routes, and Article 50 dimensions. connic derives a deterministic preliminary result using a pinned catalog version and records the reviewed regulatory source.
 
 - Each submitted answer set is an immutable assessment version.
 - Only the latest version can be approved.
@@ -55,10 +55,10 @@ Generate controls from the latest approved assessment. Each control records its 
 
 | Implementation type | Accountability |
 | --- | --- |
-| `connic` | Connic provides the mechanism |
+| `connic` | connic provides the mechanism |
 | `customer` | The organization owns the obligation |
-| `shared` | Connic supports an obligation the organization still owns |
-| `external` | The obligation is handled outside Connic |
+| `shared` | connic supports an obligation the organization still owns |
+| `external` | The obligation is handled outside connic |
 
 Control status is `gap`, `needs_evidence`, `configured`, or `not_applicable`. Marking a control `not_applicable` requires an exception rationale. Refreshing controls derives them from the latest approved assessment and keeps earlier control versions available.
 
@@ -66,7 +66,7 @@ Control status is `gap`, `needs_evidence`, `configured`, or `not_applicable`. Ma
 
 Each system can have one transparency policy covering direct interaction, synthetic-content marking, deepfakes, biometric and emotion use, and public-interest text. Record disclosure copy, locales, placement, frequency, display mode, implementation, and verification.
 
-Connic stores policy and evidence. It does not alter prompts, outputs, streams, or connector traffic; inject notices or metadata; or watermark media. The application remains responsible for implementing and delivering disclosures and markings.
+connic stores policy and evidence. It does not alter prompts, outputs, streams, or connector traffic; inject notices or metadata; or watermark media. The application remains responsible for implementing and delivering disclosures and markings.
 
 Transparency applications record whether a disclosure was `applied`, `failed`, or `delivery_unknown`. Use `customer_attestation` or `upstream_attestation` provenance and record the attesting party, timestamp, evidence reference, and factual basis. Reusing an idempotency key with identical content returns the existing record; conflicting reuse is rejected.
 
@@ -78,7 +78,7 @@ Each system can have a monitoring plan with an owner, review cadence, signals, t
 
 Incidents record awareness time, severity, causal-link and reportability status, corrective actions, notification history, and optional run, environment, or deployment references. Marking an incident `reported` or `closed` requires authority-notification evidence with timestamp, recipient or authority, channel, and external reference.
 
-Connic records the supplied reporting deadline and basis. It does not calculate deadlines or determine notification sufficiency.
+connic records the supplied reporting deadline and basis. It does not calculate deadlines or determine notification sufficiency.
 
 ## Evidence snapshots
 

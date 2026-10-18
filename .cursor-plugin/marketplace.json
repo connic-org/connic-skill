@@ -1,17 +1,17 @@
 {
   "name": "connic",
   "owner": {
-    "name": "Connic",
+    "name": "connic",
     "email": "support@connic.co"
   },
   "metadata": {
-    "description": "Connic plugins for building and operating production AI agents."
+    "description": "connic plugins for building and operating production AI agents."
   },
   "plugins": [
     {
       "name": "connic",
       "source": "plugins/connic",
-      "description": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance."
+      "description": "Build, test, deploy, and operate connic agents with current composer SDK, CLI, connector, platform, and connic MCP guidance."
     }
   ]
 }

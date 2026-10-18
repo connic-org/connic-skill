@@ -1,14 +1,14 @@
-# Connic MCP
+# connic MCP
 
-Connic MCP lets an OAuth-capable AI client inspect and operate one Connic project through `https://mcp.connic.co/mcp`. It is a project-management interface: use it for live Connic platform state, not as a source of tools for a deployed agent.
+connic MCP lets an OAuth-capable AI client inspect and operate one connic project through `https://mcp.connic.co/mcp`. It is a project-management interface: use it for live connic platform state, not as a source of tools for a deployed agent.
 
 ## MCP surfaces
 
 | Surface | Direction | Purpose |
 | --- | --- | --- |
-| Connic MCP | AI client → Connic platform | Inspect runs, logs, deployments, and approvals; perform explicitly authorized operations |
-| `mcp_servers:` | Connic agent → external MCP server | Give an agent tools from another MCP server |
-| MCP connector | External MCP client → deployed Connic agent | Invoke an agent as an MCP tool |
+| connic MCP | AI client → connic platform | Inspect runs, logs, deployments, and approvals; perform explicitly authorized operations |
+| `mcp_servers:` | connic agent → external MCP server | Give an agent tools from another MCP server |
+| MCP connector | External MCP client → deployed connic agent | Invoke an agent as an MCP tool |
 
 Do not substitute setup instructions from one surface for another.
 
@@ -18,12 +18,12 @@ The ChatGPT/Codex, Claude, and Cursor plugin packages bundle the production MCP 
 
 Install the plugin through the client's plugin marketplace before considering a manual MCP-only connection:
 
-- **ChatGPT app:** Open **Plugins → Add → Add a marketplace**, enter `connic-org/connic-skill` as the source, select **Add marketplace**, then open Connic and select **Install**.
-- **Claude app:** In a local or SSH **Code** session, select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** instead. In the plugin browser, select **+ Add marketplace → Add from a repository**, enter `connic-org/connic-skill` in **URL**, select **Sync**, then open Connic and select **Install**. On the installed Connic plugin page, open **Connectors** and select **Install** next to `connic`. In the **Add custom connector** modal, select **Add**. Back on the same plugin page, select **Connect** and complete OAuth. No running Code session or app restart is needed for the connector setup.
+- **ChatGPT app:** Open **Plugins → Add → Add a marketplace**, enter `connic-org/connic-skill` as the source, select **Add marketplace**, then open connic and select **Install**.
+- **Claude app:** In a local or SSH **Code** session, select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** instead. In the plugin browser, select **+ Add marketplace → Add from a repository**, enter `connic-org/connic-skill` in **URL**, select **Sync**, then open connic and select **Install**. On the installed connic plugin page, open **Connectors** and select **Install** next to `connic`. In the **Add custom connector** modal, select **Add**. Back on the same plugin page, select **Connect** and complete OAuth. No running Code session or app restart is needed for the connector setup.
 - **Codex CLI, Claude Code, and Cursor:** Use the packaged marketplace flow documented at `https://connic.co/docs/v1/ai-agent-setup`.
 
 1. Use the bundled `connic` server when it is available. Only use the client's manual MCP flow when the user explicitly wants an MCP-only setup; the endpoint is `https://mcp.connic.co/mcp`.
-2. Complete the browser sign-in and review the Connic consent screen.
+2. Complete the browser sign-in and review the connic consent screen.
 3. Select exactly one project, then choose all environments or an explicit environment subset.
 4. Review **Allow all read permissions** and **Allow all write actions**. Turn either switch off to choose individual permissions.
 5. Review, edit, or revoke your authorization under **Project Settings → API Keys & MCP Auth**.
@@ -38,13 +38,13 @@ Write tools are available only when the user enables write access during consent
 
 Tool arguments never choose a project. Tools can accept `environment_id` when a request must choose one environment, and reject environments outside the authorization. `get_agent` requires one because an agent name alone is not unique across environments.
 
-Environment-scoped reads stay within the selected subset. Access to all environments can aggregate compatible stats and budget views or narrow them with `environment_id`. Project-wide resources—including audit, channels, budget alerts, Bridge routes, default-environment changes, and AI Governance—require access to all environments.
+Environment-scoped reads stay within the selected subset. Access to all environments can aggregate compatible stats and budget views or narrow them with `environment_id`. Project-wide resources—including audit, channels, budget alerts, bridge routes, default-environment changes, and AI Governance—require access to all environments.
 
 ## Tools
 
 Availability depends on the user's permissions, OAuth read/write access, selected permission settings, and the project/environment boundary. Tool discovery returns only permitted tools. Use the live tool catalog rather than relying on a static list. Database tools cover environment-scoped stats, collections, inferred schemas, full document queries and counts, one-time imports into new or empty collections, updates to existing rows, and document and collection deletion. The plugin, skill, and MCP setup guide is available at `https://connic.co/docs/v1/ai-agent-setup`.
 
-Connic MCP does not start agent runs directly. Use a connector for event-driven runs. MCP does not expose payments, project deletion, or account-security operations.
+connic MCP does not start agent runs directly. Use a connector for event-driven runs. MCP does not expose payments, project deletion, or account-security operations.
 
 Connection tools (`list_connections`, `get_connection`, `create_connection`, `update_connection`, `delete_connection`) manage the project's reusable connector credentials. They require an authorization covering all environments. Slack Connections can't be created through MCP. Updating a Connection's credentials applies to every connector that uses it; deletion fails while a connector uses it.
 
@@ -56,9 +56,9 @@ Before invoking any write, state the intended target and effect. For a condition
 
 ## Workflow selection
 
-Use Connic MCP when the task depends on current platform state or the user asks to operate that state. Start with `get_context`, then call the narrowest read tool that answers the question. Use a write tool only after the requested change and target are unambiguous.
+Use connic MCP when the task depends on current platform state or the user asks to operate that state. Start with `get_context`, then call the narrowest read tool that answers the question. Use a write tool only after the requested change and target are unambiguous.
 
-If Connic MCP tools are unavailable, continue with project files and this skill's references. Use the CLI for local authoring, linting, tests, and deployment; use the dashboard for interactive configuration; use the REST API for deterministic service integrations. Say that live state could not be inspected rather than inferring it from stale files.
+If connic MCP tools are unavailable, continue with project files and this skill's references. Use the CLI for local authoring, linting, tests, and deployment; use the dashboard for interactive configuration; use the REST API for deterministic service integrations. Say that live state could not be inspected rather than inferring it from stale files.
 
 ## Troubleshooting
 

@@ -60,7 +60,7 @@ Use Confidence when the result needs a statistically controlled recommendation. 
 | Randomization | Independent runs, or sticky assignment by trusted session identity |
 | Preview | Calculated control, variant, and total sample targets |
 
-Confidence tests analyze at four planned looks: 25%, 50%, 75%, and 100% of target information. Connic uses O'Brien–Fleming boundaries and reports a sequentially adjusted interval. Before the first look, the observed effect and interval are descriptive only.
+Confidence tests analyze at four planned looks: 25%, 50%, 75%, and 100% of target information. connic uses O'Brien–Fleming boundaries and reports a sequentially adjusted interval. Before the first look, the observed effect and interval are descriptive only.
 
 ### Exploratory
 

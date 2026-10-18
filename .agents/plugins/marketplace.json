@@ -1,7 +1,7 @@
 {
   "name": "connic",
   "interface": {
-    "displayName": "Connic"
+    "displayName": "connic"
   },
   "plugins": [
     {

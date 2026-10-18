@@ -1,9 +1,9 @@
 {
   "name": "connic",
   "version": "1.2.14",
-  "description": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance.",
+  "description": "Build, test, deploy, and operate connic agents with current composer SDK, CLI, connector, platform, and connic MCP guidance.",
   "author": {
-    "name": "Connic",
+    "name": "connic",
     "email": "support@connic.co",
     "url": "https://connic.co"
   },
@@ -14,19 +14,19 @@
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Connic",
+    "displayName": "connic",
     "composerIcon": "./assets/connic-icon.png",
     "logo": "./assets/connic-icon.png",
-    "shortDescription": "Build, test, deploy, and operate Connic agents",
-    "longDescription": "Build, test, deploy, and operate Connic agents with current Composer SDK, CLI, connector, platform, and Connic MCP guidance.",
-    "developerName": "Connic",
+    "shortDescription": "Build, test, deploy, and operate connic agents",
+    "longDescription": "Build, test, deploy, and operate connic agents with current composer SDK, CLI, connector, platform, and connic MCP guidance.",
+    "developerName": "connic",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],
     "websiteURL": "https://connic.co",
     "defaultPrompt": [
-      "Help me build a Connic agent",
-      "Review this Connic project",
-      "Add a tool to my Connic agent"
+      "Help me build a connic agent",
+      "Review this connic project",
+      "Add a tool to my connic agent"
     ]
   }
 }

@@ -1,10 +1,10 @@
 # Tools, middleware, hooks, and the context dict
 
-The Python side of a Connic project. All four file types (`tools/*.py`, `middleware/*.py`, `hooks/*.py`, `guardrails/*.py`) are auto-discovered — no decorators, no registration, no imports of the SDK except for SDK result types, special exceptions, or predefined tools.
+The Python side of a connic project. All four file types (`tools/*.py`, `middleware/*.py`, `hooks/*.py`, `guardrails/*.py`) are auto-discovered — no decorators, no registration, no imports of the SDK except for SDK result types, special exceptions, or predefined tools.
 
 ## Tools (`tools/*.py`)
 
-Tools are plain Python functions. Connic uses their type hints and docstrings to build the schema shown to the LLM. The docstring tells the model when to call the tool, so write it for the model.
+Tools are plain Python functions. connic uses their type hints and docstrings to build the schema shown to the LLM. The docstring tells the model when to call the tool, so write it for the model.
 
 A type-hinted parameter without a default is required. A parameter with a default, including `Optional[T] = None`, is optional.
 
@@ -68,7 +68,7 @@ def export_invoice(invoice_id: str) -> ToolFile:
 
 ### The `context` parameter (auto-injected)
 
-If a tool declares a parameter **named** `context`, Connic fills it in and hides it from the LLM. The parameter name controls this behavior, not its type hint: `context` works the same as `context: dict`. Use another name for any parameter the LLM should supply.
+If a tool declares a parameter **named** `context`, connic fills it in and hides it from the LLM. The parameter name controls this behavior, not its type hint: `context` works the same as `context: dict`. Use another name for any parameter the LLM should supply.
 
 ```python
 async def get_user_orders(context: dict, limit: int = 10) -> list:
@@ -108,7 +108,7 @@ These Python exceptions apply to project code. Errors from a remote MCP server a
 
 ### Logging
 
-`print(...)` is captured at INFO level, writes to `sys.stderr` at ERROR, and stdlib `logging` at the level you called. Logger names must start with `tools.`, `middleware.`, `hooks.`, or `guardrails.`; `logging.getLogger(__name__)` naturally does so for discovered project modules. Lines appear in **Dashboard → Logs** and the run detail with a source such as `tool.<tool_name>`, `middleware.before`, `hook.<tool_name>`, or `guardrail.<name>`. Connic retains up to 500 lines per run. Unhandled custom-code exceptions capture the traceback; intentional `StopProcessing` and `AbortTool` control flow does not log as an error. Environment redaction can replace configured, case-sensitive JSON paths in new structured log records. Serialize the object with `json.dumps(...)` and log that JSON string without a text prefix. Plain text, invalid JSON, and JSON embedded in a longer message are not redacted, so do not log secrets in those forms.
+`print(...)` is captured at INFO level, writes to `sys.stderr` at ERROR, and stdlib `logging` at the level you called. Logger names must start with `tools.`, `middleware.`, `hooks.`, or `guardrails.`; `logging.getLogger(__name__)` naturally does so for discovered project modules. Lines appear in **Dashboard → Logs** and the run detail with a source such as `tool.<tool_name>`, `middleware.before`, `hook.<tool_name>`, or `guardrail.<name>`. connic retains up to 500 lines per run. Unhandled custom-code exceptions capture the traceback; intentional `StopProcessing` and `AbortTool` control flow does not log as an error. Environment redaction can replace configured, case-sensitive JSON paths in new structured log records. Serialize the object with `json.dumps(...)` and log that JSON string without a text prefix. Plain text, invalid JSON, and JSON embedded in a longer message are not redacted, so do not log secrets in those forms.
 
 ### Environment variables
 
@@ -175,7 +175,7 @@ async def before(content, context):
     return await authenticate_and_normalize(content, context)
 ```
 
-Either shape is fine — the value returned from `before` is what the LLM sees, and the value returned from `after` is what the caller sees. Connic skips `middleware/_*.py` files during discovery, so they can hold shared helpers.
+Either shape is fine — the value returned from `before` is what the LLM sees, and the value returned from `after` is what the caller sees. connic skips `middleware/_*.py` files during discovery, so they can hold shared helpers.
 
 ### The `content` shape
 
@@ -207,7 +207,7 @@ content["parts"] = [{"text": new_text}, *files]
 
 ### The raw connector payload (`context["payload"]`)
 
-`content` is **not** the raw thing the connector received — Connic has already shaped it into the LLM-facing message. The original connector payload (webhook JSON body, form fields, GET query string, Kafka message, etc.) is preserved in `context["payload"]` so middleware can read fields the LLM should never see — auth tokens, identity claims, routing metadata, idempotency keys.
+`content` is **not** the raw thing the connector received — connic has already shaped it into the LLM-facing message. The original connector payload (webhook JSON body, form fields, GET query string, Kafka message, etc.) is preserved in `context["payload"]` so middleware can read fields the LLM should never see — auth tokens, identity claims, routing metadata, idempotency keys.
 
 ```python
 async def before(content, context):
@@ -253,7 +253,7 @@ async def after(response, context):
     return response
 ```
 
-`send_connector(action_name, payload)` accepts the same connector-owned payload as the agent-tool outbound connector. Connic resolves the connector, destination, credentials, transport formatting, and retries server-side; those stored values are not injected into middleware. See [Outbound connector modes](connectors.md#outbound-connector-modes) for every payload schema.
+`send_connector(action_name, payload)` accepts the same connector-owned payload as the agent-tool outbound connector. connic resolves the connector, destination, credentials, transport formatting, and retries server-side; those stored values are not injected into middleware. See [Outbound connector modes](connectors.md#outbound-connector-modes) for every payload schema.
 
 Pass `idempotency_key="stable-call-id"` when middleware may retry the same send. Reusing that key within the run returns the existing connector delivery instead of creating another one.
 
@@ -273,7 +273,7 @@ async def before(content, context):
 
 ### End-user authentication and per-run permissions
 
-This is distinct from Connic's project **membership and permission groups**, which control who can sign in to the dashboard and manage the project. They do not authenticate the end users whose requests trigger agents.
+This is distinct from connic's project **membership and permission groups**, which control who can sign in to the dashboard and manage the project. They do not authenticate the end users whose requests trigger agents.
 
 Authenticating end users — and propagating their identity, permissions, customer scope, etc. into the run — is done in `middleware/<agent>.py::before`. The connector secret authenticates the *caller* (your gateway, your app); the middleware authenticates the *end user* whose data is in the payload.
 
@@ -323,10 +323,10 @@ Conditional-tool expressions use a restricted expression grammar and are evaluat
 
 Notes:
 
-- **Don't map end users to Connic project membership or permission groups.** The Owner, Members, and their groups are for the humans who develop, deploy, and audit the project; there is no API to create a Connic Member per end user.
+- **Don't map end users to connic project membership or permission groups.** The Owner, Members, and their groups are for the humans who develop, deploy, and audit the project; there is no API to create a connic Member per end user.
 - **Cache external auth lookups in module scope, not in `context`.** A Redis client or a JWKS client should be a module-level singleton — `context` is per-run.
 - **Identity can be recorded.** A `user_id` stored in context is persisted with the run and can be used to search and attribute runs.
-- **Forward identity to downstream MCP servers.** When a downstream MCP server gates on the end-user (compliance, per-tenant data, audit-trail), use `${context.<key>}` interpolation inside `mcp_servers[].headers` so each MCP call carries the right user. Connic substitutes the value per run from the same `context` you populated in `before`; missing values fail the run rather than silently sending an unauthenticated request. See the [MCP header interpolation section](guardrails-schemas-mcp.md#header-interpolation-deploy-time-vs-per-run).
+- **Forward identity to downstream MCP servers.** When a downstream MCP server gates on the end-user (compliance, per-tenant data, audit-trail), use `${context.<key>}` interpolation inside `mcp_servers[].headers` so each MCP call carries the right user. connic substitutes the value per run from the same `context` you populated in `before`; missing values fail the run rather than silently sending an unauthenticated request. See the [MCP header interpolation section](guardrails-schemas-mcp.md#header-interpolation-deploy-time-vs-per-run).
 - **Hooks complement, don't replace, this.** Use `hooks/<agent>.py::before` for cross-cutting checks on tool arguments (e.g. "this customer_id matches `context.customer_id`") that are easier to write once than to encode as a conditional-tool expression.
 
 ## Tool hooks (`hooks/<agent-name>.py`)
@@ -352,7 +352,7 @@ async def after(tool_name: str, params: dict, result, context: dict):
     return result
 ```
 
-Scope: hooks fire for local tools, predefined Connic tools, API-spec tools, and tools exposed via `mcp_servers` (active and discoverable). For an MCP tool, `tool_name` is the server's tool name, `AbortTool` skips the server call, and `after` receives the raw MCP result dict (`content`, `structuredContent`, `isError`), already validated against the tool's output schema. Returning a dict with a `content` list keeps the MCP format (text, files, `isError`); any other value replaces the result as with local tools.
+Scope: hooks fire for local tools, predefined connic tools, API-spec tools, and tools exposed via `mcp_servers` (active and discoverable). For an MCP tool, `tool_name` is the server's tool name, `AbortTool` skips the server call, and `after` receives the raw MCP result dict (`content`, `structuredContent`, `isError`), already validated against the tool's output schema. Returning a dict with a `content` list keeps the MCP format (text, files, `isError`); any other value replaces the result as with local tools.
 
 Both hook phases may be synchronous or asynchronous and may omit `context`. `before` can return a dict whose keys are merged into the original tool parameters; returning `None` leaves the parameters unchanged. `after` returns the value passed back to the LLM; returning `None` preserves the original result. `AbortTool` skips execution but marks that tool trace as an error. An ordinary hook exception fails the tool call and is returned to the LLM.
 
@@ -387,13 +387,13 @@ async def check(content: str, context: dict) -> GuardrailResult:
 
 Lives for one run, shared by middleware → tools → hooks → after.
 
-System fields populated by Connic and available from `before`, tools, hooks, and `after`:
+System fields populated by connic and available from `before`, tools, hooks, and `after`:
 
 - `run_id` (str)
 - `agent_name` (str)
 - `connector_id` (str, if triggered via a connector)
 - `timestamp` (ISO 8601)
-- `payload` (dict) — the **original connector payload** (webhook JSON body, GET query params, form fields, Kafka message, etc.). This is the raw input before Connic shaped it into the LLM-facing `content`. Read it from anywhere — tools and `after` see the same `payload` middleware does.
+- `payload` (dict) — the **original connector payload** (webhook JSON body, GET query params, form fields, Kafka message, etc.). This is the raw input before connic shaped it into the LLM-facing `content`. Read it from anywhere — tools and `after` see the same `payload` middleware does.
 - `token_usage` (dict, available in middleware `after`)
 - `duration_ms` (number, available in middleware `after`)
 
@@ -407,4 +407,4 @@ Anything else (`user_id`, `is_admin`, `permissions`, etc.) is whatever middlewar
 - **Importing `connic` for tools that don't need it** — import only the SDK types, exceptions, or predefined tools the file uses.
 - **Not returning from `before` / `after`.** Both functions must return their primary argument — `return content` from `before`, `return response` from `after`. Implicit `return None` makes the run fail. When the body delegates to a helper, `await authenticate(content, context)` on its own is incomplete; return the content on the next line.
 - **Sharing mutable module-level state across runs** — use the per-run `context` dict for invocation state.
-- **Naming an LLM-facing parameter `context`** — Connic hides it from the LLM and supplies the run context instead. Pick another name.
+- **Naming an LLM-facing parameter `context`** — connic hides it from the LLM and supplies the run context instead. Pick another name.

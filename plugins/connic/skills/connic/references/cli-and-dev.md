@@ -14,8 +14,8 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic tools` | List the custom Python tools discovered in the current project. |
 | `connic dev` | Choose a reusable named cloud dev environment or a quick test with Up/Down and Enter. A reusable environment is selected by default; a valid saved preference comes first. Sync local files and hot-reload on save. |
 | `connic test` | Run declarative test suites from `tests/` against an environment. `--env <id>` picks the environment; `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report; `--json` emits machine-readable output. |
-| `connic deploy` | Deploy current files to a Connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
-| `connic migrate [--source <path>] [--dest <path>]` | Scan a LangChain or Google ADK project and emit a Connic-shaped project skeleton; omitted paths are prompted for. |
+| `connic deploy` | Deploy current files to a connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
+| `connic migrate [--source <path>] [--dest <path>]` | Scan a LangChain or Google ADK project and emit a connic-shaped project skeleton; omitted paths are prompted for. |
 
 Run any with `--help` for the canonical flag list.
 
@@ -28,7 +28,7 @@ connic init my-agents --skill
 cd my-agents
 ```
 
-The default scaffold creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing a starter example. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent YAML on disk — the README shows what one should look like. `--skill` adds `.agents/skills/connic/` and `.claude/skills/connic/`; omit it when the project should not carry the skill. In an interactive terminal, the command then detects Codex and Claude Code and asks separately whether to install the full Connic plugin. Declining keeps the skill-only setup.
+The default scaffold creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing a starter example. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent YAML on disk — the README shows what one should look like. `--skill` adds `.agents/skills/connic/` and `.claude/skills/connic/`; omit it when the project should not carry the skill. In an interactive terminal, the command then detects Codex and Claude Code and asks separately whether to install the full connic plugin. Declining keeps the skill-only setup.
 
 ## `connic skill`
 
@@ -37,7 +37,7 @@ cd my-project
 connic skill
 ```
 
-Installs the Connic skill in `.agents/skills/connic/` and `.claude/skills/connic/`. It is the existing-project equivalent of `connic init --skill`. In an interactive terminal, it also offers to install the full plugin for each detected Codex or Claude Code client. The plugin bundles the skill and Connic MCP; the local copies remain skill-only. See [Coding agent setup](https://connic.co/docs/v1/ai-agent-setup).
+Installs the connic skill in `.agents/skills/connic/` and `.claude/skills/connic/`. It is the existing-project equivalent of `connic init --skill`. In an interactive terminal, it also offers to install the full plugin for each detected Codex or Claude Code client. The plugin bundles the skill and connic MCP; the local copies remain skill-only. See [Coding agent setup](https://connic.co/docs/v1/ai-agent-setup).
 
 ## `connic update`
 
@@ -285,7 +285,7 @@ The builder `context` dict is shared across every depth — a fixture id stashed
 
 Builders live at `tests/builders/<name>.py`. Use them to generate the input payload programmatically or run post-run assertions that `expected_result` cannot express. Each test case loads the builder separately; `build` and `cleanup` may be sync or async and can use the agent's environment variables and network access. A missing builder fails before the agent runs. When a case also sets `files`, fixtures merge into the builder output; if a dict result already has a `files` list, the lists concatenate.
 
-**`cleanup` contract** — Connic calls `cleanup(run, context, builder_args)` after the case completes. Its return value decides the result:
+**`cleanup` contract** — connic calls `cleanup(run, context, builder_args)` after the case completes. Its return value decides the result:
 
 - `None` or `True` → the case passes
 - `False` → the case fails with reason `"builder cleanup returned False"`
@@ -381,7 +381,7 @@ Point a case at a `tests/mocks/<name>.py` module with the `mocks:` field to repl
 
 #### Tool result replacements
 
-The module exposes hierarchical `mock_*` functions. For a tool ref like `data.customer.add_customer`, Connic uses the **most specific** one defined, trying in order:
+The module exposes hierarchical `mock_*` functions. For a tool ref like `data.customer.add_customer`, connic uses the **most specific** one defined, trying in order:
 
 | Function | Stands in for |
 | --- | --- |
@@ -491,7 +491,7 @@ connic migrate --source ./old-langchain-project --dest ./new-connic-project
 connic migrate --source ./adk-project --dest ./new-connic-project
 ```
 
-With no flags, the CLI prompts for the source and destination paths; if one flag is omitted, it prompts only for the missing path. Source and destination cannot be the same, nested inside one another, or an already non-empty destination. There is no positional path argument and no `--output` flag. The tool emits a Connic project skeleton, runs `connic lint`, and writes `MIGRATION_REPORT.md`.
+With no flags, the CLI prompts for the source and destination paths; if one flag is omitted, it prompts only for the missing path. Source and destination cannot be the same, nested inside one another, or an already non-empty destination. There is no positional path argument and no `--output` flag. The tool emits a connic project skeleton, runs `connic lint`, and writes `MIGRATION_REPORT.md`.
 
 - **LangChain:** automatically migrates top-level `create_agent` / `create_react_agent` calls, plain or `@tool` functions and their local dependencies, static prompts, common model constructors, and cross-file imports. LangGraph state graphs and handoffs, dynamic prompts, checkpointers, custom persistence, RAG chains, LangSmith integration, wrappers/subclasses, and non-top-level agents remain manual.
 - **Google ADK:** automatically migrates explicit `Agent`, `LlmAgent`, and `SequentialAgent` definitions, plain functions / `FunctionTool`, `AgentTool` to `trigger_agent`, static instructions, model names, YAML agents, and `google_search` to `web_search`. `ParallelAgent` / `LoopAgent` become sequential placeholders; callbacks, sessions/memory, MCPToolset, dynamic registration/instructions/tool lists, subclasses, and custom guardrails need manual work.

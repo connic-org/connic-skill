@@ -4,63 +4,63 @@
     {
       "id": 0,
       "name": "add-tool-and-wire-to-agent",
-      "prompt": "I have a Connic project at /Users/emilmilow/Desktop/connic-org/connic-skill-workspace/sample-project. There's an agent in agents/support-assistant.yaml that helps customers. I want to add a tool that looks up an order by its order_id and returns the status and tracking number. Mock the data is fine. Then wire it into the agent so the agent can call it. Show me the diffs.",
+      "prompt": "I have a connic project at /Users/emilmilow/Desktop/connic-org/connic-skill-workspace/sample-project. There's an agent in agents/support-assistant.yaml that helps customers. I want to add a tool that looks up an order by its order_id and returns the status and tracking number. Mock the data is fine. Then wire it into the agent so the agent can call it. Show me the diffs.",
       "expected_output": "A new Python file under tools/ with a properly-typed, docstring'd function for order lookup. The agent YAML should be updated to add the new tool to its tools: list using correct dot-notation. No decorators, no @tool, no import of connic-composer-sdk required.",
       "files": []
     },
     {
       "id": 1,
       "name": "expose-agent-via-webhook",
-      "prompt": "How do I expose my Connic agent over HTTP so I can POST JSON to it from my own backend and get the result back synchronously? Walk me through it. The agent is called `intake-classifier`.",
+      "prompt": "How do I expose my connic agent over HTTP so I can POST JSON to it from my own backend and get the result back synchronously? Walk me through it. The agent is called `intake-classifier`.",
       "expected_output": "Explains that webhook is the right connector, that it's configured in the dashboard (not in YAML), describes sync vs async mode, shows the curl command with the X-Connic-Secret header, and shows the response shape. Does NOT invent CLI commands or YAML fields for configuring webhook URLs in code.",
       "files": []
     },
     {
       "id": 2,
       "name": "sentiment-classifier-with-schema",
-      "prompt": "Help me write a sentiment classifier agent in my Connic project. I want it to return structured JSON with sentiment (positive/neutral/negative) and a confidence score from 0 to 1. Set it up so the model is forced to return that shape.",
-      "expected_output": "Creates agents/sentiment.yaml with model, system_prompt, and output_schema field. Creates schemas/sentiment.json (or similar) with a valid JSON Schema enforcing the structure (enum for sentiment, number minimum/maximum for confidence). Both files use correct Connic conventions.",
+      "prompt": "Help me write a sentiment classifier agent in my connic project. I want it to return structured JSON with sentiment (positive/neutral/negative) and a confidence score from 0 to 1. Set it up so the model is forced to return that shape.",
+      "expected_output": "Creates agents/sentiment.yaml with model, system_prompt, and output_schema field. Creates schemas/sentiment.json (or similar) with a valid JSON Schema enforcing the structure (enum for sentiment, number minimum/maximum for confidence). Both files use correct connic conventions.",
       "files": []
     },
     {
       "id": 3,
       "name": "slack-connector-tricky",
-      "prompt": "How do I set up a Slack connector for my Connic agent so it responds to messages in a channel?",
+      "prompt": "How do I set up a Slack connector for my connic agent so it responds to messages in a channel?",
       "expected_output": "Correctly says there is no native Slack connector. Suggests using a webhook connector with a Slack-app forwarder, an MCP server, or a custom tool. Does NOT invent a Slack connector with fake YAML or fake dashboard steps.",
       "files": []
     },
     {
       "id": 4,
       "name": "custom-guardrail-signature",
-      "prompt": "Write me a custom input guardrail for my Connic project that blocks messages mentioning any of our competitors (acme-corp, beta-inc, gamma-llc). Show me the YAML wiring and the Python.",
+      "prompt": "Write me a custom input guardrail for my connic project that blocks messages mentioning any of our competitors (acme-corp, beta-inc, gamma-llc). Show me the YAML wiring and the Python.",
       "expected_output": "Creates guardrails/<name>.py with `async def check(content: str, context: dict) -> GuardrailResult` — exactly two parameters (NO config parameter). Returns GuardrailResult with fields passed/message (no redacted_content). The agent YAML uses type: custom, name: matching the filename, mode: block or warn.",
       "files": []
     },
     {
       "id": 5,
       "name": "postgres-read-from-agent",
-      "prompt": "I want my Connic agent to be able to look up customer records from our Postgres database. How do I wire that up?",
+      "prompt": "I want my connic agent to be able to look up customer records from our Postgres database. How do I wire that up?",
       "expected_output": "Correctly states that the Postgres connector is INBOUND-ONLY (LISTEN/NOTIFY trigger) and does NOT expose query tools. To read from Postgres inside an agent, the user should write a custom Python tool in tools/ using asyncpg or psycopg with credentials from env vars. The custom tool should be purpose-driven (e.g. lookup_customer(customer_id)), not a thin SQL wrapper. Does NOT mention any `postgres.query`, `postgres.fetch_one`, or similar fabricated tool.",
       "files": []
     },
     {
       "id": 6,
       "name": "platform-state-without-mcp",
-      "prompt": "Which deployments are currently failing in my Connic production environment? I do not have Connic MCP connected in this client.",
-      "expected_output": "Does not pretend to inspect live state and does not ask for or read the `.connic` API key. Explains that live deployment state requires Connic MCP or the dashboard, remains useful by giving the exact dashboard location or deterministic REST alternative, and clearly distinguishes those from an agent's `mcp_servers:` configuration.",
+      "prompt": "Which deployments are currently failing in my connic production environment? I do not have connic MCP connected in this client.",
+      "expected_output": "Does not pretend to inspect live state and does not ask for or read the `.connic` API key. Explains that live deployment state requires connic MCP or the dashboard, remains useful by giving the exact dashboard location or deterministic REST alternative, and clearly distinguishes those from an agent's `mcp_servers:` configuration.",
       "files": []
     },
     {
       "id": 7,
       "name": "platform-mcp-live-tool-selection",
-      "prompt": "Connic MCP is connected. Check the current failed runs for the authorized environment, then tell me whether any need attention. Do not change anything.",
-      "expected_output": "Starts with Connic MCP context when needed, uses the live run read tools and no write tools, respects the authorization's derived project/environment instead of asking for IDs, and never reads or passes `.connic` credentials. Does not confuse Connic MCP with `mcp_servers:` or the MCP connector.",
+      "prompt": "connic MCP is connected. Check the current failed runs for the authorized environment, then tell me whether any need attention. Do not change anything.",
+      "expected_output": "Starts with connic MCP context when needed, uses the live run read tools and no write tools, respects the authorization's derived project/environment instead of asking for IDs, and never reads or passes `.connic` credentials. Does not confuse connic MCP with `mcp_servers:` or the MCP connector.",
       "files": []
     },
     {
       "id": 8,
       "name": "return-file-from-tool",
-      "prompt": "Write a Connic custom tool that generates an invoice PDF in memory and returns it to the agent so the model can inspect it. Can I return the PDF together with a JSON status object?",
+      "prompt": "Write a connic custom tool that generates an invoice PDF in memory and returns it to the agent so the model can inspect it. Can I return the PDF together with a JSON status object?",
       "expected_output": "Imports `ToolFile` from `connic` and returns it with `mime_type=\"application/pdf\"`, a filename, and exactly one source (`data` bytes or `uri`). Explains that a single `ToolFile` or a top-level list/tuple mixing files with JSON or text is supported, while raw bytes are rejected because they lack a MIME type. Does not invent a decorator or file-result YAML field.",
       "files": []
     }

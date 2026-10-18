@@ -4,7 +4,7 @@ Use the dashboard at `connic.co` to manage projects, environments, deployments, 
 
 ## Project
 
-The top-level scope in Connic. Every dashboard URL is scoped to a project. **Always call it a "project", never "workspace".**
+The top-level scope in connic. Every dashboard URL is scoped to a project. **Always call it a "project", never "workspace".**
 
 A project has a set of environments, Project credit, API keys, connectors, optional Git connection, and team membership. Retrieval and the database are **per-environment**, not per-project (so staging and production have separate data).
 
@@ -12,7 +12,7 @@ A project has a set of environments, Project credit, API keys, connectors, optio
 
 Deployed Projects support two model paths:
 
-- **Connic-managed:** use an exact `connic/*` ID from the [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). Models run in the EU and use Project credit at catalog rates; no separate provider credentials are needed.
+- **connic-managed:** use an exact `connic/*` ID from the [connic model catalog](https://connic.co/docs/v1/build/connic-models). Models run in the EU and use Project credit at catalog rates; no separate provider credentials are needed.
 - **BYOK:** configure credentials under **Project Settings** and use the provider's prefix and model ID. The provider processes and bills the call.
 
 Either can be the primary or fallback model. Never invent a `connic/*` alias or infer an ID from the upstream model name.
@@ -44,20 +44,20 @@ Each environment uses its plan's log-retention period by default and can set a s
 
 Two paths:
 
-1. **Git-connected (preferred).** Configure a GitHub/GitLab/Bitbucket repo in **Project Settings → Git & Environments**. For a monorepo, set **Repository root directory** to the relative path containing the Connic project. Each branch can map to one environment. Pushing runs a three-step pipeline: **Build → Tests → Deploy**, and a failing test blocks promotion. The Deployments page can also start the mapped branch manually with **Deploy now** or **Deploy & skip tests**. Automatic deployments triggered by a push always run the gate.
+1. **Git-connected (preferred).** Configure a GitHub/GitLab/Bitbucket repo in **Project Settings → Git & Environments**. For a monorepo, set **Repository root directory** to the relative path containing the connic project. Each branch can map to one environment. Pushing runs a three-step pipeline: **Build → Tests → Deploy**, and a failing test blocks promotion. The Deployments page can also start the mapped branch manually with **Deploy now** or **Deploy & skip tests**. Automatic deployments triggered by a push always run the gate.
 2. **CLI.** `connic deploy` from a directory with a valid `.connic` lists environments by name and asks for confirmation before uploading. `connic deploy --list` lists targets without deploying. `--env <name-or-id>` selects a target directly; use `--env staging --yes` for CI. `connic deploy` refuses to run if the project has a Git connection — Git is single-source-of-truth in that case. `--skip-tests` is available as a breaking-glass option for non-Git deploys.
 
-GitLab.com accounts connect with OAuth. For Self-Managed GitLab, first add the public HTTPS instance under **Account → Git Accounts** with a personal access token that has the `api` scope, then select that account when connecting the project repository. The GitLab user must be an administrator or have the Maintainer or Owner role on each repository so Connic can manage its webhook.
+GitLab.com accounts connect with OAuth. For Self-Managed GitLab, first add the public HTTPS instance under **Account → Git Accounts** with a personal access token that has the `api` scope, then select that account when connecting the project repository. The GitLab user must be an administrator or have the Maintainer or Owner role on each repository so connic can manage its webhook.
 
 A deployment includes agents, tools, middleware, hooks, schemas, guardrails, tests, connectors (`connectors/*.yaml`), and `requirements.txt`. A successful deployment becomes active for the environment. Failed builds leave the active deployment intact, and the deployment list provides an **Activate** action for rollback. Activation also applies the deployment's code connectors, so a rollback restores them; see [Connectors in code](connectors.md#connectors-in-code). A run uses the deployment that is active when it starts, so runs still queued at activation (including rollback activation) start on the newly active deployment.
 
-Connic reviews the submitted deployment files before the build. A deployment stopped by this review is marked **Blocked**. Connic does not build, test, or activate it, and the deployment details show instructions for contacting support.
+connic reviews the submitted deployment files before the build. A deployment stopped by this review is marked **Blocked**. connic does not build, test, or activate it, and the deployment details show instructions for contacting support.
 
 Environment variables are injected at deploy time. Changing a variable requires re-deploying for new runs to pick it up.
 
 ### PR Testing
 
-Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When PR Testing is enabled, Connic runs the project's test suite for GitHub pull requests and GitLab merge requests whose source branch is in the connected repository and whose target branch matches the environment's branch. Connic runs the same tests as `connic test` and posts the result as `connic/pr-tests`. Fork-based pull requests and merge requests do not trigger PR Testing.
+Each environment has a **PR Testing** toggle (set in the dashboard under **Project Settings → Git & Environments**). When PR Testing is enabled, connic runs the project's test suite for GitHub pull requests and GitLab merge requests whose source branch is in the connected repository and whose target branch matches the environment's branch. connic runs the same tests as `connic test` and posts the result as `connic/pr-tests`. Fork-based pull requests and merge requests do not trigger PR Testing.
 
 PR Testing defaults to on for Git-connected environments with a branch. CLI-only projects don't have it.
 
@@ -66,7 +66,7 @@ Each PR only triggers tests in the one environment whose branch matches its targ
 To require the result before merging:
 
 - **GitHub:** Add `connic/pr-tests` to the branch protection rule. GitHub only lists contexts it has already seen, so run the first PR before selecting it.
-- **GitLab:** Connic adds `connic/pr-tests` as an external job in the source branch pipeline. Enable **Settings → Merge requests → Merge checks → Pipelines must succeed**.
+- **GitLab:** connic adds `connic/pr-tests` as an external job in the source branch pipeline. Enable **Settings → Merge requests → Merge checks → Pipelines must succeed**.
 
 PR Testing is supported on GitHub and GitLab.
 
@@ -92,7 +92,7 @@ Completed runs can be deleted individually or in bulk after their background pro
 
 The **Observability** tab also supports multiple drag-and-drop dashboards. Widgets include stat cards, area and bar charts, recent-log lists, and shared text/select inputs; select options can come from Database collections. Dashboards have global date ranges, per-widget agent/connector filters, shared variables, and optional 10-second refresh. For cost per customer or use case, have middleware set a context key such as `context["customer_id"]` and add a bar chart grouped **By Context** on that key with the Token Cost or Token Usage metric (top 20 values per environment and date range). Widget filters accept input-variable placeholders as quoted comparison operands, e.g. `context.customer_id == '{customer}'`; an empty input drops that condition. Context keys may be nested with dots (`customer.id`). An agent's detail page has its own run statistics, status breakdown, configuration, filtered history, and manual trigger.
 
-Enterprise projects forward data to external systems through **channels** (**Project Settings → Notifications**, `channels.manage`). Channel types: **Webhook** (JSON array POST, optionally signed with `X-Connic-Timestamp` and `X-Connic-Signature`, the hex HMAC-SHA256 of `{timestamp}.{raw body}`), **Datadog** (Logs intake with API key and site; `service` is the agent name, `env` tag the environment name, status from `level`, all other fields are attributes), and **OpenTelemetry** (OTLP/HTTP JSON to an endpoint base URL: spans to `/v1/traces`, every other entry to `/v1/logs`, with optional `key=value` headers; `service.name` is the agent name and log records use the run ID as trace ID). **Slack** and **Microsoft Teams** are listed as "On request" and enabled when a customer asks Connic support. Webhook and OpenTelemetry channels can deliver through a Connic Bridge to private endpoints, including plain HTTP such as an in-cluster Datadog Agent OTLP receiver; the bridge's `ALLOWED_HOSTS`, if set, must include the endpoint. A channel can subscribe to notification events such as `agent_runs_failing` (3 of an agent's last 5 finished runs failed), `build_failed`, `judge_score_low`, and `budget_alert_triggered`, receive approval requests, and serve drains.
+Enterprise projects forward data to external systems through **channels** (**Project Settings → Notifications**, `channels.manage`). Channel types: **Webhook** (JSON array POST, optionally signed with `X-Connic-Timestamp` and `X-Connic-Signature`, the hex HMAC-SHA256 of `{timestamp}.{raw body}`), **Datadog** (Logs intake with API key and site; `service` is the agent name, `env` tag the environment name, status from `level`, all other fields are attributes), and **OpenTelemetry** (OTLP/HTTP JSON to an endpoint base URL: spans to `/v1/traces`, every other entry to `/v1/logs`, with optional `key=value` headers; `service.name` is the agent name and log records use the run ID as trace ID). **Slack** and **Microsoft Teams** are listed as "On request" and enabled when a customer asks connic support. Webhook and OpenTelemetry channels can deliver through a connic bridge to private endpoints, including plain HTTP such as an in-cluster Datadog Agent OTLP receiver; the bridge's `ALLOWED_HOSTS`, if set, must include the endpoint. A channel can subscribe to notification events such as `agent_runs_failing` (3 of an agent's last 5 finished runs failed), `build_failed`, `judge_score_low`, and `budget_alert_triggered`, receive approval requests, and serve drains.
 
 Drains (https://connic.co/docs/v1/platform/observability/drains) forward new entries to one channel. **Run drains** (**Agent Runs → More actions → Run Drains**) forward everything by default, untruncated, and each part can be switched off: a run event per finished run, including deploy-gate test runs, about a minute after it ends (`run_status`, `level`, `agent_name`, `environment_name`, `trigger_source`, `duration_ms`, `queue_wait_ms`, `token_usage`, `error`, public `context`, and the run's full `input` and `output`, parsed when JSON); every span of each run with the run ID as trace ID, parent links, timing, status, attributes, and full input, output, and reasoning (OTLP traces on OpenTelemetry channels with `connic.input`, `connic.output`, and `connic.thoughts`; one `type: "span"` entry per span on Webhook and Datadog channels; Datadog APM needs an OpenTelemetry channel to the Datadog Agent); and an `environment_health` snapshot at the start of every minute per environment plus per agent with active runs (`queued_runs`, `running_runs`, `awaiting_approval_runs`, `oldest_queued_seconds`, `oldest_running_seconds`). Run events and traces filter by environment, run status, trigger source, and an `entry.*` expression that can read `entry.context`, `entry.input`, and `entry.output` even when they are not forwarded. Health snapshots use only the environment selection and the health toggle. **Log drains** (**Logs → Log Drains**) batch captured log lines every 15 seconds, up to 500 per request, each with its run's `trigger_source`, filtered by environment, level, source, trigger source, and expression. **Audit drains** (**Project Settings → Audit Log**) forward audit entries about every 60 seconds; guardrail blocks arrive as `guardrail.block`. Drains start at creation without backfill, retry failed event, trace, log, and audit deliveries on the next cycle, can deliver an entry twice (deduplicate on `id`, the run ID for run events), and pause when their channel is disabled. Failed health snapshots are replaced by fresh snapshots the next minute. A failed run never reaches `after()` middleware, so use a run drain to export failures.
 
@@ -133,14 +133,14 @@ Automated evaluators score completed runs for correctness, helpfulness, safety, 
 
 ## Approvals
 
-Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (`approval:` block — see [agent-yaml.md](agent-yaml.md)). When an agent hits a gated tool, the run pauses and appears in **Project → Approvals**. A reviewer approves or rejects; the run resumes (or fails / skips the tool depending on `on_rejection`). On LLM agents, `approval.inputs` creates tools that require a human text response and return it to the model; no Python function is needed. Conditions on `param.*` and `context.*` let you gate only some calls; an evaluation error requires approval. Project members with `approvals.view` receive email and in-app notifications according to their notification preferences. Approval settings can also send a signed webhook. Multiple gated calls create separate pause/resume cycles; each resume loads the full conversation history without re-executing tools whose approvals are already recorded. Decisions are submitted in Connic or through the REST API, and are recorded in both the audit log and run trace — notification webhooks do not decide approvals.
+Human-in-the-loop gating for specific tool calls. Configured in the agent YAML (`approval:` block — see [agent-yaml.md](agent-yaml.md)). When an agent hits a gated tool, the run pauses and appears in **Project → Approvals**. A reviewer approves or rejects; the run resumes (or fails / skips the tool depending on `on_rejection`). On LLM agents, `approval.inputs` creates tools that require a human text response and return it to the model; no Python function is needed. Conditions on `param.*` and `context.*` let you gate only some calls; an evaluation error requires approval. Project members with `approvals.view` receive email and in-app notifications according to their notification preferences. Approval settings can also send a signed webhook. Multiple gated calls create separate pause/resume cycles; each resume loads the full conversation history without re-executing tools whose approvals are already recorded. Decisions are submitted in connic or through the REST API, and are recorded in both the audit log and run trace — notification webhooks do not decide approvals.
 
 ## Bridge
 
-A tunnel from Connic's cloud to a private network (your VPC, on-prem services). Provision a Bridge under **Project Settings → Bridge**, copy its token when it is shown once, then install the Bridge agent on a machine inside your network. The agent requires `BRIDGE_TOKEN`. `ALLOWED_HOSTS` is an optional comma-separated exact `host:port` allowlist; when it is unset or empty, every target reachable from the bridge's network is allowed. Other optional settings are `RELAY_URL` (default `wss://relay.connic.co`) and `LOG_LEVEL` (default `INFO`). The Bridge ID can then be referenced from four kinds of consumer:
+A tunnel from connic's cloud to a private network (your VPC, on-prem services). Provision a bridge under **Project Settings → Bridge**, copy its token when it is shown once, then install the bridge agent on a machine inside your network. The agent requires `BRIDGE_TOKEN`. `ALLOWED_HOSTS` is an optional comma-separated exact `host:port` allowlist; when it is unset or empty, every target reachable from the bridge's network is allowed. Other optional settings are `RELAY_URL` (default `wss://relay.connic.co`) and `LOG_LEVEL` (default `INFO`). The bridge ID can then be referenced from four kinds of consumer:
 
-1. **Connectors** — pick the Bridge in the connector config dropdown. Bridge-capable types are Kafka and SQS (both directions), Postgres, email (both directions), S3 file downloads, and outbound webhook callbacks.
-2. **Custom LLM providers** — pick the Bridge in the provider config.
+1. **Connectors** — pick the bridge in the connector config dropdown. Bridge-capable types are Kafka and SQS (both directions), Postgres, email (both directions), S3 file downloads, and outbound webhook callbacks.
+2. **Custom LLM providers** — pick the bridge in the provider config.
 3. **Custom tools / middleware / hooks / guardrails** — reach private endpoints via the magic hostname `<target>.cnc-bridge-<bridge_id>` from inside your Python code.
 4. **MCP servers** — set the `bridge:` field on the `mcp_servers` entry.
 
@@ -179,11 +179,11 @@ For protocols that discover endpoints at runtime, such as Redis Sentinel, config
 
 ## Domains
 
-Serve connector URLs from a subdomain you own while Connic handles TLS. The connector keeps the same ID, signing secret, and configuration; only the hostname changes. Custom domains are available on Pro and Enterprise.
+Serve connector URLs from a subdomain you own while connic handles TLS. The connector keeps the same ID, signing secret, and configuration; only the hostname changes. Custom domains are available on pro and enterprise.
 
 Add the domain under **Project Settings → Domains**. Apex domains and wildcards are unsupported; use an ASCII subdomain or punycode for an internationalized name. Configure the provided CNAME to `connect.connic.co` and TXT ownership record. DNS propagation can take up to an hour.
 
-Choose the domain in a connector's create or edit dialog. No redeploy or URL rotation is required, and the default `connect.connic.co` URL remains active. Domains are project-scoped and can serve connectors in any project environment. Deleting a domain returns its connectors to the default host; callers using the removed hostname receive 404 responses. A downgrade below Pro also makes custom hosts return 404 while default URLs keep working. Domain changes require the corresponding project action permission and are audit-logged.
+Choose the domain in a connector's create or edit dialog. No redeploy or URL rotation is required, and the default `connect.connic.co` URL remains active. Domains are project-scoped and can serve connectors in any project environment. Deleting a domain returns its connectors to the default host; callers using the removed hostname receive 404 responses. A downgrade below pro also makes custom hosts return 404 while default URLs keep working. Domain changes require the corresponding project action permission and are audit-logged.
 
 ## Team
 
@@ -209,7 +209,7 @@ The immutable audit log under **Project Settings → Audit Log** records the act
 
 Token-cost **alerts** notify without stopping runs; **limits** hold affected new runs. Either can be global, environment-scoped, or agent-scoped and reset daily at midnight UTC or monthly on the first. Held runs are released when the limit is disabled/deleted, raised above current spend, or its period resets. Optional anomaly detection compares each completed run with that agent's 30-day rolling average (default threshold `3x`, minimum five completed runs). Weekly reports arrive Monday at 09:00 UTC for the prior seven days; monthly reports arrive on the first at 09:00 UTC for the prior month.
 
-**Project → Billing** shows the Project credit balance and consumption across LLM run starts, completed judge evaluations, runtime, web tools, storage, retrieval, and `connic/*` model tokens. Connic grants a one-time welcome credit to the first Basic Project created in an account. Additional Basic Projects do not receive one. Developer and Pro use a selected monthly credit amount and a 1-, 12-, or 24-month term; longer terms are paid upfront, while credit is released monthly. Monthly credit expires at the end of its cycle, while purchased credit remains available for the active Project. Optional run packages discount LLM run starts, completed judge run units, runtime, storage, and retrieval, but not managed inference or web tools. Tool and sequential agents have no run-start fee; their runtime is still charged. Standard Projects can buy credit or configure capped auto-refill, and prepaid usage stops when credit is insufficient. Enterprise pricing and commercial terms are negotiated individually. Stripe handles payments, receipts, and invoices. See https://connic.co/pricing for current rates and plan thresholds.
+**Project → Billing** shows the Project credit balance and consumption across LLM run starts, completed judge evaluations, runtime, web tools, storage, retrieval, and `connic/*` model tokens. connic grants a one-time welcome credit to the first basic Project created in an account. Additional basic Projects do not receive one. Developer and pro use a selected monthly credit amount and a 1-, 12-, or 24-month term; longer terms are paid upfront, while credit is released monthly. Monthly credit expires at the end of its cycle, while purchased credit remains available for the active Project. Optional run packages discount LLM run starts, completed judge run units, runtime, storage, and retrieval, but not managed inference or web tools. Tool and sequential agents have no run-start fee; their runtime is still charged. Standard Projects can buy credit or configure capped auto-refill, and prepaid usage stops when credit is insufficient. Enterprise pricing and commercial terms are negotiated individually. Stripe handles payments, receipts, and invoices. See https://connic.co/pricing for current rates and plan thresholds.
 
 Architectural recommendations should start with fit, reliability, and maintainability, then compare cost and latency among choices that meet those requirements. Use the dashboard's usage and budget tools to manage spend and make the tradeoff explicit.
 
@@ -225,7 +225,7 @@ For the full endpoint catalogue and its canonical project-permission requirement
 
 Use the interface that matches the job:
 
-- **Connic MCP** for conversational inspection and bounded project operations from an OAuth-capable AI client. See [platform-mcp.md](platform-mcp.md).
+- **connic MCP** for conversational inspection and bounded project operations from an OAuth-capable AI client. See [platform-mcp.md](platform-mcp.md).
 - **REST API** for deterministic service integrations and repeatable automation.
 - **CLI** for local authoring, validation, tests, and deployment workflows.
 
@@ -241,8 +241,8 @@ Use the interface that matches the job:
 | Environment variables / secrets | Dashboard (per environment) |
 | BYOK model-provider credentials | Dashboard (Project Settings) |
 | Project credit, top-ups, auto-refill, and Stripe documents | Dashboard (Project → Billing) |
-| Connector configuration | Dashboard (linked to agents), REST API, Connic MCP, or on-disk `connectors/*.yaml` applied by deploys |
-| Connections (reusable connector credentials) | Dashboard (Project Settings → Connections), REST API, or Connic MCP |
+| Connector configuration | Dashboard (linked to agents), REST API, connic MCP, or on-disk `connectors/*.yaml` applied by deploys |
+| Connections (reusable connector credentials) | Dashboard (Project Settings → Connections), REST API, or connic MCP |
 | API spec imports | Dashboard |
 | Retrieval content | Dashboard or via `retrieval_store` tool |
 | Database collections | Dashboard or via `db_*` tools |

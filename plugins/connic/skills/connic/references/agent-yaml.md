@@ -6,13 +6,13 @@ Every agent is one YAML file in `agents/`. There are three agent types: `llm` (d
 
 Required fields: `version`, `name`, `description`. LLM agents also require `model` and `system_prompt`; sequential agents require `agents`; tool agents require `tool_name`. Everything else is optional with defaults noted inline.
 
-This YAML configures a Connic agent, separate from the plugin's bundled Connic MCP connection.
+This YAML configures a connic agent, separate from the plugin's bundled connic MCP connection.
 
 ```yaml
 version: "1.0"
 name: support-assistant            # kebab-case; filename should match but isn't required to
 type: llm                          # default; can be omitted
-model: connic/glm-5.2              # exact Connic catalog ID; no provider key
+model: connic/glm-5.2              # exact connic catalog ID; no provider key
 fallback_model: anthropic/claude-sonnet-4-6   # BYOK fallback; uses Project credentials
 description: "Customer support agent with billing access"   # REQUIRED
 
@@ -32,7 +32,7 @@ tools:                              # max 100 combined with generated approval.i
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
   - math.calculator.*               # all public funcs in tools/math/calculator.py
   - search.web_*                    # prefix wildcard (fnmatch)
-  - retrieval_query                # predefined Connic tool
+  - retrieval_query                # predefined connic tool
   - trigger_agent                   # predefined: call another agent
   - premium.refund: context.tier == 'pro'   # conditional tool — context.* or input.*
 
@@ -69,7 +69,7 @@ mcp_servers:                        # max 50 servers per agent
       X-User-Id: "${context.user_id}"           # ${context.*} = per-run value from middleware
     tools: [read_file]              # optional filter; omit for all of the server's tools
     discoverable: false
-    bridge: ${INTERNAL_BRIDGE_ID}   # optional Connic Bridge id for private MCP endpoints
+    bridge: ${INTERNAL_BRIDGE_ID}   # optional connic bridge id for private MCP endpoints
     condition: context.user_id != null  # optional; connect only when true (conditional-tool grammar)
     optional: false                 # true = run continues without this server if connecting fails
     oauth:                          # optional per-user sign-in; no Authorization header allowed with it
@@ -141,17 +141,17 @@ files:
 
 ## LLM retries and timeouts
 
-For `type: llm`, every failed model request can use the configured retry or fallback path while time and attempts remain. The only retryability filter is `unsupported_file_type`, which is not retried on the same model but can still switch to the fallback. `attempts` includes the first ordinary request and defaults to three: without `fallback_model`, the primary gets that budget; with a fallback, the primary is tried once and the fallback gets up to `attempts` requests. The single context-compression repair described below is separate from these counts. Connic never restarts the whole LLM agent.
+For `type: llm`, every failed model request can use the configured retry or fallback path while time and attempts remain. The only retryability filter is `unsupported_file_type`, which is not retried on the same model but can still switch to the fallback. `attempts` includes the first ordinary request and defaults to three: without `fallback_model`, the primary gets that budget; with a fallback, the primary is tried once and the fallback gets up to `attempts` requests. The single context-compression repair described below is separate from these counts. connic never restarts the whole LLM agent.
 
-`attempt_timeout` defaults to 120 seconds and accepts positive, finite seconds, including fractions. It caps each complete request or entire stream at the remaining run time, whichever is shorter. Receiving stream chunks does not restart the timer. Retries do not divide the remaining time into smaller budgets. Run expiry or cancellation stops all attempts; once text, reasoning, or tool-call output has been streamed, Connic never retries, switches models, or repairs context for that request.
+`attempt_timeout` defaults to 120 seconds and accepts positive, finite seconds, including fractions. It caps each complete request or entire stream at the remaining run time, whichever is shorter. Receiving stream chunks does not restart the timer. Retries do not divide the remaining time into smaller budgets. Run expiry or cancellation stops all attempts; once text, reasoning, or tool-call output has been streamed, connic never retries, switches models, or repairs context for that request.
 
-Switching to a fallback is immediate. Retrying the same model honors `Retry-After` when supplied, otherwise the configured backoff. These waits count against the run deadline; Connic stops if a wait leaves no time for another attempt. Request retries preserve tool results already produced in the run, and tool failures are returned to the LLM instead of blindly re-invoked. `attempts` also controls the tool-failure reflection budget. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
+Switching to a fallback is immediate. Retrying the same model honors `Retry-After` when supplied, otherwise the configured backoff. These waits count against the run deadline; connic stops if a wait leaves no time for another attempt. Request retries preserve tool results already produced in the run, and tool failures are returned to the LLM instead of blindly re-invoked. `attempts` also controls the tool-failure reflection budget. Runs that switch models expose `context.fallback_model_used` and show the switch in the trace.
 
 For `type: tool` and `type: sequential`, `attempts`, `initial_delay`, `max_delay`, and `rerun_middleware` control operation-level retries. `attempts` includes the first attempt; `attempt_timeout` is ignored.
 
 ## Voice LLM agent
 
-Connic Voice is in beta. Add `voice_config` to an LLM agent that uses a native realtime audio model. An empty `voice_config: {}` enables provider defaults.
+connic voice is in beta. Add `voice_config` to an LLM agent that uses a native realtime audio model. An empty `voice_config: {}` enables provider defaults.
 
 ```yaml
 version: "1.0"
@@ -184,11 +184,11 @@ For OpenAI, `transcription_model` selects the model that transcribes caller spee
 
 Voice agents require `type: llm` and a model prefixed with `openai/`, `azure/`, `gemini/`, or `vertex_ai/`. The selected provider determines which realtime model and voice IDs are available. Managed `connic/*` models are not supported for voice.
 
-Set `reasoning_effort` to request a reasoning level. Connic passes the setting to the provider, which rejects unsupported settings or values. Omit it or use `auto` for the model default.
+Set `reasoning_effort` to request a reasoning level. connic passes the setting to the provider, which rejects unsupported settings or values. Omit it or use `auto` for the model default.
 
-Python tools, retrieval, MCP servers, conditional and discoverable tools, tool hooks, delegation, and middleware remain available. Connic rejects input and output guardrails, `approval`, `output_schema`, `output_schema_dict`, `fallback_model`, and `context_compression` because it streams voice audio immediately. Automated test suites do not run voice sessions; use `connic lint`, deploy the agent, and test it in a live conversation.
+Python tools, retrieval, MCP servers, conditional and discoverable tools, tool hooks, delegation, and middleware remain available. connic rejects input and output guardrails, `approval`, `output_schema`, `output_schema_dict`, `fallback_model`, and `context_compression` because it streams voice audio immediately. Automated test suites do not run voice sessions; use `connic lint`, deploy the agent, and test it in a live conversation.
 
-Use Connic connectors to link incoming phone calls to a deployed voice agent. Save the provider Connection in the Dashboard, and configure the connector there or in `connectors/*.yaml`, not in agent YAML. See [connectors.md](connectors.md) for setup instructions.
+Use connic connectors to link incoming phone calls to a deployed voice agent. Save the provider Connection in the Dashboard, and configure the connector there or in `connectors/*.yaml`, not in agent YAML. See [connectors.md](connectors.md) for setup instructions.
 
 A call starts the run with `call_id` (the provider's call identifier), `from`, `to`, `provider` (the voice connector that received the call), `caller_name` and `forwarded_from` when the provider sends them, and `raw`, the provider's complete incoming-call request. What each provider sends is in [connectors.md](connectors.md). Middleware reads it from `context["payload"]` and tools through their `context` parameter, and the model receives it as the first message unless `before` middleware replaces it. To give callers different tools by identity, look the caller up in `before` middleware, store the result in `context`, and gate tools with conditional tools. One call is one run, so the agent's `timeout`, capped by the subscription limit, is the maximum call length.
 
@@ -222,7 +222,7 @@ agents:
 
 ## Tool agent
 
-Wraps a single custom Python tool under `tools/` with no LLM. Predefined tools, `api:` tools, and wildcard references cannot be a tool agent's body. The tool function **must declare a `payload` parameter and may declare `context`** — no other parameters are permitted, including defaulted parameters. Connic calls it with the normalized payload dict and injects `context` when declared; it never expands payload keys into separate arguments. JSON objects arrive as-is, while decoded non-object values are wrapped as `{"input": <value>}`. In a sequential pipeline, the tool's JSON-compatible return value keeps its type for the next stage. The run appears in the dashboard with its input, output, and timing, but no model is invoked.
+Wraps a single custom Python tool under `tools/` with no LLM. Predefined tools, `api:` tools, and wildcard references cannot be a tool agent's body. The tool function **must declare a `payload` parameter and may declare `context`** — no other parameters are permitted, including defaulted parameters. connic calls it with the normalized payload dict and injects `context` when declared; it never expands payload keys into separate arguments. JSON objects arrive as-is, while decoded non-object values are wrapped as `{"input": <value>}`. In a sequential pipeline, the tool's JSON-compatible return value keeps its type for the next stage. The run appears in the dashboard with its input, output, and timing, but no model is invoked.
 
 ```yaml
 version: "1.0"
@@ -242,9 +242,9 @@ When you need *some* deterministic logic alongside an LLM, you don't have to dro
 
 ## Models
 
-Format: `provider/model-name`. Models can be Connic-managed or BYOK:
+Format: `provider/model-name`. Models can be connic-managed or BYOK:
 
-- `connic/glm-5.2` — Connic-managed, EU-hosted, billed against Project credit; no provider key
+- `connic/glm-5.2` — connic-managed, EU-hosted, billed against Project credit; no provider key
 - `openai/gpt-4o`, `openai/gpt-5.2`
 - `gemini/gemini-2.5-pro`, `gemini/gemini-2.5-flash`
 - `anthropic/claude-opus-4-7`, `anthropic/claude-sonnet-4-6`
@@ -254,7 +254,7 @@ Format: `provider/model-name`. Models can be Connic-managed or BYOK:
 - `openrouter/anthropic/claude-sonnet-4.5`
 - Custom OpenAI-compatible prefix configured in **Project Settings**: `<prefix>/<model-name>`
 
-Use exact `connic/*` IDs from the live [Connic Model Catalog](https://connic.co/docs/v1/build/connic-models). For BYOK or custom providers, use an ID supported by the configured provider. Don't invent aliases or substitute another model.
+Use exact `connic/*` IDs from the live [connic model catalog](https://connic.co/docs/v1/build/connic-models). For BYOK or custom providers, use an ID supported by the configured provider. Don't invent aliases or substitute another model.
 
 For a custom OpenAI-compatible provider, configure a unique lowercase prefix, the API base URL, and an optional API key. The `connic` prefix is reserved for managed models.
 
@@ -279,7 +279,7 @@ tools:
   - alerts.page: context.urgent              # truthy check on a context value
 ```
 
-**Tool conditions** use Connic's restricted expression language with `context.*` and `input.*` accessors. Comparisons are `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, and `is not`; combine or group them with `and`, `or`, `not`, and parentheses. Dot access, subscripts, and string/number/boolean/null and list/tuple/set/object literals are allowed. A bare accessor is a truthy check. Syntax errors fail validation. During a run, a missing field, unsupported operation, or other evaluation error makes the condition false rather than exposing the tool. Expressions are limited to 2,000 characters; calls, imports, arithmetic, assignments, private attributes, and roots other than `context` and `input` are not allowed.
+**Tool conditions** use connic's restricted expression language with `context.*` and `input.*` accessors. Comparisons are `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, `is`, and `is not`; combine or group them with `and`, `or`, `not`, and parentheses. Dot access, subscripts, and string/number/boolean/null and list/tuple/set/object literals are allowed. A bare accessor is a truthy check. Syntax errors fail validation. During a run, a missing field, unsupported operation, or other evaluation error makes the condition false rather than exposing the tool. Expressions are limited to 2,000 characters; calls, imports, arithmetic, assignments, private attributes, and roots other than `context` and `input` are not allowed.
 
 **Approval conditions** are a different scope: they use `param.*` (the *tool arguments* about to be passed) and `context.*`. They do **not** support `input.*`. Don't confuse the two.
 
@@ -287,7 +287,7 @@ A tool cannot appear in both the unconditional list and a conditional entry — 
 
 Every exact tool reference must resolve. A wildcard without a dot matches predefined tool names, so `db_*` expands to every predefined database tool. Every wildcard must match at least one eligible tool; a zero-match wildcard fails deployment rather than silently producing an empty set.
 
-Use `discoverable_tools` for tools the agent should find by natural-language search instead of loading upfront. It accepts the same exact references, wildcards, and conditions as `tools`. When any local or MCP tools are discoverable, Connic provides `search_tools` and `use_tool` automatically; do not list them yourself. A function cannot appear in both `tools` and `discoverable_tools`, and exposed function names must be unique across both lists. `search_tools` matches the words of the query against tool names and descriptions, so descriptions must use the language the agent works in. Finding a tool costs an extra model step before the `use_tool` call; keep frequently used tools in `tools` and reserve discovery for large, rarely used sets.
+Use `discoverable_tools` for tools the agent should find by natural-language search instead of loading upfront. It accepts the same exact references, wildcards, and conditions as `tools`. When any local or MCP tools are discoverable, connic provides `search_tools` and `use_tool` automatically; do not list them yourself. A function cannot appear in both `tools` and `discoverable_tools`, and exposed function names must be unique across both lists. `search_tools` matches the words of the query against tool names and descriptions, so descriptions must use the language the agent works in. Finding a tool costs an extra model step before the `use_tool` call; keep frequently used tools in `tools` and reserve discovery for large, rarely used sets.
 
 ### Full predefined-tool list
 
@@ -346,7 +346,7 @@ context_compression:
   max_prompt_tokens: 100000
 ```
 
-Compression is off unless the block is configured. When enabled, a context-window error permits one reactive compression recovery per logical model call, shared across primary and fallback. If compression changes the request, Connic makes one extra request to the same active model before considering fallback. That repair request is outside the ordinary `attempts` budget and uses the same per-request timeout and remaining run deadline. It does not reset counters or return from fallback to primary. Failed or unchanged compression uses up the recovery allowance, then ordinary retry or fallback continues with the last usable request. A second context overflow does not trigger another repair. No recovery occurs after streaming output begins.
+Compression is off unless the block is configured. When enabled, a context-window error permits one reactive compression recovery per logical model call, shared across primary and fallback. If compression changes the request, connic makes one extra request to the same active model before considering fallback. That repair request is outside the ordinary `attempts` budget and uses the same per-request timeout and remaining run deadline. It does not reset counters or return from fallback to primary. Failed or unchanged compression uses up the recovery allowance, then ordinary retry or fallback continues with the last usable request. A second context overflow does not trigger another repair. No recovery occurs after streaming output begins.
 
 `model` is optional and selects only the context and stored-history summary model; when omitted, summaries use the agent model. Summary requests have their own bounded attempt sequence, share the run deadline and `attempt_timeout`, and cannot recursively compress. The repaired agent request stays on whichever primary or fallback model overflowed. `max_prompt_tokens` is optional and compresses earlier using prompt usage reported by prior model calls. `keep_recent_messages` controls how many recent messages stay verbatim. `session_history.interval` is optional and only needed if stored session history should be compacted between runs on a fixed cadence. Lower values compact older history more often. Every `interval`-th run ends by summarizing older stored history, keeping the last `keep_recent_runs` runs verbatim. Without it, each run loads the full stored history and compression only shortens requests. Stored history has no total size or run-count limit; each stored message can be up to 5 MB. `context_compression` is only valid on `type: llm` agents.
 
@@ -399,7 +399,7 @@ approval:
   on_rejection: fail      # fail = stop run (default); continue = skip the tool and keep going
 ```
 
-The run pauses at the gated tool call until a reviewer approves or rejects in **Dashboard → Approvals**. Approval conditions use `param.*` (the tool's arguments) and `context.*`; `input.*` is **not** valid here (unlike tool conditions in `tools:`). If a condition cannot be evaluated because a parameter or context value is missing, Connic fails safe and requires approval.
+The run pauses at the gated tool call until a reviewer approves or rejects in **Dashboard → Approvals**. Approval conditions use `param.*` (the tool's arguments) and `context.*`; `input.*` is **not** valid here (unlike tool conditions in `tools:`). If a condition cannot be evaluated because a parameter or context value is missing, connic fails safe and requires approval.
 
 `approval.inputs` is available only on LLM agents. Each entry creates a tool that pauses for required human text and returns that text to the agent; no Python function or top-level `tools` entry is needed. Input-tool names must be unique ASCII identifiers of at most 64 characters, cannot be `search_tools` or `use_tool`, and cannot collide with `tools`, `discoverable_tools`, or `approval.tools`. Generated input tools count toward the 100-tool limit. `params` names must be unique ASCII identifiers, cannot be Python keywords or `context`, and use `str`, `int`, `float`, or `bool`; every declared parameter is required. `sensitive: true` masks the field and protects the response in storage and logs while still returning it to the model.
 
@@ -419,7 +419,7 @@ agents/
 └── support-assistant.yaml
 ```
 
-Connic combines `_defaults.yaml` files from `agents/` down to the agent's directory, shallowest first. The agent's own YAML is applied last and wins on conflict.
+connic combines `_defaults.yaml` files from `agents/` down to the agent's directory, shallowest first. The agent's own YAML is applied last and wins on conflict.
 
 ### What can live in `_defaults.yaml`
 

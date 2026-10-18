@@ -1,6 +1,6 @@
 # Project anatomy
 
-A Connic project is a directory of YAML and Python files. The CLI (`connic` from `connic-composer-sdk`) reads this directory, validates it, and syncs it to Connic cloud.
+A connic project is a directory of YAML and Python files. The CLI (`connic` from `connic-composer-sdk`) reads this directory, validates it, and syncs it to connic cloud.
 
 ## Canonical layout
 
@@ -37,7 +37,7 @@ my-project/
     └── mocks/                  # *.py — custom-code replacements referenced by mocks:
 ```
 
-`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the Connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/`, `connectors/` as you need them.
+`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/`, `connectors/` as you need them.
 
 ## Auto-discovery rules
 
@@ -54,13 +54,13 @@ These are how files wire up. There is no central manifest — the layout *is* th
 | `guardrails/<name>.py` | Reference as `name: <name>` inside a `guardrails: - type: custom` block — filename must match exactly. |
 | `connectors/<key>.yaml` | Declares one connector; the file name is its key and identity. Deploys create, update, or retire it per environment. See [Connectors in code](connectors.md#connectors-in-code). |
 
-Connic skips `_`-prefixed **files** and **functions** during tool discovery. So `tools/_helpers.py` is not exposed, and neither is `tools/utils.py::_internal_fn`. Use the leading underscore for module-private helpers. `__init__.py` is one example of a `_`-prefixed file; do not put tools there.
+connic skips `_`-prefixed **files** and **functions** during tool discovery. So `tools/_helpers.py` is not exposed, and neither is `tools/utils.py::_internal_fn`. Use the leading underscore for module-private helpers. `__init__.py` is one example of a `_`-prefixed file; do not put tools there.
 
 Parameters without type hints are still exposed but default to `{"type": "string"}` in the LLM-facing schema, which gives the model the wrong guidance for numeric or boolean values. Type-hint every parameter. Missing docstrings show up as `"No description provided."` to the LLM — write docstrings.
 
 ## Cascading `_defaults.yaml`
 
-At any directory under `agents/`, drop a `_defaults.yaml` to share configuration with every agent at that level and deeper. Connic combines `_defaults.yaml` files shallowest-first; the agent's own YAML wins last.
+At any directory under `agents/`, drop a `_defaults.yaml` to share configuration with every agent at that level and deeper. connic combines `_defaults.yaml` files shallowest-first; the agent's own YAML wins last.
 
 ```
 agents/
@@ -92,7 +92,7 @@ Credentials live here. Created by `connic login`. **Do not commit.** Add it to `
 
 ## requirements.txt
 
-List only project-specific Python dependencies such as HTTP clients and database drivers. Connic provides `connic-composer-sdk`; do not add it here.
+List only project-specific Python dependencies such as HTTP clients and database drivers. connic provides `connic-composer-sdk`; do not add it here.
 
 Example:
 
@@ -106,7 +106,7 @@ If the project has no extra deps, the file can be empty or omitted.
 
 ## What about `pyproject.toml` / `setup.py`?
 
-Connic deployment ignores Python packaging metadata. A larger repository may still use `pyproject.toml` or `setup.py` for its own tooling, but Connic installs runtime dependencies only from the project root's `requirements.txt`; do not rely on package metadata to deploy them.
+connic deployment ignores Python packaging metadata. A larger repository may still use `pyproject.toml` or `setup.py` for its own tooling, but connic installs runtime dependencies only from the project root's `requirements.txt`; do not rely on package metadata to deploy them.
 
 ## Naming conventions
 

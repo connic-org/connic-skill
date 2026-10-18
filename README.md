@@ -1,18 +1,18 @@
-# Connic Skill
+# connic skill
 
-A reusable Agent Skill that teaches AI coding agents how to work with Connic — agents, tools, connectors, Connic MCP, the Composer SDK, and the platform.
+A reusable Agent Skill that teaches AI coding agents how to work with connic — agents, tools, connectors, connic MCP, the composer SDK, and the platform.
 
 This repo follows the open [SKILL.md](https://github.com/anthropics/skills) format and the portable [Agent Plugins v1 specification](https://agent-plugins.org/specification). Every installation method below uses `plugins/connic/skills/connic/`.
 
-Installing the full Connic plugin through the ChatGPT/Codex, Claude, or Cursor marketplace also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
+Installing the full connic plugin through the ChatGPT/Codex, Claude, or Cursor marketplace also registers the production MCP endpoint. Skill-only installation methods remain standalone and do not modify the client's MCP configuration.
 
 See [Coding agent setup](https://connic.co/docs/v1/ai-agent-setup) for client-specific plugin, skill, MCP, and OAuth instructions.
 
 ## Install
 
-### Existing Connic project
+### Existing connic project
 
-If the [Connic Composer SDK](https://github.com/connic-org/connic-composer-sdk) is installed, run this from the project root:
+If the [connic composer SDK](https://github.com/connic-org/connic-composer-sdk) is installed, run this from the project root:
 
 ```bash
 connic skill
@@ -22,7 +22,7 @@ This installs the skill in both `.agents/skills/connic/` and `.claude/skills/con
 
 In an interactive terminal, both CLI paths also detect Codex and Claude Code and ask separately whether to install the full plugin. Declining leaves the skill-only project copies in place.
 
-At the start of each agent session, the skill instructs the agent to run `connic update --check` once before Connic work. The check only reports available updates; the agent must ask before installing one.
+At the start of each agent session, the skill instructs the agent to run `connic update --check` once before connic work. The check only reports available updates; the agent must ask before installing one.
 
 ### Any agent (recommended)
 
@@ -38,12 +38,12 @@ Run `npx skills add --help` for per-agent install flags and CI-friendly options.
 
 1. Open **Plugins → Add → Add a marketplace**.
 2. Enter `connic-org/connic-skill` in **Source**, leave **Git ref** and **Sparse paths** blank, then select **Add marketplace**.
-3. Open the Connic marketplace, select Connic, and choose **Install**.
+3. Open the connic marketplace, select connic, and choose **Install**.
 4. Complete the connection prompt, then start a new conversation or Codex task.
 
 ### Codex CLI (plugin marketplace)
 
-Install the full plugin when you want the skill and Connic MCP together:
+Install the full plugin when you want the skill and connic MCP together:
 
 ```bash
 codex plugin marketplace add connic-org/connic-skill
@@ -56,8 +56,8 @@ Start a new Codex task after installation, then open `/mcp` to authenticate or i
 
 1. Open a local or SSH **Code** session and select **+ → Plugins → Browse plugins**. If no plugins are installed, select **Add plugins…** directly.
 2. In the plugin browser, select **+ Add marketplace → Add from a repository**.
-3. Enter `connic-org/connic-skill` in **URL**, select **Sync**, then open Connic and choose **Install**.
-4. On the installed Connic plugin page, open **Connectors** and select **Install** next to `connic`.
+3. Enter `connic-org/connic-skill` in **URL**, select **Sync**, then open connic and choose **Install**.
+4. On the installed connic plugin page, open **Connectors** and select **Install** next to `connic`.
 5. In the **Add custom connector** modal, select **Add**. Back on the same plugin page, select **Connect** and complete browser OAuth. No running Code session or app restart is needed for the connector setup.
 
 ### Claude Code (plugin marketplace)
@@ -81,7 +81,7 @@ Enter this in a Cursor Agent chat, then choose a project or user scope:
 /add-plugin connic@https://github.com/connic-org/connic-skill
 ```
 
-The Cursor plugin loads the same skill and registers `https://mcp.connic.co/mcp` from `mcp.json`. Start a new Agent chat, open **Customize**, find the Connic MCP server, and complete OAuth when prompted.
+The Cursor plugin loads the same skill and registers `https://mcp.connic.co/mcp` from `mcp.json`. Start a new Agent chat, open **Customize**, find the connic MCP server, and complete OAuth when prompted.
 
 ### Manual install
 
@@ -99,7 +99,7 @@ All installation methods use the same skill files.
 
 ## What it does
 
-Activates whenever a developer is working in a Connic project (anything with a `.connic` file or an `agents/*.yaml` pattern) or asks anything about Connic. The skill teaches the agent:
+Activates whenever a developer is working in a connic project (anything with a `.connic` file or an `agents/*.yaml` pattern) or asks anything about connic. The skill teaches the agent:
 
 - The on-disk project layout (`agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`)
 - Agent YAML fields, defaults, voice configuration, and validation rules
@@ -108,16 +108,16 @@ Activates whenever a developer is working in a Connic project (anything with a `
 - Exact signatures for Python tools, middleware, hooks, and custom guardrails
 - The predefined-tool catalogue (`db_*`, `retrieval_query`, `trigger_agent`, `web_search`, etc.) and how to wrap them in purpose-driven custom tools
 - Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, slack, stripe, telegram, Telnyx Messaging, Telnyx Voice, Twilio Messaging, Twilio Voice, webhook, websocket), including directions and payload shapes
-- The differences between Connic MCP, agent-side MCP servers, and the MCP connector
+- The differences between connic MCP, agent-side MCP servers, and the MCP connector
 - Supported `connic` CLI commands and flags
-- The dashboard concepts (Project credit and billing, environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, Bridge, REST API)
+- The dashboard concepts (Project credit and billing, environments, deployment, observability, Retrieval, DB, judges, approvals, A/B testing, bridge, REST API)
 - Best practices the docs recommend: wrap predefined tools, and use guardrails and deploy-gate tests where supported
 
 ## Why this exists
 
 This skill gives AI coding agents the supported YAML keys, CLI flags, predefined-tool signatures, and project conventions.
 
-The eval suite covers representative standalone and live Connic MCP behavior. See [evals/](evals/) for the prompts.
+The eval suite covers representative standalone and live connic MCP behavior. See [evals/](evals/) for the prompts.
 
 ## Repository layout
 
@@ -134,7 +134,7 @@ The eval suite covers representative standalone and live Connic MCP behavior. Se
 │   └── connic/                        # the plugin itself
 │       ├── plugin.json                # portable Agent Plugins v1 manifest
 │       ├── LICENSE                    # Apache-2.0 license distributed with the plugin
-│       ├── .mcp.json                  # bundled production Connic MCP connection
+│       ├── .mcp.json                  # bundled production connic MCP connection
 │       ├── .claude-plugin/
 │       │   └── plugin.json            # Claude Code plugin manifest
 │       ├── .codex-plugin/
