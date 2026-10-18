@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "connic",
-  "version": "1.2.14",
+  "version": "1.2.15",
   "description": "Build, test, deploy, and operate connic agents with current composer SDK, CLI, connector, platform, and connic MCP guidance.",
   "author": {
     "name": "connic",
