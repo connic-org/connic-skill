@@ -374,7 +374,7 @@ The `wait_for_*` actions give up after 10 seconds and return an error with the c
 
 `web_browser_screenshot(full_page=False)` returns a PNG attachment for the model to inspect. `full_page=True` captures the whole scrollable page; use viewport screenshots for mouse coordinates. `web_browser_mouse(action, ...)` controls the pointer using viewport coordinates. `web_browser_tabs(action="list")` returns tab IDs for switching or closing tabs. `web_browser_dialog(action, text=None)` accepts or dismisses a pending JavaScript dialog.
 
-`web_browser_eval(script)` runs a JavaScript expression of up to 16384 characters in the active tab and returns its JSON value in `result`, along with a fresh snapshot. Promises are awaited; wrap statements that use `return` or `await` in `(async () => { ... })()`. Results over 32000 characters are cut off and set `result_truncated: true`; non-string values then come back as JSON text. A thrown error returns `error_code: "script_error"` with the message in `error`.
+`web_browser_eval(script, include_snapshot=False)` runs a JavaScript expression of up to 16384 characters in the active tab and returns its JSON value in `result` plus the page `url`. `include_snapshot=True` also waits for the page to settle and returns a fresh snapshot. Promises are awaited; wrap statements that use `return` or `await` in `(async () => { ... })()`. Results over 32000 characters are cut off and set `result_truncated: true`; non-string values then come back as JSON text. A thrown error returns `error_code: "script_error"` with the message in `error`.
 
 ```python
 from connic.tools import web_browser_eval

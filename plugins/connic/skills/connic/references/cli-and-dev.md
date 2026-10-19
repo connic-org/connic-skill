@@ -106,7 +106,7 @@ Behavior:
 - Without arguments, opens a menu with a reusable environment selected by default. Use Up/Down to move and Enter to select. A new reusable environment requires a name. The CLI saves the preferred named environment in `.connic`; when valid, it appears first and is selected by default on the next run. Quick tests preserve this preference.
 - Opens an isolated cloud development environment for the project.
 - For unattended runs, pass either `--quick` or an explicit name.
-- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, and `tests/` with hot reload. Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
+- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, and `connectors/`. Agent code reloads on changes; connector declarations take effect on deployment. Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
 - Watches local files and syncs edits automatically.
 - The dev environment has its own variables, database, Retrieval data, and connectors, separated from standard environments. Unnamed environments are deleted on exit; named environments and their data persist so you can reattach later.
 - In an interactive terminal, `r` uploads immediately, `t` runs `tests/` against the active dev environment, and `q` stops with normal cleanup (`Ctrl+C` is the fallback).
