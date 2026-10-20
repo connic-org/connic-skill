@@ -1,6 +1,6 @@
 {
   "name": "connic",
-  "version": "1.2.15",
+  "version": "1.2.16",
   "description": "Build, test, deploy, and operate connic agents with current composer SDK, CLI, connector, platform, and connic MCP guidance.",
   "author": {
     "name": "connic",

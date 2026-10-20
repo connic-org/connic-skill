@@ -47,7 +47,7 @@ These are how files wire up. There is no central manifest — the layout *is* th
 | --- | --- |
 | `agents/<name>.yaml` with `name: <name>` inside | Defines an agent. Nesting under `agents/` is fine; the file basename doesn't have to match `name`. |
 | `agents/**/_defaults.yaml` | Defaults inherited by every agent at that directory level and below. See [Cascading `_defaults.yaml`](#cascading-_defaultsyaml) and the [agent-yaml reference](agent-yaml.md#cascading-defaults-with-_defaultsyaml). |
-| `middleware/<agent-name>.py` | Auto-attached to the agent with that `name`. Define `async def before(content, context)` and/or `async def after(response, context)`. |
+| `middleware/<agent-name>.py` | Auto-attached to the agent with that `name`. Define any of `async def before(content, context)`, `async def after(response, context)`, and `async def cleanup(run, context)` (runs once the run ends, whatever the outcome). |
 | `hooks/<agent-name>.py` | Auto-attached. Define `async def before(tool_name, params, context)` and/or `async def after(tool_name, params, result, context)`. Both signatures may omit the `context` parameter. |
 | `tools/<module>.py` with function `foo` | Reference as `<module>.foo` in an agent's `tools:` list. Nested: `tools/math/calc.py::add` → `math.calc.add`. Wildcards (`module.*`, `module.search_*`) supported. |
 | `schemas/<name>.json` | Reference as `output_schema: <name>` in an agent. Valid JSON Schema (subset — see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#output-schemas)). |
@@ -103,6 +103,8 @@ aiosmtplib>=3.0.0
 ```
 
 If the project has no extra deps, the file can be empty or omitted.
+
+Each line must be a plain requirement specifier; options (`-r`, `--index-url`), URLs and file paths are rejected. Packages install only from prebuilt wheels for Python 3.12 on Linux x86-64; source builds are disabled. If a package or any of its dependencies is published only as an sdist, the build fails. Check before deploying with `uv pip compile requirements.txt --only-binary :all: --python-version 3.12 --python-platform x86_64-manylinux_2_28`.
 
 ## What about `pyproject.toml` / `setup.py`?
 

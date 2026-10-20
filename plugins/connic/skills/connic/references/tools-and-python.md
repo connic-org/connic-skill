@@ -121,7 +121,7 @@ base_url = os.environ.get("BASE_URL", "https://api.example.com")
 
 ## Middleware (`middleware/<agent-name>.py`)
 
-Auto-attached to the agent with the matching `name`. Defines an optional `before` and/or `after`. Both can be sync or async.
+Auto-attached to the agent with the matching `name`. Defines any of an optional `before`, `after`, and `cleanup`. Each can be sync or async.
 
 **Both functions must return their primary argument** — `before` returns `content`, `after` returns `response`. The returned value feeds into the LLM for `before` and goes to the caller for `after`. An implicit `return None` makes the run fail. Modifying `content` or `context` in place is fine; return the primary argument at the end.
 
@@ -259,7 +259,32 @@ Pass `idempotency_key="stable-call-id"` when middleware may retry the same send.
 
 ### When middleware re-runs
 
-By default `before` runs once. On `type: tool` and `type: sequential` operation retries, it only re-runs when `retry_options.rerun_middleware: true`; each retry rebuilds content from the original payload, while the same `context` accumulates state and exposes the zero-based attempt as `context.get("retry_attempt", 0)`. `after` runs once after all attempts, unless `before` raised `StopProcessing`. LLM model-request, fallback, and tool-reflection retries stay inside the existing run, so they never re-run middleware and the option is ignored for `type: llm`. Any ordinary middleware exception fails the entire request.
+By default `before` runs once. On `type: tool` and `type: sequential` operation retries, it only re-runs when `retry_options.rerun_middleware: true`; each retry rebuilds content from the original payload, while the same `context` accumulates state and exposes the zero-based attempt as `context.get("retry_attempt", 0)`. `after` runs once after all attempts, unless `before` raised `StopProcessing`. LLM model-request, fallback, and tool-reflection retries stay inside the existing run, so they never re-run middleware and the option is ignored for `type: llm`. Any ordinary exception in `before` or `after` fails the entire request.
+
+### Cleanup after every run
+
+`after` only runs when the agent finishes. To release what `before` set up (a lock, a claimed record), define `cleanup(run, context)`. It runs once the run has ended: completed, failed, timed out, or cancelled, and also when `before` stopped or failed. `run` is `{"status": "completed" | "failed" | "cancelled", "error": str | None, "output": str}`; a timeout is `failed`, a `StopProcessing` stop is `completed`.
+
+```python
+from connic import StopProcessing
+
+async def before(content, context):
+    order_id = context["payload"]["order_id"]
+    if not await claim_order(order_id):
+        raise StopProcessing("Order is already being processed")
+    context["claimed_order_id"] = order_id   # mark that this run holds the claim
+    return content
+
+async def cleanup(run, context):
+    order_id = context.get("claimed_order_id")
+    if order_id:   # skip when before() stopped or failed before claiming
+        await release_order(order_id, status=run["status"], error=run["error"])
+```
+
+- Runs after `after` and output guardrails; sync connectors return the response only after it finishes, and it has 30 seconds.
+- Exceptions and timeouts in `cleanup` are logged on the run and never change its status.
+- Skipped while the run waits for an approval or a sequential step; it runs when the resumed run ends.
+- Never runs for a run cancelled before it starts, a run that fails or is cancelled while waiting for an approval, or when the agent process stops unexpectedly. Locks should also carry a timestamp so stale ones expire.
 
 To reject a request from middleware:
 

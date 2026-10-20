@@ -411,6 +411,7 @@ Use the real middleware signatures and return contracts:
 | --- | --- |
 | `middleware_before(content, context) -> content` | `middleware/<agent>.py::before` |
 | `middleware_after(response, context) -> response` | `middleware/<agent>.py::after` |
+| `middleware_cleanup(run, context) -> None` | `middleware/<agent>.py::cleanup` |
 
 #### Tool hook replacements
 

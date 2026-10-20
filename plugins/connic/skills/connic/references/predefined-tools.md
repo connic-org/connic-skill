@@ -286,9 +286,9 @@ result = await db_find("workshops", filter={
 
 Project files: one folder tree per environment that keeps files between runs. Agents choose the path when they save; folders are just path prefixes and appear once a file lands in them.
 
-- `file_list(folder="", recursive=False, filter=None, scope="all", sort=None, limit=100, skip=0)` returns `{"folder", "folders", "files", "count"}`. `folders` lists direct subfolders when not recursive. `scope="session"` or `"run"` keeps only files written in the current session or run.
+- `file_list(folder="", recursive=False, filter=None, scope="all", sort=None, limit=100, skip=0)` returns `{"folder", "folders", "files", "count", "total"}`. `count` is the number of files on the current page; `total` counts all matching files across pages. `folders` lists direct subfolders when not recursive. `scope="session"` or `"run"` keeps only files written in the current session or run.
 - `file_read(path)` gives the model `{"file", "content"}` with the full text of text files, or the metadata plus an attachment for PDFs and images, up to 20 MiB. Other formats and larger files return an error; pass their path to `web_browser_upload` or a custom tool. In custom tools, `connic.tools.file_read` always returns `{"file": {...}, "content": bytes}`.
-- `file_write(path, content, mime_type=None, metadata=None, overwrite=False)` writes a text file of up to 16 MiB and creates missing folders. Without `overwrite`, a taken path stores the new file as `name (2).ext`; the result's `_path` is the real path.
+- `file_write(path, content, mime_type=None, metadata=None, overwrite=False)` writes a file of up to 16 MiB and creates missing folders. The model passes text; custom tools can also pass bytes (PDFs, images), for example to hand a file to `web_browser_upload(path=...)`. Without `overwrite`, a taken path stores the new file as `name (2).ext`; the result's `_path` is the real path.
 - `file_update(path, new_path=None, metadata=None)` moves or renames a file or a whole folder, and merges metadata into a file (`None` removes a field). Moving onto a taken path fails.
 - `file_delete(path, recursive=False)` deletes a file, or a folder with `recursive=True`.
 
@@ -333,7 +333,7 @@ tools:
   - web_browser_*
 ```
 
-This enables `web_browser_open`, `web_browser_observe`, `web_browser_read`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_eval`, `web_browser_console`, `web_browser_upload`, `web_browser_download`, and `web_browser_pdf`. The agent calls these tools directly. Custom Python tools can import the individual functions from `connic.tools`.
+This enables `web_browser_open`, `web_browser_observe`, `web_browser_read`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_eval`, `web_browser_console`, `web_browser_network`, `web_browser_upload`, `web_browser_download`, and `web_browser_pdf`. The agent calls these tools directly. Custom Python tools can import the individual functions from `connic.tools`.
 
 ```python
 # tools/browser.py
@@ -374,16 +374,39 @@ The `wait_for_*` actions give up after 10 seconds and return an error with the c
 
 `web_browser_screenshot(full_page=False)` returns a PNG attachment for the model to inspect. `full_page=True` captures the whole scrollable page; use viewport screenshots for mouse coordinates. `web_browser_mouse(action, ...)` controls the pointer using viewport coordinates. `web_browser_tabs(action="list")` returns tab IDs for switching or closing tabs. `web_browser_dialog(action, text=None)` accepts or dismisses a pending JavaScript dialog.
 
-`web_browser_eval(script, include_snapshot=False)` runs a JavaScript expression of up to 16384 characters in the active tab and returns its JSON value in `result` plus the page `url`. `include_snapshot=True` also waits for the page to settle and returns a fresh snapshot. Promises are awaited; wrap statements that use `return` or `await` in `(async () => { ... })()`. Results over 32000 characters are cut off and set `result_truncated: true`; non-string values then come back as JSON text. A thrown error returns `error_code: "script_error"` with the message in `error`.
+`web_browser_eval(script=None, include_snapshot=False, script_path=None, save_to=None)` runs a JavaScript expression of up to 16384 characters in the active tab and returns its JSON value in `result` plus the page `url`. Pass exactly one of `script` or `script_path`; `script_path` runs a JavaScript file from project files of up to 1 MiB. `include_snapshot=True` also waits for the page to settle and returns a fresh snapshot. Promises are awaited; wrap statements that use `return` or `await` in `(async () => { ... })()`. Results over 32000 characters are cut off and set `result_truncated: true`; non-string values then come back as JSON text. `save_to` stores the full result in project files instead (strings as text, other values as JSON, up to 100 MiB) and returns `saved_path` and `size`; a `save_to` ending in `/` keeps the name `result.txt` or `result.json`. A thrown error returns `error_code: "script_error"` with the message in `error`.
 
 ```python
 from connic.tools import web_browser_eval
 
 await web_browser_eval("[...document.querySelectorAll('h2')].map(h => h.textContent.trim())")
 # {"status": "active", "result": ["Pricing", "FAQ"], "url": "...", "snapshot": "..."}
+await web_browser_eval(script_path="scripts/collect-rows.js", save_to="exports/rows.json")
+# {"status": "active", "saved_path": "exports/rows.json", "size": 812345, ...}
 ```
 
 `web_browser_console()` returns `console_messages` (`type` and `text`, the 50 most recent) and `page_errors` (`text`, `line`, and `column`, the 20 most recent). Entries accumulate while the browser is open, newest last; `console_truncated` means older entries or long text were cut off.
+
+`web_browser_network(action, filter=None, request_id=None, save_to=None)` records the requests the page makes, such as the JSON its own front end loads. Recording continues across tool calls until `stop` or until the browser closes, so start it before the page loads the data.
+
+| Action | Returns |
+| --- | --- |
+| `start` | `recording: true`. Clears earlier requests. |
+| `list` | `requests` (`id`, `method`, `url`, `status`, `type`, `size` from `Content-Length` when sent), newest last, and `request_count`. `filter` is a URL substring such as `/api/`. `requests_truncated` means only the most recent requests that fit in 32000 characters are listed. |
+| `get` | `request` for `request_id`, with `method`, `url`, `status`, `mime_type`, `request_headers`, `response_headers`, `post_data`, and `body` (cut at 32000 characters with `body_truncated`). `body` is `null` once the browser no longer holds it, such as after navigating away, or for binary responses. With `save_to`, the full body is stored in project files. |
+| `stop` | `recording: false` and `request_count`. With `save_to`, the recording is stored as a HAR file, which keeps text response bodies up to 2 MB each across navigations. |
+
+With `save_to`, the result includes `saved_path` and `size`; a `save_to` ending in `/` keeps the name `response.json` (or the matching extension) or `network.har`. `Authorization`, `Cookie`, `Set-Cookie`, and `Proxy-Authorization` header values are replaced with `[redacted]` in everything returned or saved, including HAR cookies. Request and response bodies are not redacted. Custom code that must send its own authenticated requests can call `get` with `include_credentials=True` to receive these values unredacted (not allowed with `save_to`); never return them to the model or store them.
+
+```python
+from connic.tools import web_browser_network
+
+await web_browser_network("start")
+# ... navigate or click so the page loads its data ...
+listed = await web_browser_network("list", filter="/api/")
+await web_browser_network("get", request_id=listed["requests"][-1]["id"], save_to="exports/")
+await web_browser_network("stop")
+```
 
 `web_browser_download(target, include_content, save_to=None)` returns `download_id`, `name`, `mime_type`, and `size`. Set `include_content=True` to attach the file for the agent to read, or `False` for metadata only. `web_browser_pdf(include_content, save_to=None)` saves the current page as a PDF and returns the same fields. `web_browser_upload(target, download_id=None, path=None)` selects a downloaded file or saved PDF (`download_id`), or a file from project files (`path`); pass exactly one. Downloads are limited to 25 MiB and remain available until the browser closes. With `save_to`, the file is also stored in project files (see Files below), up to 100 MiB, and the result includes `saved_path`; a `save_to` ending in `/` is a folder that keeps the downloaded name. Files over 25 MiB are saved without an attachment.
 
