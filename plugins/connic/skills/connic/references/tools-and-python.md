@@ -121,7 +121,7 @@ base_url = os.environ.get("BASE_URL", "https://api.example.com")
 
 ## Middleware (`middleware/<agent-name>.py`)
 
-Auto-attached to the agent with the matching `name`. Defines any of an optional `before`, `after`, and `cleanup`. Each can be sync or async.
+Auto-attached to the agent with the matching `name`. Defines any of an optional `before`, `after`, and `cleanup`. Each can be sync or async. Middleware and tool hooks can call predefined tools from `connic.tools`, including the browser tools (`web_browser_*`). A browser opened in `before()` uses the session's saved browser profile when the session key can already be resolved.
 
 **Both functions must return their primary argument** — `before` returns `content`, `after` returns `response`. The returned value feeds into the LLM for `before` and goes to the caller for `after`. An implicit `return None` makes the run fail. Modifying `content` or `context` in place is fine; return the primary argument at the end.
 

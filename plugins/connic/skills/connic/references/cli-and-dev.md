@@ -10,7 +10,7 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic skill` | Install the project skill under `.agents/skills/connic/` and `.claude/skills/connic/`, then offer full plugins for detected Codex and Claude Code clients. |
 | `connic update [--check|--sdk|--skill|--enable-reminders]` | Check for or install available SDK and skill updates, or enable automatic reminders. |
 | `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
-| `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery, and `connectors/*.yaml` — locally, no upload. |
+| `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery, `connectors/*.yaml`, and `tests/` suites — locally, no upload. |
 | `connic tools` | List the custom Python tools discovered in the current project. |
 | `connic dev` | Choose a reusable named cloud dev environment or a quick test with Up/Down and Enter. A reusable environment is selected by default; a valid saved preference comes first. Sync local files and hot-reload on save. |
 | `connic test` | Run declarative test suites from `tests/` against an environment. `--env <id>` picks the environment; `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report; `--json` emits machine-readable output. |
@@ -76,6 +76,7 @@ Catches:
 - Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
 - Middleware/hooks modules that cannot be parsed or discovered, and guardrails that fail to import.
 - Connector files in `connectors/`: shape, types and modes, generated fields, `${VAR}` syntax, linked agents and outbound `source` keys that don't exist, and name clashes between files. Environment names, Connections, Bridges, Variables, and phone-number availability are only checked when a deploy starts. See [Connectors in code](connectors.md#connectors-in-code).
+- Test suites in `tests/` that don't match the suite schema or target an agent that doesn't exist, whether named by `agent:` or by the file name. The error names the file and suggests close agent names.
 
 Run this before every deploy. There is no `--json` flag — `lint` only takes `--verbose` / `-v`.
 
@@ -122,7 +123,7 @@ For CI or shared shells, authentication can instead come from `CONNIC_API_KEY` a
 
 Run all suites in `tests/` against the configured environment.
 
-YAML suites are discovered recursively under `tests/`. The filename stem targets the agent (`tests/support.yaml` → `support`); a top-level `agent:` overrides that default so one agent can have multiple suite files. Suite `version` defaults to `"1.0"`. The execution defaults are `runs: 1` (range 1–100), `success_threshold: 100` (1–100), and `timeout_s: 120` (1–3600 seconds). Every case needs `payload` unless it sets `builder`.
+YAML suites are discovered recursively under `tests/`. The filename stem targets the agent (`tests/support.yaml` → `support`); a top-level `agent:` overrides that default so one agent can have multiple suite files. Before uploading, `connic test` checks every suite locally and stops on a schema error or an unknown target agent. Suite `version` defaults to `"1.0"`. The execution defaults are `runs: 1` (range 1–100), `success_threshold: 100` (1–100), and `timeout_s: 120` (1–3600 seconds). Every case needs `payload` unless it sets `builder`.
 
 ```yaml
 # tests/sentiment.yaml

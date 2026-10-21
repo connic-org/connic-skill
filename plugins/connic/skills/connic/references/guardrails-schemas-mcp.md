@@ -50,7 +50,7 @@ Output schemas apply only to LLM agents.
 
 Run at request entry (input) and response exit (output). Configured under `guardrails:` in the agent YAML.
 
-**Ordering matters.** The normal flow is input → input guardrails → `before` middleware → agent execution → `after` middleware → output guardrails → response. Input guardrails therefore cannot see values that middleware sets on `context` — `context["user_id"]`, `context["permissions"]`, anything you hydrate from a JWT — because none of it is populated yet. Input guardrails see the raw `content` string (plus auto-populated system fields such as `context["payload"]` and `run_id`). Output guardrails run after `after` middleware, so they see its final response and the fully enriched `context`.
+**Ordering matters.** The normal flow is input → input guardrails → `before` middleware → agent execution → `after` middleware → output guardrails → `cleanup` middleware → response. Input guardrails therefore cannot see values that middleware sets on `context` — `context["user_id"]`, `context["permissions"]`, anything you hydrate from a JWT — because none of it is populated yet. Input guardrails see the raw `content` string (plus auto-populated system fields such as `context["payload"]` and `run_id`). Output guardrails run after `after` middleware, so they see its final response and the fully enriched `context`.
 
 Concrete consequences:
 

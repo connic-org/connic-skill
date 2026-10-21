@@ -146,7 +146,7 @@ When a connector is created or updated, from the dashboard or code, connic repla
 
 Schedule a recurring run.
 
-- **Schedule**: standard cron syntax. **All schedules are evaluated in UTC** — convert local time before configuring. There's no per-connector timezone.
+- **Schedule**: standard cron syntax, evaluated in the connector's optional `config.timezone` (an IANA name such as `Europe/Berlin`; UTC by default). Daylight saving time adjusts automatically; `triggered_at` stays in UTC.
 - **Prompt**: optional single text prompt (not arbitrary JSON). When configured, it is included in every scheduled payload.
 - **Inbound payload shape**: `{"trigger": "cron", "schedule": "<cron expr>", "triggered_at": "<iso>"}`; `prompt` is added only when configured.
 
