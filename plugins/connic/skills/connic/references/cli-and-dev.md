@@ -75,7 +75,7 @@ Catches:
 - Duplicate agent names across files.
 - Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
 - Middleware/hooks modules that cannot be parsed or discovered, and guardrails that fail to import.
-- Connector files in `connectors/`: shape, types and modes, generated fields, `${VAR}` syntax, linked agents and outbound `source` keys that don't exist, and name clashes between files. Environment names, Connections, Bridges, Variables, and phone-number availability are only checked when a deploy starts. See [Connectors in code](connectors.md#connectors-in-code).
+- Connector files in `connectors/`: shape, types and modes, `config` values (five-field cron or macro, `rate_limit.key` with `per_key`, numeric Telegram IDs, outbound webhook URL without a bridge on `https://` port 443 without credentials, `files_required` only on types that receive files), generated fields, `${VAR}` syntax, linked agents and outbound `source` keys that don't exist, and name clashes between files. It warns about deprecated settings, such as `bridge` on a Kafka, SQS, S3, Postgres, or email connector (the bridge belongs on the Connection). Environment names, Connections, Bridges, Variables, and phone-number availability are only checked when a deploy starts. See [Connectors in code](connectors.md#connectors-in-code).
 - Test suites in `tests/` that don't match the suite schema or target an agent that doesn't exist, whether named by `agent:` or by the file name. The error names the file and suggests close agent names.
 
 Run this before every deploy. There is no `--json` flag — `lint` only takes `--verbose` / `-v`.
