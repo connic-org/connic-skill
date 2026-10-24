@@ -332,7 +332,7 @@ session:
   browser: true
 ```
 
-The optional `key` is a `context.*` or `input.*` path; each resolved value gets a separate session. `ttl` is an inactivity timeout in seconds, at least 60; omitted or `null` means no expiry. `browser: false` disables profile persistence while browser tools remain available with fresh state.
+The optional `key` is a `context.*` or `input.*` dot path that can reach nested fields (`input.user.id`); each resolved value gets a separate session. `ttl` is an inactivity timeout in seconds, at least 60; omitted or `null` means no expiry. `browser: false` disables profile persistence while browser tools remain available with fresh state.
 
 Runs sharing a session are not serialized: if two overlap, the run that writes second fails. When runs for the same session can overlap, add `concurrency.key` on the same payload field (e.g. `concurrency.key: conversation_id` with `session.key: input.conversation_id`).
 
