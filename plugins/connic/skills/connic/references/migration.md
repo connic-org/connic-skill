@@ -100,7 +100,7 @@ The left column is what to look for in the source; the right column is what repl
 | `sqlite3`, an ORM on a local file, `lowdb`, JSON or pickle files, module-level dicts holding records | Database collections through wrapped `db_*` tools; limit each agent's collections with the `database:` block |
 | Chat history in a list, table, or Redis | `session:` with a `key` such as `input.conversation_id` |
 | Vector store the app owns (Chroma, FAISS, LanceDB, its own pgvector table) plus chunking and embedding code | Retrieval namespaces behind a wrapped `retrieval_query`; the chunking and embedding code is dropped |
-| Content pulled from Notion, Confluence, Zendesk, or a website | Retrieval sources with scheduled sync |
+| Content pulled from Notion, Confluence, Zendesk, SharePoint, OneDrive, or a website | Retrieval sources with scheduled sync |
 | A database other systems use | Stays; custom tool, plus a bridge if it is private |
 
 ### Integrations

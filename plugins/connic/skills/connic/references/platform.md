@@ -108,9 +108,13 @@ Dashboard view: **Project → Retrieval** (scoped to the active environment). Up
 
 Use **dot-separated** namespace names for hierarchy, with a maximum depth of 10 — e.g. `policies.hr.leave`, `products.pricing`. Searching a namespace includes all descendants. Ingestion is asynchronous: `retrieval_store` returns a job ID and entries only become searchable once indexing completes.
 
-Text uploads (`POST /v1/projects/{project_id}/retrieval/text`, `upload_retrieval_text`, `retrieval_store`) accept up to 250,000 characters. Upload longer documents as a file: `POST /v1/projects/{project_id}/retrieval/file` takes up to 25 MB, `upload_retrieval_file` up to 512 KiB. Both upload types store metadata on every chunk, so `metadata_filter` can match it. Text uploads take a `metadata` object, and so does `upload_retrieval_file`. REST file uploads take a `metadata` multipart form field holding a JSON object. Files always get `file_size` and `original_filename` from the upload, which replace user keys of the same name.
+Text uploads (`POST /v1/projects/{project_id}/retrieval/text`, `retrieval_store`) accept up to 10,000,000 characters, `upload_retrieval_text` up to 250,000. Upload longer documents as a file: `POST /v1/projects/{project_id}/retrieval/file` takes up to 100 MiB and 25,000,000 characters of text, `upload_retrieval_file` up to 512 KiB. Both upload types store metadata on every chunk, so `metadata_filter` can match it. Text uploads take a `metadata` object, and so does `upload_retrieval_file`. REST file uploads take a `metadata` multipart form field holding a JSON object. Files always get `file_size` and `original_filename` from the upload, which replace user keys of the same name.
 
-Retrieval has no fixed entry-count cap. Stored content contributes to project storage usage and Project credit. Notion, Confluence Cloud, Superhuman Docs (Coda), Zendesk Help Center, and website sources can sync on a schedule or on demand; each successfully ingested source item uses Project credit at the retrieval-source rate.
+File uploads accept PDF, PNG, JPG/JPEG, GIF, WebP, Word (DOCX, DOC), Excel (XLSX, XLS), PowerPoint (PPTX), OpenDocument (ODT, ODS, ODP), RTF, HTML, email (EML, MSG), and text files (TXT, Markdown, CSV, JSON, JSONL, YAML, LOG), so upload Office files and mails as they are instead of converting them to text. The extension must match the content; password-protected files are rejected. Entries get the content type `text`, `pdf`, `image`, `document`, `spreadsheet`, `presentation`, or `email`. Spreadsheet rows are indexed as `Header: value` pairs, up to 10,000 rows and 200 columns per sheet, and every chunk starts with the sheet name, also stored as `sheet_name` metadata. Presentation chunks return the slide number as `page_number`. Email chunks start with subject, sender, and date, also stored as `email_subject`, `email_from`, `email_to`, `email_cc`, and `email_date` metadata. Mail attachments are listed by name but not indexed; upload them as separate files.
+
+Retrieval has no fixed entry-count cap. Stored content contributes to project storage usage and Project credit. Notion, Confluence Cloud, Superhuman Docs (Coda), Zendesk Help Center, SharePoint and OneDrive, and website sources can sync on a schedule or on demand; each successfully ingested source item uses Project credit at the retrieval-source rate.
+
+A SharePoint and OneDrive source (`type: sharepoint`) keeps document libraries searchable without custom sync code against the Retrieval REST API. It signs in with the customer's Microsoft Entra ID app registration: `tenant_id`, `client_id`, and `client_secret`, plus `site_urls` (one per line) and/or `onedrive_users` (sign-in emails), optionally `library_names`, `modified_since` (`YYYY-MM-DD`), and `include_images` (default `false`). The app needs a Microsoft Graph application permission with admin consent: `Sites.Selected` with a read grant on each site, or `Files.Read.All` for OneDrive and every site. After the first sync, a run only downloads files that changed; a large first sync continues over several runs automatically. Files Retrieval cannot ingest are skipped and counted in the run's `file_issues`.
 
 ## Database
 
@@ -155,9 +159,15 @@ mcp_servers:
 # From a custom tool reaching a private internal API
 import os
 import httpx
-url = f"https://api.internal.cnc-bridge-{os.environ['INTERNAL_BRIDGE_ID']}/users"
-r = await httpx.AsyncClient().get(url)
+url = f"http://api.internal.cnc-bridge-{os.environ['INTERNAL_BRIDGE_ID']}/users"
+async with httpx.AsyncClient(timeout=30) as client:
+    r = await client.get(url)
 ```
+
+- Sync and async clients both work: httpx (`Client` and `AsyncClient`), requests, aiohttp, anyio, and asyncio streams. Clients with their own DNS resolver bypass the bridge; for aiohttp with `aiodns` installed, pass `aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver())`. httpx gives up after 5 seconds by default, so set `timeout=` for slow internal calls.
+- A service that only listens on the bridge machine (for example `127.0.0.1:8080`) is reached with target `localhost`: `http://localhost.cnc-bridge-<bridge_id>:8080`. `ALLOWED_HOSTS` matches the exact `host:port` of the request, so this call needs `localhost:8080`; `127.0.0.1:8080` does not match. Inside Docker, `localhost` is the bridge container, and Docker on a Mac cannot reach the Mac's localhost, so run the pip agent (`pip install connic-bridge`, Python 3.10+) directly on the Mac.
+- The agent reconnects after network drops but exits when the token is rejected or the project has no active deployment. Run the pip agent under a service manager: a macOS LaunchAgent with `KeepAlive` set to true, or a systemd unit with `Restart=always`. With Docker use `--restart unless-stopped` or `restart: always`. Full launchd and systemd files are in the Bridge docs (`/docs/v1/platform/bridge#run-as-service`).
+- From connic-bridge 0.1.7, responses and uploads stream with per-channel backpressure, so large files arrive intact when one side reads slowly; older agents cut such transfers. When a tunnel cannot open, HTTP/1.x clients get `502` with the body `connic bridge: <reason>` (`Bridge is not connected`, or `Bridge could not open host:port` when the bridge rejects or cannot reach the target); other protocols see the connection close.
 
 For protocols that discover endpoints at runtime, such as Redis Sentinel, configure automatic destination routes under **Project Settings → Bridge** or with `GET/PUT /v1/projects/{project_id}/bridges/{bridge_id}/routes`. The user or credential needs the `bridges.update` project permission:
 
