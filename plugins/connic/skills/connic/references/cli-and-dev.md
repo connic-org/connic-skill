@@ -9,7 +9,7 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic init [name]` | Scaffold a new project directory. `--templates=invoice,customer-support` seeds starter templates; `--skill` installs this skill and offers full plugins for detected Codex and Claude Code clients. |
 | `connic skill` | Install the project skill under `.agents/skills/connic/` and `.claude/skills/connic/`, then offer full plugins for detected Codex and Claude Code clients. |
 | `connic update [--check|--sdk|--skill|--enable-reminders]` | Check for or install available SDK and skill updates, or enable automatic reminders. |
-| `connic login` | Browser-based auth; writes `.connic` (api_key + project_id) into the current directory. `--token <project_id>:<api_key>` skips the browser for CI. |
+| `connic login` | Browser approval: prints a link, opens it, and waits until the user approves and picks the project; then writes `.connic` (api_key + project_id) into the current directory. Needs no stdin. `--token <project_id>:<api_key>` skips the browser for CI. |
 | `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery, `connectors/*.yaml`, and `tests/` suites — locally, no upload. |
 | `connic tools` | List the custom Python tools discovered in the current project. |
 | `connic dev` | Choose a reusable named cloud dev environment or a quick test with Up/Down and Enter. A reusable environment is selected by default; a valid saved preference comes first. Sync local files and hot-reload on save. |
@@ -55,9 +55,11 @@ Use `--check` to report updates without installing them. With no component flag,
 
 ```bash
 cd my-project
-connic login                                          # interactive (opens browser)
+connic login                                          # approve in the browser
 connic login --token <project_id>:<api_key>           # CI-friendly, no browser
 ```
+
+Without flags, the command prints an approval link and a confirmation code, opens the link, and polls for up to 10 minutes. The user approves in the dashboard and picks the project; the dashboard then creates the API key. It reads no input, so an agent can run it: show the user the link and the code, and wait for the command to finish. Never ask the user to paste an API key into the chat.
 
 Either form writes `.connic` to the current directory with the project id and API key. Add `.connic` to `.gitignore`.
 

@@ -48,9 +48,10 @@ Install the full plugin when you want the skill and connic MCP together:
 ```bash
 codex plugin marketplace add connic-org/connic-skill
 codex plugin add connic@connic
+codex mcp login connic
 ```
 
-Start a new Codex task after installation, then open `/mcp` to authenticate or inspect the connection registered from `.mcp.json`.
+`codex mcp login connic` completes browser OAuth for the connection registered from `.mcp.json`. Start a new Codex task afterwards so it loads the plugin; `/mcp` in the task lists the active server. In the ChatGPT desktop app or the Codex IDE extension, select **Authenticate** next to connic in the MCP server list instead.
 
 ### Claude app (Code)
 
