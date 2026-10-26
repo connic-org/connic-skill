@@ -249,7 +249,7 @@ Collection names are at most 50 characters, start with a lowercase letter, and c
 
 Field-equality shorthand: `{"status": "pending"}` is the same as `{"status": {"$eq": "pending"}}`. Use it for simple matches.
 
-Operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$and`, `$or`, `$not`, `$nor`, `$exists`, `$contains`, `$elemMatch`, `$regex`, `$near`. `$regex` matching is always case-insensitive.
+Operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$and`, `$or`, `$not`, `$nor`, `$exists`, `$contains`, `$elemMatch`, `$regex`, `$near`. `$regex` matching is always case-insensitive. Once a collection gets large, mark each field searched with `$regex` as searchable (collection **Schema** in the dashboard, the REST API or connic MCP) so those filters use an index; the queries stay the same.
 
 Nested fields use dot notation: `{"address.city": "Berlin"}`.
 

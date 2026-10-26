@@ -396,7 +396,7 @@ The LLM-facing `content` is reconstructed automatically: each `files[*]` entry b
 
 **Authentication** (Inbound / Sync) is controlled by a **Require Authentication** toggle on the connector. When on (the default), callers must present the connector secret as `X-Connic-Secret: <secret>`, `Authorization: Bearer <secret>`, or `?secret=<secret>`; unauthenticated requests are rejected. When off, verify the caller in `middleware/<agent>.py::before`, for example with a JWT or signed payload (see the [end-user authentication pattern](tools-and-python.md#end-user-authentication-and-per-run-permissions)).
 
-**Verifying the sender.** Webhook runs carry the HTTP request in `context["request"]`: `method`, `headers` (lowercase names), `query`, and the raw body as `body_base64`. connic removes its own secret (`X-Connic-Secret`, a matching `Authorization`, the `secret` query parameter) and headers its network adds. The body is omitted for multipart requests and above 1 MiB (`body_omitted: true`). Run details show the body and the `Authorization`, `Proxy-Authorization`, `Cookie`, and `X-API-Key` headers as `[REDACTED]`. Runs started another way (reruns, tests, `trigger_agent`) have no `request`. The check runs when the run starts: a failing request still creates a run that middleware stops, and a token can expire while its run waits in the queue.
+**Verifying the sender.** Webhook runs carry the HTTP request in `context["request"]`: `method`, `headers` (lowercase names), `query`, `received_at` (when connic received the request, UTC ISO 8601), and the raw body as `body_base64`. connic removes its own secret (`X-Connic-Secret`, a matching `Authorization`, the `secret` query parameter) and headers its network adds. The body is omitted for multipart requests and above 1 MiB (`body_omitted: true`). Run details show the body and the `Authorization`, `Proxy-Authorization`, `Cookie`, and `X-API-Key` headers as `[REDACTED]`. Runs started another way (reruns, tests, `trigger_agent`) have no `request`. The check runs when the run starts: a failing request still creates a run that middleware stops. Because a run can start well after its request arrived, check token expiry (`exp`/`nbf`) against `received_at` with a few minutes of leeway, not the current time.
 
 HMAC signature, such as GitHub's `X-Hub-Signature-256`:
 
@@ -425,11 +425,13 @@ Signed JWT, such as the Bot Framework token Microsoft Teams sends (`PyJWT[crypto
 ```python
 import asyncio
 import os
+from datetime import datetime
 
 import jwt
 from connic import StopProcessing
 
 keys = jwt.PyJWKClient("https://login.botframework.com/v1/.well-known/keys")
+LEEWAY = 300  # Seconds of clock skew
 
 
 async def before(content, context):
@@ -441,9 +443,13 @@ async def before(content, context):
         key = await asyncio.to_thread(keys.get_signing_key_from_jwt, token)
         claims = jwt.decode(
             token, key.key, algorithms=["RS256"], audience=os.environ["MICROSOFT_APP_ID"],
-            issuer="https://api.botframework.com", leeway=300,
+            issuer="https://api.botframework.com", leeway=LEEWAY,
+            options={"require": ["exp"], "verify_exp": False, "verify_nbf": False},
         )
     except jwt.PyJWTError:
+        raise StopProcessing("Invalid token", publish_outbound=False)
+    received_at = datetime.fromisoformat(request["received_at"]).timestamp()
+    if not claims.get("nbf", 0) - LEEWAY <= received_at <= claims["exp"] + LEEWAY:
         raise StopProcessing("Invalid token", publish_outbound=False)
     if claims.get("serviceUrl") != context["payload"].get("serviceUrl"):
         raise StopProcessing("Invalid token", publish_outbound=False)
