@@ -10,9 +10,9 @@ The CLI ships with `connic-composer-sdk`. Install with `pip install connic-compo
 | `connic skill` | Install the project skill under `.agents/skills/connic/` and `.claude/skills/connic/`, then offer full plugins for detected Codex and Claude Code clients. |
 | `connic update [--check|--sdk|--skill|--enable-reminders]` | Check for or install available SDK and skill updates, or enable automatic reminders. |
 | `connic login` | Browser approval: prints a link, opens it, and waits until the user approves and picks the project; then writes `.connic` (api_key + project_id) into the current directory. Needs no stdin. `--token <project_id>:<api_key>` skips the browser for CI. |
-| `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery, `connectors/*.yaml`, and `tests/` suites — locally, no upload. |
+| `connic lint` | Validate YAML, tool references, schemas, middleware/hooks discovery, `connectors/*.yaml`, `apps/*.yaml`, and `tests/` suites — locally, no upload. |
 | `connic tools` | List the custom Python tools discovered in the current project. |
-| `connic dev` | Choose a reusable named cloud dev environment or a quick test with Up/Down and Enter. A reusable environment is selected by default; a valid saved preference comes first. Sync local files and hot-reload on save. |
+| `connic dev` | Choose a reusable named cloud dev environment or a quick test with Up/Down and Enter. A reusable environment is selected by default; a valid saved preference comes first. Sync local files and hot-reload on save; build apps locally. |
 | `connic test` | Run declarative test suites from `tests/` against an environment. `--env <id>` picks the environment; `--filter <substring>` runs a subset; `--coverage` runs a static no-network coverage report; `--json` emits machine-readable output. |
 | `connic deploy` | Deploy current files to a connic environment. Refuses to run if the project is connected to a Git repo (use `git push` in that case). |
 | `connic migrate [--source <path>] [--dest <path>]` | Scan a LangChain or Google ADK project and emit a connic-shaped project skeleton; omitted paths are prompted for. |
@@ -78,6 +78,7 @@ Catches:
 - Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
 - Middleware/hooks modules that cannot be parsed or discovered, and guardrails that fail to import.
 - Connector files in `connectors/`: shape, types and modes, `config` values (five-field cron or macro, `rate_limit.key` with `per_key`, numeric Telegram IDs, outbound webhook URL without a bridge on `https://` port 443 without credentials, `files_required` only on types that receive files), generated fields, `${VAR}` syntax, linked agents and outbound `source` keys that don't exist, and name clashes between files. It warns about deprecated settings, such as `bridge` on a Kafka, SQS, S3, Postgres, or email connector (the bridge belongs on the Connection). Environment names, Connections, Bridges, Variables, and phone-number availability are only checked when a deploy starts. See [Connectors in code](connectors.md#connectors-in-code).
+- App files in `apps/`: shape, build settings, sign-in fields, `${VAR}` placement, access-rule syntax and the names each rule may use, lookup names, a `package.json` and lockfile in each `apps/<key>/`, folders without a `.yaml`, and listed connectors that aren't `apps_only` or aren't deployed to the app's environments. Whether each rule can be enforced, environment names, Variables, permission groups, domains, and plan limits are checked when a deploy or `connic dev` upload starts. See [Apps](apps.md).
 - Test suites in `tests/` that don't match the suite schema or target an agent that doesn't exist, whether named by `agent:` or by the file name. The error names the file and suggests close agent names.
 
 Run this before every deploy. There is no `--json` flag — `lint` only takes `--verbose` / `-v`.
@@ -109,9 +110,10 @@ Behavior:
 - Without arguments, opens a menu with a reusable environment selected by default. Use Up/Down to move and Enter to select. A new reusable environment requires a name. The CLI saves the preferred named environment in `.connic`; when valid, it appears first and is selected by default on the next run. Quick tests preserve this preference.
 - Opens an isolated cloud development environment for the project.
 - For unattended runs, pass either `--quick` or an explicit name.
-- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, and `connectors/`. Agent code reloads on changes; connector declarations take effect on deployment. Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
+- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, `connectors/`, and `apps/*.yaml`. Agent code reloads on changes. Connectors and apps declared in code are applied to the dev environment like a deploy, when the session starts and on every upload that changes them; a change that fails rejects the upload with the reason. Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
 - Watches local files and syncs edits automatically.
-- The dev environment has its own variables, database, Retrieval data, and connectors, separated from standard environments. Unnamed environments are deleted on exit; named environments and their data persist so you can reattach later.
+- Builds each app in `apps/` locally by running its `build.command` in `apps/<key>/`, uploads the output, and prints `<key> → <url>`. It doesn't install dependencies: run the install in `apps/<key>/` first, with Node.js on `PATH`. Changed app sources or build settings trigger a rebuild; a failed build prints its output and keeps the last good build live. See [Apps](apps.md#connic-dev).
+- The dev environment has its own variables, database, Retrieval data, connectors, and apps, separated from standard environments. Unnamed environments are deleted on exit; named environments and their data persist so you can reattach later.
 - In an interactive terminal, `r` uploads immediately, `t` runs `tests/` against the active dev environment, and `q` stops with normal cleanup (`Ctrl+C` is the fallback).
 - Only one process can attach to a given named dev environment at a time. Use another name or an unnamed session for parallel work.
 
@@ -481,7 +483,7 @@ connic deploy --skip-tests                 # bypass the test gate (hotfix only)
 
 The interactive command lists environments by name. Use Up/Down to move and Enter to select an environment, then confirm before uploading. `--env` accepts a name or environment UUID. For unattended deployments, pass both `--env` and `--yes` (short form `-y`). There is no `--message` / `-m` flag.
 
-`connic deploy` runs lint first and uploads `connectors/` with the other project directories. The deployment then creates, updates, or retires the declared connectors when it is activated.
+`connic deploy` runs lint first and uploads `connectors/` and `apps/` (with the app sources) with the other project directories. The deployment builds the apps, then creates, updates, or retires the declared connectors and apps when it is activated.
 
 **`connic deploy` refuses to run on a project that has a connected Git repo.** Push to the configured branch or start a manual deployment from the Deployments page in that case. The CLI deploy is for projects without Git integration.
 

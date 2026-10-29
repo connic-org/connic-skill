@@ -63,6 +63,20 @@
       "prompt": "Write a connic custom tool that generates an invoice PDF in memory and returns it to the agent so the model can inspect it. Can I return the PDF together with a JSON status object?",
       "expected_output": "Imports `ToolFile` from `connic` and returns it with `mime_type=\"application/pdf\"`, a filename, and exactly one source (`data` bytes or `uri`). Explains that a single `ToolFile` or a top-level list/tuple mixing files with JSON or text is supported, while raw bytes are rejected because they lack a MIME type. Does not invent a decorator or file-result YAML field.",
       "files": []
+    },
+    {
+      "id": 9,
+      "name": "app-with-chat-connector",
+      "prompt": "Add a small React frontend to my connic project where signed-in employees can chat with my `support-assistant` agent. Our employees sign in with our company's OpenID Connect provider. Host it on connic.",
+      "expected_output": "Creates `apps/<key>.yaml` with `build.command` and `build.output` (static output such as a Vite `dist` folder), `auth.mode: oidc` with `issuer`, `client_id`, and `client_secret` as `${VAR}` references, and `connectors: [<key>]`. Creates `apps/<key>/` with `package.json` and notes that a lockfile is required. Declares `connectors/<key>.yaml` as a sync `webhook` (or `websocket`) connector with `apps_only: true` linked to `support-assistant`, and calls it from the browser at the same-origin path `/_connic/c/<key>`. Mentions registering the redirect URI shown as `sign_in.redirect_uri`, and that runs get `context[\"end_user\"]`. Does not put secrets in the file, use server rendering or API routes, call the connector's regular URL with its secret from the browser, or invent CLI commands such as `connic build`.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "app-access-rules-own-records",
+      "prompt": "My connic app is public. Visitors should see and edit only the `notes` documents they created themselves, and nobody may delete notes from the browser. Write the access rules.",
+      "expected_output": "Adds `access.database.notes` to `apps/<key>.yaml` with `read` and `update` rules that compare a stored owner field with `user.id` (for example `doc.owner_id == user.id`), an `insert` rule, and `set: {owner_id: user.id}` so connic writes the owner on insert and rejects updates to it. Omits `delete` because a missing operation is denied. Explains that on a public app `user.id` is a per-app ID derived from a visitor cookie (`signed_in` false, `email` null), so ownership ends when cookies are cleared, and that rules on `user.email` never match public visitors. Does not compare two `doc` fields or `doc` with `new`, use function calls, or use `doc._id`.",
+      "files": []
     }
   ]
 }

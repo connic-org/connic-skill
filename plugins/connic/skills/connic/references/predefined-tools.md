@@ -243,7 +243,7 @@ await db_list_collections()
 
 System fields on every document (read-only): `_id` (UUID), `_created_at`, `_updated_at`.
 
-Collection names are at most 50 characters, start with a lowercase letter, and contain only lowercase letters, digits, and underscores. `db_upsert` requires non-empty `filter` and `update` dicts and updates only the first match. On insert, it merges top-level equality fields from `filter`, then `update`, then `insert_only` (later values win). Operator, logical, and dotted filter fields are not copied into the inserted document. A `None` value in `update` removes the field on the update branch and is omitted from an inserted document.
+Collection names are at most 50 characters, start with a lowercase letter, and contain only lowercase letters, digits, and underscores. `db_upsert` requires non-empty `filter` and `update` dicts and updates only the first match. On insert, it merges top-level equality fields from `filter`, then `update`, then `insert_only` (later values win). Operator, logical, and dotted filter fields are not copied into the inserted document. A `None` value in `update` removes the field on the update branch and is omitted from an inserted document. `update` keys in `db_update` and `db_upsert` are top-level field names: keys that start with `$` or contain `.` are rejected, so change a nested value by writing its whole top-level field.
 
 ### Filter operators and shorthand
 

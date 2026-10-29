@@ -1,8 +1,8 @@
 ---
 name: connic
-description: Use when the user works in a connic project or asks about connic agents, connic voice, connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the bridge, REST API, or migrating an existing app, script, LangChain, or ADK project to connic. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic.co", `.connic`, `agents/*.yaml`, `connectors/*.yaml`, or `connic-composer-sdk`. Also trigger in a connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
+description: Use when the user works in a connic project or asks about connic agents, connic voice, connic MCP, `mcp.connic.co`, live project inspection or operations, `connic/*` or BYOK models, tools, connectors, Apps (frontend hosting on `connic.app`), composer SDK, the `connic` CLI, Project credit and billing, deployment, environments, observability, Retrieval, databases, judges, approvals, A/B tests, AI Governance, the bridge, REST API, or migrating an existing app, script, LangChain, or ADK project to connic. Trigger on "connic", "composer", "agent.yaml", "voice_config", "tools/", "middleware/", "connic dev", "connic deploy", "connic app", "connic.co", `connic.app`, `.connic`, `agents/*.yaml`, `connectors/*.yaml`, `apps/*.yaml`, or `connic-composer-sdk`. Also trigger in a connic project — identified by an `agents/` directory beside `tools/` and `middleware/` — even when the user only asks to add a tool or change an agent.
 metadata:
-  version: "1.2.20"
+  version: "1.2.21"
 ---
 
 # connic
@@ -33,6 +33,7 @@ The reference files in `references/` are organized by topic. **Load only the one
 | [predefined-tools.md](references/predefined-tools.md) | Built-in tools: `trigger_agent`, `retrieval_query`, `db_find`, `web_search`, etc. — including filter operators |
 | [guardrails-schemas-mcp.md](references/guardrails-schemas-mcp.md) | Input/output guardrails, JSON output schemas, agents consuming external MCP servers, API spec tools |
 | [connectors.md](references/connectors.md) | Built-in connectors (cron, email, kafka, mcp, postgres, s3, sqs, slack, stripe, telegram, Telnyx Messaging, Telnyx Voice, Twilio Messaging, Twilio Voice, webhook, websocket) — how they trigger or receive from agents, Connections, and connectors declared in `connectors/*.yaml` |
+| [apps.md](references/apps.md) | Apps: static frontends declared in `apps/*.yaml` and hosted on `connic.app`: builds, sign-in, `apps_only` connectors, `context["end_user"]`, access rules, the browser data endpoints, `connic dev` app builds, plan limits |
 | [cli-and-dev.md](references/cli-and-dev.md) | The `connic` CLI, `connic dev` hot-reload, `connic test` declarative test suites, `connic lint`, `connic migrate` |
 | [ab-testing.md](references/ab-testing.md) | A/B test variants, Confidence and Exploratory modes, traffic assignment, safety rules, results, and lifecycle |
 | [ai-governance.md](references/ai-governance.md) | AI systems, assessments, controls, Article 50 records, incidents, evidence snapshots, and governance API |
@@ -62,6 +63,7 @@ my-project/
 ├── schemas/                   # *.json — JSON Schema output validation
 ├── guardrails/                # *.py — custom guardrail validators
 ├── connectors/                # optional *.yaml connectors, applied by deploys
+├── apps/                      # optional <key>.yaml + <key>/ static frontends, built by deploys
 └── tests/                     # *.yaml suites, plus files/, builders/, mocks/ subdirs
 ```
 

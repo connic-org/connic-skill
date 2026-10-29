@@ -420,6 +420,7 @@ System fields populated by connic and available from `before`, tools, hooks, and
 - `timestamp` (ISO 8601)
 - `payload` (dict) — the **original connector payload** (webhook JSON body, GET query params, form fields, Kafka message, etc.). This is the raw input before connic shaped it into the LLM-facing `content`. Read it from anywhere — tools and `after` see the same `payload` middleware does.
 - `request` (dict, webhook runs only) — the HTTP request that started the run: `method`, `headers`, `query`, `received_at` (when connic received it, UTC ISO 8601), `body_base64`. Use it to verify signed requests; see [verifying the sender](connectors.md#webhook).
+- `app` and `end_user` (dict, runs started through an [app](apps.md#calling-agents-through-connectors) only): the app as `{"id", "key"}` and the visitor as `{"id", "email", "name", "groups", "signed_in"}`, set by connic from the forwarded request, never from the payload.
 - `token_usage` (dict, available in middleware `after`)
 - `duration_ms` (number, available in middleware `after`)
 
