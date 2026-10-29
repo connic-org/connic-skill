@@ -80,7 +80,7 @@ PR Testing is supported on GitHub and GitLab.
 - Reasoning traces (whenever the provider returns them; controlled by `reasoning_effort` on the agent).
 - Unhandled exceptions are captured automatically with their tracebacks.
 
-Open **Playground** from the project navigation to run an active agent. Text, tool, and sequential agents accept Text or JSON input, up to 10 file attachments with a combined size of 10 MiB, and scheduled runs. Voice agents start a live microphone session. Choose the base agent or a compatible deployed test variant; Playground uses the selected environment's tools and connections and shows output, traces, logs, and recent manual runs in place. Using it requires `agents.view`, `runs.view`, and `runs.trigger`; viewing its recent-run list also requires `stats.view`.
+Open **Playground** from the project navigation to run an active agent. Text, tool, and sequential agents accept Text or JSON input, up to 50 file attachments with a combined size of 32 MiB, and scheduled runs. Voice agents start a live microphone session. Choose the base agent or a compatible deployed test variant; Playground uses the selected environment's tools and connections and shows output, traces, logs, and recent manual runs in place. Using it requires `agents.view`, `runs.view`, and `runs.trigger`; viewing its recent-run list also requires `stats.view`.
 
 A run stopped by a safety review is marked `blocked`, does not continue processing, and shows instructions for contacting support in the run details.
 

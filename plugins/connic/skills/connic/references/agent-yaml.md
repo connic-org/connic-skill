@@ -81,6 +81,7 @@ session:                           # true = one shared session; false/null/omitt
   key: context.chat_id              # optional context.* or input.* path; omitted/null = shared
   ttl: 86400                        # inactivity seconds, min 60; omitted/null = no expiry
   history: true                     # retain conversation history across runs
+  files: true                       # false = files from earlier runs become short notes in the history
   browser: true                     # retain browser cookies and local storage across runs
 
 context_compression:                # LLM agents only; omitted = compression off
@@ -332,7 +333,7 @@ session:
   browser: true
 ```
 
-The optional `key` is a `context.*` or `input.*` dot path that can reach nested fields (`input.user.id`); each resolved value gets a separate session. `ttl` is an inactivity timeout in seconds, at least 60; omitted or `null` means no expiry. `browser: false` disables profile persistence while browser tools remain available with fresh state.
+The optional `key` is a `context.*` or `input.*` dot path that can reach nested fields (`input.user.id`); each resolved value gets a separate session. `ttl` is an inactivity timeout in seconds, at least 60; omitted or `null` means no expiry. `browser: false` disables profile persistence while browser tools remain available with fresh state. `files: false` keeps files from earlier runs out of the reused history, so the model does not receive them again with every new message; each one becomes a short note with its file type, and files sent in the current run still reach the model.
 
 Runs sharing a session are not serialized: if two overlap, the run that writes second fails. When runs for the same session can overlap, add `concurrency.key` on the same payload field (e.g. `concurrency.key: conversation_id` with `session.key: input.conversation_id`).
 

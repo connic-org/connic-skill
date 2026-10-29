@@ -329,3 +329,8 @@ Webhook runs carry the request in `context["request"]` with lowercase header nam
 ## Managing apps
 
 The dashboard's **Apps** page lists each environment's apps with their URL, sign-in, and last-7-day stats; **Details** has **Settings** (custom domain, sign-in), **Stats**, and **Access** (the deployed rules). Viewing needs `apps.view`; changing settings needs `apps.manage`. connic MCP has `list_apps`, `get_app`, `update_app`, and `get_app_stats` (see [platform-mcp.md](platform-mcp.md)). There is no public REST route for apps.
+
+Two per-app settings live only in **Details → Settings** and `update_app`, never in `apps/<key>.yaml`:
+
+- `default_url` (default `true`): an app with a custom domain answers on both its `connic.app` address and the domain. `false` redirects the `connic.app` address to the custom domain, keeping path and query. It needs an active custom domain, and removing the domain turns it back to `true`.
+- `powered_by` (default `true`): every HTML page the app serves ends with a small "Powered by connic" line in the page's own font and color. `false` turns it off for that app.
