@@ -102,7 +102,7 @@ Managed `connic/*` token costs use EUR; BYOK costs use the USD or EUR currency c
 
 ## Retrieval
 
-**Managed semantic retrieval** for each environment. Used via the predefined tools `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces` (see [predefined-tools.md](predefined-tools.md)).
+**Managed semantic retrieval** for each environment. Used via the predefined tools `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces` (see [predefined-tools.md](predefined-tools.md)). Apps search the namespaces listed under `access.retrieval` from the browser with `POST /_connic/retrieval/search` (see [apps.md](apps.md#access-rules)). Semantic search isn't available on the REST API or connic MCP.
 
 Dashboard view: **Project → Retrieval** (scoped to the active environment). Upload content, inspect and filter indexed entries, run semantic Search, delete entries, and monitor ingestion jobs. Content updates use another upload/store with the same namespace-local entry ID.
 

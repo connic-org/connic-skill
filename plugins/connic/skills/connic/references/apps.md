@@ -1,6 +1,6 @@
 # Apps
 
-Apps are static frontends declared in code. connic builds each one on every deploy, serves it on its own URL (`https://<key>-<8 hex characters>.connic.app`, plus an optional custom domain), signs visitors in, lets the browser call the app's connectors, and gives browser code read and write access to the environment's database, files, runs, sessions, and approvals under access rules declared next to it. Apps are available on pro and enterprise.
+Apps are static frontends declared in code. connic builds each one on every deploy, serves it on its own URL (`https://<key>-<8 hex characters>.connic.app`, plus an optional custom domain), signs visitors in, lets the browser call the app's connectors, and gives browser code read and write access to the environment's database, files, runs, sessions, and approvals, plus search in chosen Retrieval namespaces, under access rules declared next to it. Apps are available on pro and enterprise.
 
 Apps are unrelated to **OAuth apps**, which hold provider settings for per-user MCP sign-in (see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#per-user-sign-in-oauth-apps)).
 
@@ -55,6 +55,9 @@ access:                             # what the browser may read and change; the 
       read: "'support' in user.groups"
   runs:
     read: run.context.end_user.id == user.id
+  retrieval:                        # Retrieval namespaces the browser may search
+    help:
+      search: true
 environments:                       # omit to deploy to every environment
   Staging:
     auth:
@@ -109,7 +112,7 @@ Reserved paths on every app host:
 | `/_connic/me` | The visitor: `{user: {id, email, name, groups, signed_in}, app: {key, name}}` |
 | `/_connic/login?return=/path`, `/_connic/logout` | Start sign-in, sign out |
 | `/_connic/c/<connector key>` | The app's connectors |
-| `/_connic/db/...`, `/_connic/files/...`, `/_connic/runs...`, `/_connic/sessions/<id>`, `/_connic/approvals...` | [Data endpoints](#data-endpoints) |
+| `/_connic/db/...`, `/_connic/files/...`, `/_connic/retrieval/search`, `/_connic/runs...`, `/_connic/sessions/<id>`, `/_connic/approvals...` | [Data endpoints](#data-endpoints) |
 
 ## Calling agents through connectors
 
@@ -163,6 +166,7 @@ async def before(content, context):
 | `runs` | `read`, `cancel` | `run`: `id`, `agent`, `status`, `context`, `input`, `output`, `queued_at`, `ended_at`, `duration_ms` |
 | `sessions` | `read`, `delete` | `session`: `id`, `agent`, `state`, `created_at`, `updated_at` |
 | `approvals` | `read`, `decide` | `approval`: `id`, `agent`, `tool`, `params`, `status`, `context` (its run's), `created_at` |
+| `retrieval.<namespace>` | `search` | none: the rule decides for the whole namespace |
 
 Every rule may use `user` (`id`, `email`, `name`, `groups`, `claims`, `signed_in`) and the lookup names. Database `insert` and `update` and files `write` and `update` may also use `new`: on insert each document the browser sends, on update only the fields in `update`, on upload `{path, size, mime_type, metadata}`, on file update the file after the change. `set` values may use `user` and lookups only. `user.groups` holds the OIDC groups claim or the connic permission group names; `user.claims` holds the OIDC ID token claims (`{}` otherwise).
 
@@ -177,6 +181,7 @@ How rules apply:
 - **Size.** A rule's database or files filter must stay within depth 10, 100 branches per `and`/`or`, 256 terms, and 1,000 values per `in`. The deploy rejects rules that exceed it; if values known only per request (such as a long `user.groups`) push a filter over, the request fails with 500 and a message naming the limit.
 - Files: folder keys are normalized without slashes (`reports/` is `reports`). A rule covers its folder and everything below; the most specific folder wins. Moving a file also needs the target folder's `write` rule. Uploads never overwrite: a taken path gets a numbered name, and the completed file's `_path` is the real one.
 - File listing is one level deep and shows only subfolders that hold files the visitor can read under their own folder's rule. A folder without a rule of its own, such as the root, can be listed when a rule folder below it is readable; it returns those subfolders with `files: []`. With no readable rule folder at or below it, listing returns 403.
+- Retrieval: a `search` rule covers its namespace and every namespace below it, since a search returns passages from all of them, and the visitor can read the content and metadata of every entry there. A listed namespace can't sit inside another listed one (`help` and `help.internal` fail the deploy); keep content for different audiences in separate namespaces such as `public.help` and `internal.help`. Entries without a namespace can't be searched from an app. Retrieval search stays off the REST API and connic MCP, so apps and agents (`retrieval_query`) are the only ways to search outside the dashboard.
 
 **Lookups** resolve once per request, only when a rule uses them: the oldest document in `collection` matching `where` (which may use `doc` and `user` only), as its fields plus `id`, `created_at`, `updated_at`, or `null` when nothing matches. Every comparison with a null lookup is unknown, so it denies even under `not`. Names must be identifiers other than `user`, `doc`, `new`, `file`, `run`, `session`, `approval`, `true`, `false`, `null`.
 
@@ -195,6 +200,7 @@ How rules apply:
 | `private attribute '_id' isn't allowed` | Use `doc.id`, `doc.created_at`, `doc.updated_at`. |
 | `can't compare two fields of doc` | Compare a record field with a value, `user`, or a lookup. |
 | `can't compare fields of doc with new` | Check `new` and `doc` in separate comparisons. |
+| `access.retrieval.help.internal: help already covers it; declare only one of them` | Move the content into a namespace outside `help`, or drop one of the two. |
 | `compare doc fields with a value, e.g. doc.done == true` | No bare record fields. |
 | `doc.id can only be compared with ==, !=, in and not in` | No ordering on ids or `status`. |
 | `file has no field x; use path, folder, ...` / `compare file.metadata fields, e.g. file.metadata.owner` | Custom file fields live under `file.metadata.<key>`. |
@@ -219,6 +225,7 @@ Browser code calls these paths on its own host. A request with another `Origin` 
 | `POST /_connic/files/upload` | `{path, size, mime_type?, metadata?}` | 201 `{upload_id, path, size, part_bytes, part_count, upload_url, token, expires_at}` |
 | `POST /_connic/files/update` | `{path, new_path?, metadata?}` (metadata merges; `null` removes a key) | the file |
 | `POST /_connic/files/delete` | `{path}` | `{deleted}` |
+| `POST /_connic/retrieval/search` | `{namespace, query (max 1,000 characters), limit? (default 5, max 20), min_score? (0 to 1, default 0.3)}` | `{results: [{entry_id, namespace, content, score, metadata}]}`, best match first |
 | `GET /_connic/runs` | `?agent&status&limit&cursor` | `{runs, next_cursor}` |
 | `GET /_connic/runs/stats` | `?agent&days` (1 to 90, default 7) | `{days, total, statuses, average_duration_ms, daily: [{day, runs}]}` |
 | `GET /_connic/runs/<id>` | | run |
@@ -230,7 +237,7 @@ Browser code calls these paths on its own host. A request with another `Origin` 
 
 - A run is `{id, agent, status, input, output, error, context, queued_at, started_at, ended_at, duration_ms}`, with `input` and `output` as raw strings. An approval is `{id, run_id, agent, tool, params, message, response_label, status, created_at, resolved_at, reason}`; `decide` needs `response` when `response_label` is set.
 - Filters use the [`db_find` operators](predefined-tools.md#filter-operators-and-shorthand). Collection system fields are `_id`, `_created_at`, `_updated_at`; file filters use `_path`, `_folder`, `_name`, `_size`, `_mime_type`, `_created_at`, `_updated_at`, and metadata keys at the top level.
-- Errors are `{"error": "..."}`: 400 `<field>: <message>` (unknown body keys are rejected too), 401 `Sign-in required`, 403 `Access denied`, 404 for records the rules exclude, 429 `Too many requests. Try again in a minute.` Each visitor gets 300 reads and 60 writes per minute, each app 6,000 and 1,200; public visitors are counted by IP.
+- Errors are `{"error": "..."}`: 400 `<field>: <message>` (unknown body keys are rejected too), 401 `Sign-in required`, 403 `Access denied`, 404 for records the rules exclude, 429 `Too many requests. Try again in a minute.` Each visitor gets 300 reads, 60 writes, and 30 Retrieval searches per minute, each app 6,000, 1,200, and 600; public visitors are counted by IP. Debounce search-as-you-type.
 
 ```js
 async function connic(path, body) {
