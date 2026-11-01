@@ -62,6 +62,10 @@ connic skips `_`-prefixed **files** and **functions** during tool discovery. So 
 
 Parameters without type hints are still exposed but default to `{"type": "string"}` in the LLM-facing schema, which gives the model the wrong guidance for numeric or boolean values. Type-hint every parameter. Missing docstrings show up as `"No description provided."` to the LLM — write docstrings.
 
+## Upload size and file types
+
+A deploy or `connic dev` upload can be up to 50 MB, counted unpacked. Outside `tests/files/` and `apps/`, files must be text with one of these extensions: `.py`, `.yaml`, `.txt`, `.json`, `.csv`, `.md`, `.toml`, `.jsonl`. `tests/files/` accepts any file type, binary included. Binary files a tool needs at runtime, such as images or PDFs, belong in [Files](predefined-tools.md#files) (`file_read`, `web_browser_upload(path=...)`), not base64 in the code.
+
 ## Cascading `_defaults.yaml`
 
 At any directory under `agents/`, drop a `_defaults.yaml` to share configuration with every agent at that level and deeper. connic combines `_defaults.yaml` files shallowest-first; the agent's own YAML wins last.

@@ -28,7 +28,7 @@ max_concurrent_runs: 20            # default 1; minimum 1
 reasoning_effort: medium           # auto is the default; supported overrides are model-specific
 reasoning_budget: 4096             # optional; only for models that accept a raw token budget
 
-tools:                              # max 100 combined with generated approval.inputs tools; MCP server tools and discoverable_tools don't count
+tools:                              # max 200 combined with generated approval.inputs tools; MCP server tools and discoverable_tools don't count
   - billing.lookup_invoice          # tools/billing.py::lookup_invoice
   - math.calculator.*               # all public funcs in tools/math/calculator.py
   - search.web_*                    # prefix wildcard (fnmatch)
@@ -291,6 +291,8 @@ A tool cannot appear in both the unconditional list and a conditional entry — 
 
 Every exact tool reference must resolve. A wildcard without a dot matches predefined tool names, so `db_*` expands to every predefined database tool. Every wildcard must match at least one eligible tool; a zero-match wildcard fails deployment rather than silently producing an empty set.
 
+An agent can expose at most 200 tools. Each function a `tools` entry resolves to counts once: `billing.*` counts every sync or async function defined in `tools/billing.py` whose name does not start with `_`, but not functions imported into that file, and a predefined or `api:` wildcard counts every tool it matches (`web_browser_*` is 15). Generated `approval.inputs` tools count, and so do `search_tools` and `use_tool` once any tool is discoverable. `discoverable_tools`, MCP server tools, and agent-tool outbound connectors don't count. `connic lint` reports an agent over the limit, and `connic test`, `connic dev`, and deploys reject it. For larger sets, move rarely used tools to `discoverable_tools`.
+
 Use `discoverable_tools` for tools the agent should find by natural-language search instead of loading upfront. It accepts the same exact references, wildcards, and conditions as `tools`. When any local or MCP tools are discoverable, connic provides `search_tools` and `use_tool` automatically; do not list them yourself. A function cannot appear in both `tools` and `discoverable_tools`, and exposed function names must be unique across both lists. `search_tools` matches the words of the query against tool names and descriptions, so descriptions must use the language the agent works in. Finding a tool costs an extra model step before the `use_tool` call; keep frequently used tools in `tools` and reserve discovery for large, rarely used sets.
 
 ### Full predefined-tool list
@@ -376,7 +378,7 @@ concurrency:
   on_conflict: queue      # queue = wait; drop = discard the new run; coalesce = at most one waiting run, newest event wins
 ```
 
-`concurrency.key` is a dot-path into the **raw trigger payload**; unlike `session.key`, it does not use an `input.` prefix. If the path does not exist, per-key enforcement is skipped for that run. `max_concurrent_runs` is a hard cap on total parallelism; `concurrency.key` adds per-key serialization on top, and runs waiting for their key don't take a slot. Concurrency rules are supported on LLM and tool agents, not sequential agents.
+`concurrency.key` is a dot-path into the **raw trigger payload**; unlike `session.key`, it does not use an `input.` prefix. If the path does not exist, per-key enforcement is skipped for that run. `max_concurrent_runs` is a hard cap on total parallelism: further runs wait in arrival order with no length cap or wait timeout, are not dropped, and their wait does not count against `timeout`. `concurrency.key` adds per-key serialization on top, and runs waiting for their key don't take a slot. Concurrency rules are supported on LLM and tool agents, not sequential agents.
 
 Use `coalesce` when every event means "re-check the current state" (status updates, webhook bursts): events that arrive during a run collapse into one follow-up run with the latest payload, and replaced runs end as cancelled with `superseded_by` in their context. Prefer it over a dedup step in middleware. Waiting runs are persisted and survive deploys; a run paused for approval keeps its key and resumes before waiting runs; `queue` starts waiting runs in arrival order with no length cap or wait timeout.
 
@@ -405,7 +407,7 @@ approval:
 
 The run pauses at the gated tool call until a reviewer approves or rejects in **Dashboard → Approvals**. Approval conditions use `param.*` (the tool's arguments) and `context.*`; `input.*` is **not** valid here (unlike tool conditions in `tools:`). If a condition cannot be evaluated because a parameter or context value is missing, connic fails safe and requires approval.
 
-`approval.inputs` is available only on LLM agents. Each entry creates a tool that pauses for required human text and returns that text to the agent; no Python function or top-level `tools` entry is needed. Input-tool names must be unique ASCII identifiers of at most 64 characters, cannot be `search_tools` or `use_tool`, and cannot collide with `tools`, `discoverable_tools`, or `approval.tools`. Generated input tools count toward the 100-tool limit. `params` names must be unique ASCII identifiers, cannot be Python keywords or `context`, and use `str`, `int`, `float`, or `bool`; every declared parameter is required. `sensitive: true` masks the field and protects the response in storage and logs while still returning it to the model.
+`approval.inputs` is available only on LLM agents. Each entry creates a tool that pauses for required human text and returns that text to the agent; no Python function or top-level `tools` entry is needed. Input-tool names must be unique ASCII identifiers of at most 64 characters, cannot be `search_tools` or `use_tool`, and cannot collide with `tools`, `discoverable_tools`, or `approval.tools`. Generated input tools count toward the 200-tool limit. `params` names must be unique ASCII identifiers, cannot be Python keywords or `context`, and use `str`, `int`, `float`, or `bool`; every declared parameter is required. `sensitive: true` masks the field and protects the response in storage and logs while still returning it to the model.
 
 ## Cascading defaults with `_defaults.yaml`
 

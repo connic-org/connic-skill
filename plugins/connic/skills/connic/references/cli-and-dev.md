@@ -75,6 +75,7 @@ Catches:
 - Missing required agent fields (`version`, `name`, `description`, plus `model` and `system_prompt` for LLM agents).
 - Tool references that don't resolve (`tools: [billing.missing_function]`).
 - Duplicate agent names across files.
+- Agent limits: more than 200 tools (see [tool limit](agent-yaml.md#tools-list--patterns)), more than 50 MCP servers, retry options above their maximums, `concurrency` on a sequential agent, and more than 100 or invalid `database.collections` or `retrieval.namespaces` entries. The plan limit on `max_concurrent_runs` is checked when a deploy, `connic test`, or `connic dev` upload starts.
 - Schema files referenced by `output_schema:` that don't exist or aren't valid JSON.
 - Middleware/hooks modules that cannot be parsed or discovered, and guardrails that fail to import.
 - Connector files in `connectors/`: shape, types and modes, `config` values (five-field cron or macro, `rate_limit.key` with `per_key`, numeric Telegram IDs, outbound webhook URL without a bridge on `https://` port 443 without credentials, `files_required` only on types that receive files), generated fields, `${VAR}` syntax, linked agents and outbound `source` keys that don't exist, and name clashes between files. It warns about deprecated settings, such as `bridge` on a Kafka, SQS, S3, Postgres, or email connector (the bridge belongs on the Connection). Environment names, Connections, Bridges, Variables, and phone-number availability are only checked when a deploy starts. See [Connectors in code](connectors.md#connectors-in-code).

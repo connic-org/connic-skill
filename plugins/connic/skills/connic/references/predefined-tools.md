@@ -37,7 +37,7 @@ Pass a dict or list for structured JSON. Strings can contain plain text or encod
 
 When `wait_for_response=False`, it returns immediately with just `run_id` (no `status` or `response`).
 
-`timeout_seconds` has no upper limit of its own, but the calling run's `timeout` still applies. When the wait ends, the child run keeps running under its own timeout and the result has `status: "timeout"`.
+`timeout_seconds` has no upper limit of its own, but the calling run's `timeout` still applies. When the wait ends, the child run keeps running under its own timeout and the result has `status: "timeout"`. The wait includes any time the child spends queued behind its agent's `max_concurrent_runs`.
 
 Tests can assert on agents invoked through `trigger_agent` or `trigger_agent_at` with `expected_child_agents` in `tests/*.yaml`. See [cli-and-dev.md](cli-and-dev.md#asserting-on-triggered-agents).
 
@@ -244,6 +244,8 @@ await db_list_collections()
 System fields on every document (read-only): `_id` (UUID), `_created_at`, `_updated_at`.
 
 Collection names are at most 50 characters, start with a lowercase letter, and contain only lowercase letters, digits, and underscores. `db_upsert` requires non-empty `filter` and `update` dicts and updates only the first match. On insert, it merges top-level equality fields from `filter`, then `update`, then `insert_only` (later values win). Operator, logical, and dotted filter fields are not copied into the inserted document. A `None` value in `update` removes the field on the update branch and is omitted from an inserted document. `update` keys in `db_update` and `db_upsert` are top-level field names: keys that start with `$` or contain `.` are rejected, so change a nested value by writing its whole top-level field.
+
+Upserts on the same collection run one at a time, so concurrent runs that upsert the same `filter` never create two documents, and `operation` tells each call whether it inserted. Use `db_upsert` with a natural key for deduplication; `db_insert` has no uniqueness check. On failure, database tools return an `error` key with an empty result instead of raising, so Python code must check `error` before using the result. `db_find`, `db_count`, and `db_list_collections` retry timeouts and temporary storage errors twice; writes are not retried.
 
 ### Filter operators and shorthand
 
