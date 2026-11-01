@@ -73,9 +73,12 @@ mcp_servers:                        # max 50 servers per agent
     condition: context.user_id != null  # optional; connect only when true (conditional-tool grammar)
     optional: false                 # true = run continues without this server if connecting fails
     oauth:                          # optional per-user sign-in; no Authorization header allowed with it
-      app: docs                     # OAuth app name in the environment (Settings → OAuth Apps)
+      app: docs                     # OAuth app name in the environment (Settings → OAuth & Passkeys)
       user: context.user_id         # context.* path holding the end user's ID
       connect_tool: false           # true = connect_<server> tool returns a sign-in link when not connected
+
+browser:
+  passkeys: [insurer]               # max 10 passkey names from Settings → OAuth & Passkeys; deploy fails if one is missing
 
 session:                           # true = one shared session; false/null/omitted = off
   key: context.chat_id              # optional context.* or input.* path; omitted/null = shared

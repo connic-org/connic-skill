@@ -64,6 +64,9 @@ environments:                       # omit to deploy to every environment
       mode: connic
       groups: [Admin]
   Production: {}
+dev:                                # connic dev environments the list doesn't name
+  auth:
+    mode: connic
 ```
 
 | Field | Rules |
@@ -79,6 +82,7 @@ environments:                       # omit to deploy to every environment
 | `content_security_policy` | One line, up to 4,000 characters; replaces the default policy. |
 | `lookups`, `access` | See [Access rules](#access-rules). |
 | `environments` | Environment names, matched exactly; a name that doesn't exist fails the deploy. An override replaces the whole top-level value of `name`, `auth`, `connectors`, `domain`, `content_security_policy`, `lookups`, or `access`; `null` removes a top-level `domain`, `content_security_policy`, `lookups`, or `access`. `build` is the same everywhere. |
+| `dev` | Same fields as an override, for every `connic dev` environment that `environments` doesn't name (quick tests included). With `environments`, those get the app only when `dev` is set; `dev: {}` keeps the top of the file. Dev environments have their own Variables (quick tests start without any), so put Variable-based sign-in overrides and `domain: null` here. |
 
 `${VAR}` works only in `domain` and in `auth.issuer`, `auth.client_id`, and `auth.client_secret`, resolved at deploy from the target environment's Variables; `client_secret` must be a variable.
 
@@ -279,6 +283,7 @@ const stored = await (await fetch(`${upload.upload_url}/complete?token=${token}`
 ## `connic dev`
 
 - `connic dev` uploads `apps/*.yaml` and `connectors/*.yaml` with the other project files (not the app sources) and applies them to the session's test environment like a deploy: routes, sign-in, access rules, and connectors. Rule and connector errors show as `Upload failed: ...`.
+- The session's environment gets an app whose file has no `environments`, names it in `environments`, or sets `dev`. For any other app, it prints the reason instead of building it. The app's connectors must reach the dev environment the same way, so a connector file with `environments` needs `dev` too.
 - It builds each app locally by running `build.command` in `apps/<key>/` and uploads the output folder, then prints `<key> → <url>`. It doesn't run the install command: install dependencies in `apps/<key>/` first. Node.js must be on `PATH`.
 - It watches `apps/<key>/` (ignoring `node_modules`, hidden files, the output folder, and the top-level build folders) and rebuilds when contents change, or when the app's `build` settings change. A failed build prints its output and keeps the last good build live.
 - `/_connic/` paths only exist on the app's host, so test sign-in, connectors, and data against the printed URL rather than the framework's own dev server. Test environments serve apps uncached.
@@ -291,7 +296,7 @@ const stored = await (await fetch(`${upload.upload_url}/complete?token=${token}`
 | Build output per app | 25 MB | 25 MB |
 | App build time per deploy | 10 minutes | 10 minutes |
 
-Free and developer plans have no apps; a deploy that declares one fails. Build output is also limited to 20,000 files per deploy. App sources count toward the 25 MB deploy upload, with a 20 MB budget of their own. Custom domains need pro or enterprise. `connic dev` uploads have the same output limit.
+Free and developer plans have no apps; a deploy that declares one fails. Build output is also limited to 20,000 files per deploy. App sources count toward the 50 MB deploy upload, with a 20 MB budget of their own. Custom domains need pro or enterprise. `connic dev` uploads have the same output limit.
 
 ## Bot protection on public apps
 

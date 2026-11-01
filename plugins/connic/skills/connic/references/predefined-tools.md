@@ -414,6 +414,8 @@ await web_browser_network("stop")
 
 The browser closes when its run ends. With sessions enabled, `session.browser` defaults to `true`: runs in the same connic session reuse saved cookies and local storage. `session: true` shares one session across the agent’s runs. Set `session.history: false` to retain the browser profile without conversation history. Runs without a session or with `session.browser: false` use a fresh profile. See [pricing](https://connic.co/pricing) for browser usage rates and environment limits.
 
+For sites that accept passkeys, add a passkey per environment in **Settings → OAuth & Passkeys** and list its name in the agent's `browser.passkeys`. Every page, tab, and popup then answers that domain's passkey prompts, so the agent signs in by clicking the site's passkey button, and sites with passkey autofill sign in when the page loads. `web_browser_open` returns `passkeys` with each name, domain, and `status`. A `pending` passkey stores the first passkey that the browser registers on its domain (the action's result lists it in `passkeys_saved`); existing passkeys are imported in the dashboard with credential ID, private key, and optional user handle. Private keys never appear in tool results, traces, or logs. The REST API and MCP list, create pending, reset, and delete passkeys but cannot import keys.
+
 Errors are returned in `error`. If an action returns `outcome_unknown`, observe the browser before deciding whether to act again.
 
 ## When to use predefined tools vs custom wrappers

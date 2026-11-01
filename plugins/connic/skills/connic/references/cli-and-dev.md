@@ -59,7 +59,7 @@ connic login                                          # approve in the browser
 connic login --token <project_id>:<api_key>           # CI-friendly, no browser
 ```
 
-Without flags, the command prints an approval link and a confirmation code, opens the link, and polls for up to 10 minutes. The user approves in the dashboard and picks the project; the dashboard then creates the API key. It reads no input, so an agent can run it: show the user the link and the code, and wait for the command to finish. Never ask the user to paste an API key into the chat.
+Without flags, the command prints an approval link and a confirmation code, opens the link, and polls for up to 10 minutes. The user approves in the dashboard and picks the project. It reads no input, so an agent can run it: show the user the link and the code, and wait for the command to finish. Never ask the user to paste an API key into the chat.
 
 Either form writes `.connic` to the current directory with the project id and API key. Add `.connic` to `.gitignore`.
 
@@ -110,7 +110,7 @@ Behavior:
 - Without arguments, opens a menu with a reusable environment selected by default. Use Up/Down to move and Enter to select. A new reusable environment requires a name. The CLI saves the preferred named environment in `.connic`; when valid, it appears first and is selected by default on the next run. Quick tests preserve this preference.
 - Opens an isolated cloud development environment for the project.
 - For unattended runs, pass either `--quick` or an explicit name.
-- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, `connectors/`, and `apps/*.yaml`. Agent code reloads on changes. Connectors and apps declared in code are applied to the dev environment like a deploy, when the session starts and on every upload that changes them; a change that fails rejects the upload with the reason. Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
+- Syncs `agents/`, `tools/`, `middleware/`, `hooks/`, `schemas/`, `guardrails/`, `tests/`, `connectors/`, and `apps/*.yaml`. Agent code reloads on changes. Connectors and apps declared in code are applied to the dev environment like a deploy, when the session starts and on every upload that changes them; a change that fails rejects the upload with the reason. A file with `environments` reaches the dev environment only when it names it or sets `dev` (overrides for every dev environment it doesn't name). Dependencies from `requirements.txt` are installed when the session starts; stop and recreate the session after changing them. `tests/` is synced too, so you can press `t` in the dev session to run the suites against the active environment.
 - Watches local files and syncs edits automatically.
 - Builds each app in `apps/` locally by running its `build.command` in `apps/<key>/`, uploads the output, and prints `<key> → <url>`. It doesn't install dependencies: run the install in `apps/<key>/` first, with Node.js on `PATH`. Changed app sources or build settings trigger a rebuild; a failed build prints its output and keeps the last good build live. See [Apps](apps.md#connic-dev).
 - The dev environment has its own variables, database, Retrieval data, connectors, and apps, separated from standard environments. Unnamed environments are deleted on exit; named environments and their data persist so you can reattach later.
@@ -177,7 +177,7 @@ Available assertion fields (these are the only ones):
 
 There are no `expected_output_contains` / `expected_output_matches` fields. Don't invent them.
 
-Fixtures live in `tests/files/`. Reference them with `files: [<bare-filename>, ...]` (plural — never `file:`). Only bare filenames are accepted: path separators and `..` are rejected. The total upload budget is 25 MB, of which code/config outside `tests/files/` remains capped at 5 MB. MIME type is inferred from the extension and falls back to `application/octet-stream`; a missing fixture fails before the agent runs.
+Fixtures live in `tests/files/`. Reference them with `files: [<bare-filename>, ...]` (plural — never `file:`). Only bare filenames are accepted: path separators and `..` are rejected. The total upload limit is 50 MB, shared by code, config and fixtures. MIME type is inferred from the extension and falls back to `application/octet-stream`; a missing fixture fails before the agent runs.
 
 If `payload` is a JSON object (or comes from a `builder` that returns a dict), its keys sit at the top level of `context["payload"]`. Otherwise the string is delivered as `{message: <payload>}`. Attached `files` are added alongside, under a `files` list.
 

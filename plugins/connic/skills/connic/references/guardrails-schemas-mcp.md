@@ -287,7 +287,7 @@ A discovery failure on a server without `optional: true` fails the run, so `afte
 
 ### Per-user sign-in (OAuth apps)
 
-Use this when the server acts for one person and accepts only that person's OAuth token, with no shared API key. An OAuth app holds the provider settings per environment in **Settings → OAuth Apps**: authorization URL, token URL, client ID and secret, client authentication (request body or basic header), scopes, optional `resource`, return URLs, and an optional bridge for token URLs inside a private network. Register the client with the provider first, using the redirect URL shown on that page; connic does not discover authorization servers or register clients automatically.
+Use this when the server acts for one person and accepts only that person's OAuth token, with no shared API key. An OAuth app holds the provider settings per environment in **Settings → OAuth & Passkeys**: authorization URL, token URL, client ID and secret, client authentication (request body or basic header), scopes, optional `resource`, return URLs, and an optional bridge for token URLs inside a private network. Register the client with the provider first, using the redirect URL shown on that page; connic does not discover authorization servers or register clients automatically.
 
 ```yaml
 mcp_servers:
