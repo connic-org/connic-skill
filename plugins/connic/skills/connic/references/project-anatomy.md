@@ -30,6 +30,8 @@ my-project/
 │   └── domain_check.py
 ├── connectors/                # *.yaml connectors, applied by deploys (flat, no nesting)
 │   └── order-events.yaml
+├── assets/                    # optional MP3 and WAV audio, such as hold audio
+│   └── hold.mp3
 ├── apps/                      # static frontends, built and served by deploys
 │   ├── portal.yaml            # declares the app; the file name is its key
 │   └── portal/                # its sources: package.json, lockfile, src/
@@ -40,7 +42,7 @@ my-project/
     └── mocks/                  # *.py — custom-code replacements referenced by mocks:
 ```
 
-`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/`, `connectors/`, `apps/` as you need them.
+`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/`, `connectors/`, `assets/`, `apps/` as you need them.
 
 ## Auto-discovery rules
 
@@ -64,7 +66,7 @@ Parameters without type hints are still exposed but default to `{"type": "string
 
 ## Upload size and file types
 
-A deploy or `connic dev` upload can be up to 50 MB, counted unpacked. Outside `tests/files/` and `apps/`, files must be text with one of these extensions: `.py`, `.yaml`, `.txt`, `.json`, `.csv`, `.md`, `.toml`, `.jsonl`. `tests/files/` accepts any file type, binary included. Binary files a tool needs at runtime, such as images or PDFs, belong in [Files](predefined-tools.md#files) (`file_read`, `web_browser_upload(path=...)`), not base64 in the code.
+A deploy or `connic dev` upload can be up to 50 MB, counted unpacked. Outside `tests/files/` and `apps/`, files must be text with one of these extensions: `.py`, `.yaml`, `.txt`, `.json`, `.csv`, `.md`, `.toml`, `.jsonl`. MP3 and WAV audio (`.mp3`, `.wav`) is allowed there too, such as a voice connector's hold audio. `tests/files/` accepts any file type, binary included. Other binary files a tool needs at runtime, such as images or PDFs, belong in [Files](predefined-tools.md#files) (`file_read`, `web_browser_upload(path=...)`), not base64 in the code.
 
 ## Cascading `_defaults.yaml`
 

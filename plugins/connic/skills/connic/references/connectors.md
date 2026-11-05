@@ -1,6 +1,6 @@
 # Connectors
 
-Connectors define how agents are triggered, what input they receive, and where results go. Most connectors can link to one or more agents; one trigger dispatches its input to every linked agent. Twilio Voice and Telnyx Voice each link to exactly one voice agent. Slack is native. Discord, GitHub, and Notion are not connector types — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
+Connectors define how agents are triggered, what input they receive, and where results go. Most connectors can link to one or more agents; one trigger dispatches its input to every linked agent. Twilio Voice, Telnyx Voice, and SIP Voice each link to exactly one voice agent. Slack is native. Discord, GitHub, and Notion are not connector types — use a `webhook` connector with your own forwarder, an MCP server, or a custom tool.
 
 Use connectors to run agents from HTTP requests, queue messages, email, schedules, and calls from a backend. They provide provisioned endpoints, transport-specific authentication, sync/async modes, delivery rules, and fan-out. There is no generic inbound deduplication or replay guarantee; design idempotent consumers for transports that can redeliver. The REST API is for project management, not starting event-driven runs.
 
@@ -16,18 +16,19 @@ The full list and the modes each one supports:
 | `mcp` | Inbound (Sync / Inbound) | Expose connic agents as MCP tools to external MCP clients. |
 | `postgres` | Inbound | LISTEN/NOTIFY-driven trigger. |
 | `s3` | Inbound | React to S3 object events (via SNS/EventBridge). |
+| `sip` | Sync / Outbound (voice) | Answer and place calls through a SIP phone system or provider. |
 | `sqs` | Inbound (Consumer) / Outbound (Producer) | Consume from / produce to an SQS queue. |
 | `slack` | Inbound (Mentions) / Outbound | Trigger from bot mentions; reply to a thread or post to a channel. |
 | `stripe` | Inbound | React to Stripe webhook events. |
 | `telnyx_messaging` | Inbound / Outbound | Receive and send SMS/MMS, WhatsApp, and RCS messages. |
-| `telnyx` | Sync (incoming voice) | Connect an existing Telnyx phone number to one deployed voice agent. |
+| `telnyx` | Sync / Outbound (voice) | Answer and place calls from an existing Telnyx phone number. |
 | `telegram` | Inbound / Outbound | Telegram bot — receive messages, send replies. |
 | `twilio_messaging` | Inbound / Outbound | Receive and send SMS/MMS, WhatsApp, and RCS messages. |
-| `twilio` | Sync (incoming voice) | Connect an existing Twilio phone number to one deployed voice agent. |
+| `twilio` | Sync / Outbound (voice) | Answer and place calls from an existing Twilio phone number. |
 | `webhook` | Inbound / Outbound / Sync | Generic HTTP. Sync = HTTP request/response; Inbound = fire-and-forget; Outbound = call out to your URL. |
 | `websocket` | Sync (real-time chat) | Persistent bidirectional connection; each message is its own run. |
 
-Common dashboard flow: open the agent's detail page → Connector Flow → **Add inbound connector** (inbound and sync types, including voice and WebSocket) or **Add outbound connector** → **Create New Connector** → pick a type → configure → save. Connector names have 1 to 200 characters. A connector's mode can't change while agents are linked ("Unlink the agents before changing the mode."). Kafka, SQS, S3, Postgres, and email connectors reach private endpoints through the **connic bridge** of their Connection: set it on the Connection (dashboard Connection drawer, or the Connection's top-level `bridge` in REST/MCP), never on the connector. An outbound webhook sets `bridge` on the connector. Private MCP servers that an agent consumes use `mcp_servers[].bridge` in agent YAML instead.
+Common dashboard flow: open the agent's detail page → Connector Flow → **Add inbound connector** (inbound and sync types, including voice and WebSocket) or **Add outbound connector** → **Create New Connector** → pick a type → configure → save. Connector names have 1 to 200 characters. A connector's mode can't change while agents are linked ("Unlink the agents before changing the mode."). A voice connector's mode can't change after creation, even without linked agents. Kafka, SQS, S3, Postgres, and email connectors reach private endpoints through the **connic bridge** of their Connection: set it on the Connection (dashboard Connection drawer, or the Connection's top-level `bridge` in REST/MCP), never on the connector. An outbound webhook sets `bridge` on the connector. Private MCP servers that an agent consumes use `mcp_servers[].bridge` in agent YAML instead.
 
 At the plan's active connector limit, a new connector is created paused and resuming one returns 403. Telegram, Twilio (voice or messaging), and Telnyx (voice or messaging) connectors change provider settings on create, so at the limit creating one returns 403 instead, and a code deploy that would create or bring back one fails.
 
@@ -35,7 +36,7 @@ File inputs accept up to 50 complete files, with at most 32 MiB combined. Invali
 
 ## Outbound connector modes
 
-An outbound connector has one mode:
+Twilio Voice, Telnyx Voice, and SIP Voice place calls when runs start; they have no outbound link settings. The delivery modes below apply to other outbound connectors:
 
 - **Automatic outbound connector** — sends once after a completed run. Choose **All runs**, or choose **Only selected inputs** to send only when `run.connector_id` matches one of the selected inbound or sync connector IDs. All runs also includes manual, cron, and `trigger_agent` runs with no inbound source. Existing links without outbound connector settings remain **Automatic / All runs**.
 - **Agent-tool outbound connector** — injects an editable connector tool into an LLM agent (other agent types are rejected). Its default `action_name` is `send_to_<normalized connector name>`. Keep it unique across that agent's custom, predefined, connector, and MCP tools. The model decides whether and when to call it and may call several agent-tool outbound connectors in one run.
@@ -45,7 +46,7 @@ Source filters and `StopProcessing(..., publish_outbound=False)` apply only to a
 
 Deployment tests do not deliver outbound messages. Automatic outbound connectors are suppressed, while calls to agent-tool and middleware outbound connectors are recorded as mocked tool calls for assertions.
 
-Each outbound connector owns its payload schema, credentials, destination resolution, wire formatting, retries, and bridge routing. The model and middleware receive no stored secrets or destination values. Agent-tool and middleware outbound connector payloads are:
+For these delivery modes, each connector owns its payload schema, credentials, destination resolution, wire formatting, retries, and bridge routing. The model and middleware receive no stored secrets or destination values. Agent-tool and middleware outbound connector payloads are:
 
 | Connector | Payload |
 | --- | --- |
@@ -132,14 +133,14 @@ agents:
 
 File rules:
 
-- **`type`**: any connector type except `slack` (Slack stays dashboard-only). Use `webhook` for HTTP webhooks (`http` also accepted); `twilio` and `telnyx` are the voice connectors. **`mode`** is required when the type has more than one mode; otherwise it defaults to the only one.
+- **`type`**: any connector type except `slack` (Slack stays dashboard-only). Use `webhook` for HTTP webhooks (`http` also accepted); `twilio`, `telnyx`, and `sip` are the voice connectors. **`mode`** defaults to `sync` for voice connectors. Other types require it when they have more than one mode; otherwise it defaults to the only one.
 - **`name`**: optional display name, 1 to 200 characters; defaults to the file name.
 - **`config`**: the connector's settings, the same object the REST API and connic MCP take. `connic lint` and the deploy reject unknown fields, fields that belong to the Connection, fields that don't apply to the mode (`require_auth` or `rate_limit` on an outbound webhook, `group_id` on outbound Kafka, `chat_id` on inbound Telegram, S3 `region` without `include_content: true`, WebSocket `progress_events` with `streaming: false`), missing required fields such as cron `schedule`, and values outside the field's type, options, or range. Lint also checks a cron `schedule` has exactly five fields or is a macro (`@hourly`, `@daily`, `@midnight`, `@weekly`, `@monthly`, `@yearly`, `@annually`; six- and seven-field expressions are rejected), `rate_limit.key` whenever `rate_limit.per_key` is set, numeric Telegram IDs (`allowed_user_ids` entries positive, `chat_id` may be negative), and an outbound webhook `outbound_url` without a `bridge`: `https://`, port 443, no credentials in the URL (whether the host is public is checked when the connector is saved at activation). The file is the connector's full desired state: a key removed from `config` goes back to its default or is cleared, and removing `domain`, or `bridge` from an outbound webhook, detaches the connector.
 - **`${VAR}`**: same syntax as `mcp_servers`; resolved once at deploy from the target environment's Variables. Allowed in `config`, `connection`, `bridge`, and `domain`. A missing Variable fails the deploy. The deploy converts each value to its field's type (`true`/`false`, whole numbers) and fails on a value that doesn't fit. Quote phone numbers, sender IDs, and Telegram user IDs in an `allowed_user_ids` list when YAML would read them as numbers (lint: "put it in quotes"); a comma-separated `allowed_user_ids` string also works. Telegram `chat_id` may be an unquoted whole number. Secrets the user supplies (Telegram `bot_token`, Stripe `webhook_secret`, and similar) must be `${VAR}` references; literal values fail the deploy.
 - **`connection`**: a saved Connection, by name or ID. Required for `kafka`, `sqs`, `postgres`, `email`, `twilio`, `twilio_messaging`, `telnyx`, and `telnyx_messaging`; `s3` needs one only with `include_content: true`. Their credentials never go in the file. **`bridge`**: Bridge name or ID, for an outbound webhook. Kafka, SQS, S3, Postgres, and email connectors use the Bridge of their Connection; a connector-level `bridge` on them (and S3 `config.endpoint_url`) is deprecated until 2027-04-30, accepted only when it equals the Connection's value (otherwise the deploy fails), and `connic lint` warns about it. Never write it in new files: to use a different Bridge per environment, override `connection` per environment with a Connection that has that Bridge. **`domain`**: hostname or ID of an active custom domain, for types that support custom domains.
-- **Generated values** never go in the file, and `connic lint` rejects them: webhook URLs, webhook/WebSocket/MCP secrets, the outbound webhook signing secret, the S3 URL secret, and the Telegram secret token. connic generates them on the first deploy and keeps them; the dashboard shows them as before. An omitted Kafka `group_id` is generated; removing `group_id` from the file keeps the consumer group the connector already uses.
-- **Voice** (`twilio`, `telnyx`): set `config.phone_number: "+4930123456"` (E.164, or the number's Twilio SID starting with `PN` or Telnyx ID); the deploy looks an E.164 number up in the Connection. Link exactly one agent with `voice_config`.
-- **`agents`**: agent names, or objects with `files_required` and `outbound`. At least one link; every agent must exist in `agents/`. `outbound.usage` is `automatic`, `agent_tool`, or `middleware`; `action_name` is required for `agent_tool` and `middleware`; `source` (automatic only) lists keys of other connector files, each an inbound or sync connector declared in the same environment and linked to the same agent. An agent can use an `action_name` on only one connector per environment, and `agent_tool` needs an `llm` agent; lint or the deploy fails otherwise. `files_required: true` fails lint on outbound connectors and on types whose events carry no files. Without `outbound`, the link is automatic for all runs.
+- **Generated values** never go in the file, and `connic lint` rejects them: webhook URLs, webhook/WebSocket/MCP secrets, the outbound webhook signing secret, the S3 URL secret, the Telegram secret token, and SIP `sip_address`, `trunk_username`, and `trunk_password`. connic generates them on the first deploy and keeps them; the dashboard shows them. An omitted Kafka `group_id` is generated; removing `group_id` from the file keeps the consumer group the connector already uses.
+- **Voice** (`twilio`, `telnyx`, `sip`): link exactly one agent with `voice_config`, without outbound link settings. For Twilio and Telnyx, set `config.phone_number: "+4930123456"` (E.164, or the number's Twilio SID starting with `PN` or Telnyx ID); the deploy looks an E.164 number up in the Connection. SIP takes the phone system settings directly in `config`, without a Connection. A literal `hold_audio_path` must name an existing MP3 or WAV file in a project directory such as `assets/`.
+- **`agents`**: agent names, or objects with `files_required` and `outbound`. At least one link; every agent must exist in `agents/`. `outbound.usage` is `automatic`, `agent_tool`, or `middleware`; `action_name` is required for `agent_tool` and `middleware`; `source` (automatic only) lists keys of other connector files, each an inbound or sync connector declared in the same environment and linked to the same agent. An agent can use an `action_name` on only one connector per environment, and `agent_tool` needs an `llm` agent; lint or the deploy fails otherwise. `files_required: true` fails lint on outbound connectors and on types whose events carry no files. Without `outbound`, the link is automatic for all runs, except outbound voice connectors, which place calls when runs start.
 - **`environments`**: keys are environment names, matched exactly. When present, the connector exists only in those environments. Overrides can set `name`, `connection`, `bridge`, `domain`, `agents` (replaces the list), and `config` (merged key by key); `null` removes a `connection`, `bridge`, `domain`, or `config` key set at the top of the file. A key that matches no environment in the project fails the deploy.
 - **`dev`**: same fields as an override, for every `connic dev` environment that `environments` doesn't name (quick tests included). With `environments`, those get the connector only when `dev` is set; `dev: {}` keeps the top of the file. Dev environments have their own Variables and quick tests start without any, so override `${VAR}` values here.
 - **`apps_only`**: `true` on a sync `webhook` or `websocket` connector (top level only, not per environment) makes it accept only requests connic forwards from the apps that list it in `apps/<key>.yaml`. Its secret and **Require Authentication** no longer apply, and its runs get `context["app"]` and `context["end_user"]`. See [Apps](apps.md#calling-agents-through-connectors).
@@ -153,7 +154,7 @@ Lifecycle:
 - Connectors no longer declared, or every code connector when a deployment has no `connectors/` folder, are **retired**: paused, keeping URL, secrets, links, provider bindings, and run history. Retired connectors don't count against the active connector limit, can't be resumed, and are only deleted by hand. Declaring the same key and type again, or rolling back to a deployment that declared it, brings the connector back with its previous pause state.
 - Changing `type` retires the old connector and creates a new one. Renaming the file creates a new connector (new URL and secrets) and retires the old one; change `name:` instead.
 - New code connectors start active, including Kafka, SQS, and Postgres. To hold off consuming in an environment, leave it out of `environments:` until ready. Deploys never change the pause state of existing connectors; pause/resume stays in the dashboard. Over the active connector limit, a new connector stays paused, except Telegram, Twilio, and Telnyx connectors: a deploy that would create or bring back one of those at the limit fails.
-- Two active connectors (in any environment) can't use the same phone number, messaging sender, or Telegram bot; the deploy fails. A retired connector gives these up when another connector needs them and takes them back if it returns.
+- Two active connectors (in any environment) can't use the same messaging sender or Telegram bot, and two sync voice connectors can't use the same phone number; the deploy fails. Outbound voice connectors can reuse a number. A retired connector gives these up when another connector needs them and takes them back if it returns.
 - Activation is all or nothing: if a provider call fails, nothing is activated and the previous deployment stays live. **Deploy anyway** on the deployment page redeploys and skips the failing connectors. For a rollback, use **Activate anyway** in the activate dialog (REST: `POST /v1/projects/{project_id}/deployments/{deployment_id}/activate?force=true`). Skipped connectors keep their previous state and are retried on the next activation. The activate dialog lists what a rollback would change.
 - A code connector and a dashboard connector can't share a name in one environment; the deploy fails. The dashboard, REST API, and MCP refuse to create or rename a dashboard connector to a name a code connector uses (retired ones included).
 - Code connectors show an **In code** badge. Active code connectors cannot be edited, deleted, or linked in the dashboard, and REST/MCP return 409; change the file and deploy instead. Pause/resume stays available.
@@ -220,7 +221,7 @@ Inbound (Consumer) and Outbound (Producer) modes.
 - **Inbound delivery**: the offset is committed once a queued run is stored for every linked agent, not when the runs finish. If storing fails, the offset stays uncommitted and the same message is redelivered after a short delay, holding back later messages on that connector. Values or keys that are not valid UTF-8 are recorded as failed connector runs and committed. A run that fails later is not redelivered and there is no dead-letter topic; the failed run keeps its input under Runs for re-run. A redelivered message (partial dispatch failure, restart before commit, rebalance) reuses its stored run: each agent gets one run per message and consumer group, also across connectors sharing a Group ID. There is no batch mode.
 - **Inbound ordering and parallelism**: a connector reads its partitions one message at a time and stores runs in offset order, but runs execute in parallel up to `max_concurrent_runs`. For per-key ordering, set `concurrency: {key: _kafka.key, on_conflict: queue}` on the agent: same-key runs start one at a time in arrival order, a failed run releases its key, and keyless messages are not serialized. For parallel intake on a high-volume topic, create several inbound connectors with the same Group ID linked to the same agent; Kafka splits the partitions between them.
 - **Automatic outbound connector**: publishes a run envelope with `run_id`, `agent_name`, `status`, `output`, `error`, `started_at`, `ended_at`, and `token_usage`. If the run was triggered by inbound Kafka, its key is preserved for partition ordering; otherwise the Kafka key falls back to `run_id`. An agent-tool or middleware outbound connector publishes its `payload` as the message value and may set `key` explicitly.
-- **Automatic outbound connector gating** (applies to every outbound connector, not just Kafka): only runs that end `completed` are delivered — failed and cancelled runs are skipped. A run ended via `StopProcessing` counts as completed and is published (the stop message becomes `output`) unless raised with `publish_outbound=False` — see [StopProcessing](tools-and-python.md). Returning `None` or empty output does not suppress the automatic outbound connector.
+- **Automatic outbound connector gating**: only runs that end `completed` are delivered — failed and cancelled runs are skipped. A run ended via `StopProcessing` counts as completed and is published (the stop message becomes `output`) unless raised with `publish_outbound=False` — see [StopProcessing](tools-and-python.md). Returning `None` or empty output does not suppress the automatic outbound connector.
 
 ## mcp (server mode)
 
@@ -285,13 +286,27 @@ Use separate inbound and outbound `telnyx_messaging` connectors for SMS/MMS, Wha
 
 Full setup: [Telnyx Messaging documentation](https://connic.co/docs/v1/connectors/telnyx-messaging).
 
+## Voice call settings
+
+Twilio Voice, Telnyx Voice, and SIP Voice use `sync` for incoming calls and `outbound` for outgoing calls. Each connector links to exactly one deployed agent with `voice_config`; its mode can't change after creation.
+
+In outbound mode, every run of the agent places a call. Link only one enabled outbound voice connector to the agent. Set the E.164 number in the run input's `to` field, or set `config.to` as the default. Start runs from an inbound connector or `trigger_agent`, for example. Runs beyond `max_concurrent_runs` wait before dialing. `config.ring_seconds` allows 5–120 seconds (default 30); unanswered or unconnected calls fail the run with a reason. The agent receives the run input, so include the context it needs for the conversation; context has no call ID or phone numbers, and `connector_id` is the connector that started the run. With a `greeting` the agent speaks first when someone answers; without one it waits for them to speak. The agent gets through phone menus with the built-in `press_keys` tool and can wait in a queue with `wait_on_hold` (see agent-yaml.md).
+
+In sync mode, callers beyond the agent's `max_concurrent_runs` wait in order for a free slot. `config.max_wait_seconds` allows 0–900 seconds (default 30); after that, callers go to `config.fallback_number`, or the call ends and its run fails. 0 sends them to fallback right away, or ends the call without one. While waiting, callers hear a ringing tone or the MP3/WAV file named by `config.hold_audio_path`, played on repeat. The file deploys with the project and may be up to 10 minutes long; missing or unplayable files use the ringing tone and produce a connector log entry.
+
+All three support `config.transfer_numbers`: up to 20 E.164 numbers that tools may pass to `TransferCall`. If a transfer number doesn't answer, the call ends. Sync connectors also forward accepted calls the agent can't finish to the fallback number, or end the call without one; the fallback number never covers transfers or outgoing calls. Calls connic doesn't answer, such as while the connector is paused, are not forwarded.
+
+Sync connectors take `config.allowed_callers`: up to 100 E.164 numbers, as a list or one string with line breaks or commas. When set, connic rejects calls from other and hidden numbers before answering (no run starts) and writes each rejection with the number to the connector logs. SIP compares the number as the phone system sends it, so it must send E.164. Caller numbers can be faked, so the list is a filter, not authentication. `connic lint` checks the numbers.
+
+Data location on the phone side: a Twilio Connection's region only selects the Twilio API connic uses, and the number's settings in Twilio decide which region handles calls; Telnyx routes audio through the AnchorSite of the connector's Call Control application, which customers set in the Telnyx portal and connic leaves unchanged (a new application for a new number starts with Telnyx's default); SIP calls follow the phone system's route.
+
 ## telnyx voice
 
-Telnyx Voice connects incoming calls on an existing Telnyx number to one deployed agent with `voice_config`. It runs in sync mode and does not place outbound calls. Save the account API key and base64-encoded Ed25519 public key (copy it from the Mission Control Portal; connic can't verify it on save, and signature failures appear in the connector logs), select a voice-capable number (numbers the connector can't use are shown disabled with the reason), and link exactly one deployed voice agent. The agent is required when the connector is created: the dashboard asks for it, REST takes the `agent_name` query parameter, and MCP `create_connector` takes `agent_name`. connic creates a dedicated Call Control application and replaces the number's incoming-call routing, and clears a technical prefix or destination rewrite on the number. The previous values go to the connector logs and the project audit log; removing the connector does not restore them.
+Telnyx Voice answers and places calls from an existing Telnyx number. In sync mode, it connects incoming calls to the linked voice agent. Save the account API key and base64-encoded Ed25519 public key (copy it from the Mission Control Portal; connic can't verify it on save, and signature failures appear in the connector logs), select a voice-capable number (numbers the connector can't use are shown disabled with the reason), and link exactly one deployed voice agent. The agent is required when the connector is created: the dashboard asks for it, REST takes the `agent_name` query parameter, and MCP `create_connector` takes `agent_name`. In sync mode, connic creates a dedicated Call Control application and replaces the number's incoming-call routing, and clears a technical prefix or destination rewrite on the number. The previous values go to the connector logs and the project audit log; removing the connector does not restore them.
 
 Call details: `call_id` is the Telnyx call control ID, `caller_name` comes from `caller_id_name`, and `raw` is the `call.initiated` payload including `custom_headers` and `sip_headers`. Forwarding arrives as a `Diversion` entry in `sip_headers`, so `forwarded_from` is not set.
 
-Optional **Transfer numbers** and **Fallback number** work as for Twilio Voice: `TransferCall` transfers to an allowed number, and only an accepted call the agent can't finish (a failed run, or a media stream that cannot start) goes to the fallback number, or is hung up without one. Calls connic does not answer, such as while the connector is paused, are not forwarded.
+In outbound mode, `config.outbound_voice_profile_id` is required. connic creates a dedicated Call Control application with that profile and leaves the number's incoming-call routing unchanged. Deleting the connector deletes its application.
 
 Full setup: [Telnyx Voice documentation](https://connic.co/docs/v1/connectors/telnyx-voice).
 
@@ -343,7 +358,7 @@ Full setup: [Twilio Messaging documentation](https://connic.co/docs/v1/connector
 
 ## twilio voice
 
-Twilio Voice is in beta. It connects incoming calls on an existing customer-owned Twilio number to one deployed agent with `voice_config`. It runs in sync mode and does not place outbound calls.
+Twilio Voice is in beta. It answers and places calls from an existing customer-owned Twilio number. For incoming calls, use sync mode:
 
 1. Deploy a voice agent using a supported realtime model.
 2. In Twilio, open a voice-capable number and confirm its incoming-call region. Remove the number from a SIP trunk if it is on one (Twilio has no API to do this through the number). connic replaces an existing incoming-call webhook or TwiML App and writes the previous values to the connector logs and the project audit log.
@@ -354,9 +369,36 @@ The Auth Token must match the selected region; an API key SID and secret are not
 
 Call details: `call_id` is the Twilio CallSid; `forwarded_from` comes from `ForwardedFrom`, which Twilio sends only when the caller's carrier passes it; `caller_name` requires caller ID lookup on the number; `raw` holds every parameter of Twilio's incoming-call request (location fields, `StirVerstat`, and so on, where Twilio provides them).
 
-Optional connector settings: **Transfer numbers** (up to 20 E.164 numbers that tools may pass to `TransferCall`) and **Fallback number** (dialed only when an accepted call can't continue, such as a failed run or no free voice capacity; without it the call ends). connic does not change the number's **Primary handler fails** URL. Twilio uses it when connic rejects a call, for example while the connector is paused or the environment has no active deployment; point it at TwiML that dials a staff number to forward those calls. Recorded audio playback is not supported.
+In outbound mode, connic leaves the number's incoming-call settings unchanged. Use the same saved Connection and number, and configure the [voice call settings](#voice-call-settings).
+
+connic does not change the number's **Primary handler fails** URL. Twilio uses it when connic rejects a call, for example while the connector is paused or the environment has no active deployment; point it at TwiML that dials a staff number to forward those calls.
 
 Run details show the conversation transcript when transcription is available, tool calls, timings, and errors. Voice configuration and limitations are in [agent-yaml.md](agent-yaml.md#voice-llm-agent).
+
+## sip voice
+
+SIP Voice answers and places calls through a SIP phone system or provider. It uses no saved Connection. `config.setup: register` uses the phone system's `server`, `username`, and `password`; `auth_username` is optional when authentication uses a different username. For incoming calls, connic signs in like a phone. For outgoing calls, it authenticates each call without keeping the line signed in. The password must use ASCII without spaces or semicolons. Choose `config.setup: trunk` for the phone system to send calls to connic using the generated SIP address, username, and password shown on the connector. These credentials stay the same when the connector is edited. `server` is required for outgoing calls with either setup.
+
+`transport` is `tls` (default), `tcp`, or `udp`; `port` defaults to 5061 for TLS and 5060 otherwise. `media_encryption` is `srtp` (default) or `none`. `codecs` is `g722,alaw,ulaw` (default, G.722 first) or `alaw,ulaw` (G.711 only). Optional `caller_id` sets the number or extension outgoing calls come from. Transfers require the phone system to allow them.
+
+```yaml
+# connectors/phone-line.yaml
+type: sip
+mode: sync
+config:
+  setup: register
+  server: sip.example.com
+  username: "200"
+  password: ${SIP_PASSWORD}
+  max_wait_seconds: 60
+  hold_audio_path: assets/hold.mp3
+agents:
+  - phone-assistant
+```
+
+Incoming call input has `call_id`, `from`, `to`, and `provider: sip`. Outgoing calls use the run input. Both follow the [voice call settings](#voice-call-settings).
+
+Full setup: [SIP Voice documentation](https://connic.co/docs/v1/connectors/sip-voice).
 
 ## slack
 
@@ -509,6 +551,7 @@ A single "Sync (Real-time Chat)" mode. The connector hosts a WS endpoint; each c
 - **Ordering**: a connection handles one message at a time, in arrival order. A message sent while a response is running waits until all linked agents have responded; there is no busy rejection. A response can take as long as the run timeout; approval waits don't count, so an approval-gated tool holds the turn until decided. Keep `approval.timeout` short on chat agents. Runs from different connections are not serialized; see the session concurrency note in [agent-yaml.md](agent-yaml.md#sessions).
 - **Config**: streaming toggle, progress events toggle (default off; applies only with streaming on), session timeout (idle seconds before the connection closes, 60–86,400, default 3,600), max messages per connection (1–10,000, default 100), rate limits (total, per IP, per key; see above). Values outside these ranges are rejected, not clamped.
 - **`connector_run_id`** is returned on connect and identifies the connector run that records the connection.
+- **Reconnect**: append a client-chosen connection ID to the URL (`<websocket-url>/<connection id>`; `connected` returns it as `connection_id`); without one, connic generates an ID that can't be resumed. A connection with the ID of an open one replaces it: the older one gets `CONNECTION_REPLACED` and close code 4009 (connic can't tell a dropped connection from a live one, so the latest wins). Use one ID per tab or device and don't auto-reconnect after 4009. Runs keep going when a connection drops; answers that finished while the client was gone arrive right after `connected` on its next connection with the same ID, and answers that finish later arrive on the new connection. Only the final event is replayed (`response` or `stream_end` with `full_response`, or their `error` variants) with the original message `id`, no chunks or progress events. An answer counts as missed once the client closed the connection or reconnected; one sent on a connection that broke off unnoticed isn't resent. Replay only reaches the same client: any client with the secret when **Require Authentication** is on, the same end user of the same app on `apps_only` connectors (connection IDs are per end user there), and nobody when auth is off. Up to 20 missed answers per connection ID, kept for the session timeout after the latest one; an answer over 256 KiB arrives with the error `Response too large to replay`.
 - **Conversation history** comes only from the agent's `session:` config, not from the connection. Set `session.key: input.conversation_id` (or a `context.*` key set in middleware) and send that field in every message; without a key, all conversations share one session. History outlives the connection: reconnecting with the same ID continues it.
 
 ## Pausing a connector
