@@ -99,15 +99,17 @@ Provide **exactly one** of `delay` or `unix_timestamp`. A delay uses only `d`, `
 Managed semantic retrieval for each environment, optionally divided into namespaces. Use **dot-separated** names for hierarchy (e.g. `policies.hr.leave`, `products.pricing`), with a maximum depth of 10. Namespace scoping covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
 
 ```python
-# Semantic search
+# Search by meaning and exact terms (names, contract numbers); best match first
 result = await retrieval_query(
     query="refund policy",
     namespace="policies",        # optional; omit to search all namespaces
-    min_score=0.3,               # default 0.3; clamped to 0.0–1.0
+    min_score=0.3,               # default 0.3; clamped to 0.0–1.0; filters on the similarity `score`
     max_results=3,               # default 3; clamped to 1–20
     metadata_filter={"source": "handbook"},  # optional; see "Metadata filters" below
+    share_links=False,           # True adds file_url and file_url_expires_at to results with a kept file
 )
-# {"results": [{"score": 0.95, "content": "...", "metadata": {...}, "entry_id": "...", "namespace": "policies"}, ...]}
+# {"results": [{"score": 0.95, "relevance_score": 0.98, "content": "...", "metadata": {...}, "entry_id": "...", "namespace": "policies", "file_path": "..."}, ...]}
+# file_path is only present when the entry's file is kept (see "Kept files and share links" below)
 
 # Insert or update — indexing is async
 await retrieval_store(
@@ -117,6 +119,13 @@ await retrieval_store(
     metadata={"source": "handbook"},
 )
 # {"entry_id": "...", "job_id": "...", "status": "pending", "queued": true, "success": true}
+
+# Import a file from project files instead of text, e.g. one saved with web_browser_download(save_to=...)
+await retrieval_store(
+    file_path="downloads/price-list.pdf",
+    namespace="products",        # entry_id defaults to the file name, price-list.pdf
+    keep_file=True,              # default; also keeps the file at retrieval/products/price-list.pdf
+)
 
 # Delete — three modes (see below)
 await retrieval_delete(entry_id="refund-policy", namespace="policies")            # single entry
@@ -135,6 +144,12 @@ children = await retrieval_list_namespaces(parent="policies", depth=1)
 `retrieval_query` inherits the current run's remaining deadline. If the deadline has already been reached or expires before a response arrives, it returns `{"error": "...", "results": []}` instead of matches.
 
 Retrieval queries and metadata-filter deletes operate on committed index entries. A pending `retrieval_store` job is not searchable; for an existing namespace and `entry_id`, its committed content and metadata remain queryable until the replacement job commits atomically. Agents cannot poll a `job_id`, so schedule dependent cleanup as a later run with `trigger_agent_at` rather than inline.
+
+### Kept files and share links
+
+`retrieval_store` takes either `content` or `file_path`, never both. `file_path` is a path in project files; the file is extracted like an upload (PDF, Office, images, scans), up to 100 MiB, and the agent needs read access to it through its `files:` config. Without `entry_id`, the entry ID is the file name.
+
+With `keep_file=True` (the default), the file is also kept in project files at `retrieval/<namespace parts>/<entry id>`, the same place dashboard, REST, and MCP uploads keep theirs (see [platform.md](platform.md#retrieval)). Search results then include `file_path`. `retrieval_query(share_links=True)` adds `file_url`, a link anyone can open, and `file_url_expires_at` to each result whose file is kept and readable under the agent's `files:` access. Default `False`; set it when the agent will show or send the source, such as a help-center answer that links the document it is based on. Links follow the share-link rules under [Files](#files).
 
 ### Metadata filters on `retrieval_query` and `retrieval_delete`
 
@@ -293,6 +308,11 @@ Project files: one folder tree per environment that keeps files between runs. Ag
 - `file_write(path, content, mime_type=None, metadata=None, overwrite=False)` writes a file of up to 16 MiB and creates missing folders. The model passes text; custom tools can also pass bytes (PDFs, images), for example to hand a file to `web_browser_upload(path=...)`. Without `overwrite`, a taken path stores the new file as `name (2).ext`; the result's `_path` is the real path.
 - `file_update(path, new_path=None, metadata=None)` moves or renames a file or a whole folder, and merges metadata into a file (`None` removes a field). Moving onto a taken path fails.
 - `file_delete(path, recursive=False)` deletes a file, or a folder with `recursive=True`.
+- `file_share_link(paths)` creates links anyone can open to download files, for up to 50 paths the agent can read, and returns `{"links": [{"path", "url", "expires_at"}]}`. Use it to send a report by email or chat. Add it to `tools:` like the other file tools.
+
+Share links: a link works until the environment's share link lifetime ends (`file_share_link_days`, 1 to 365, default 30, in the environment settings), it is revoked, or the file is replaced or deleted. Sharing the same file version again within a day returns the same link. Downloads through share links count as file downloads. The dashboard Files page lists a file's share links (creator, expiry, status) and revokes them; REST has `POST /v1/projects/{project_id}/files/{environment_id}/share-links/list` (`files.view`) and `.../share-links/revoke` (`files.manage`), connic MCP has `list_file_share_links` and `revoke_file_share_link`.
+
+The `retrieval/` folder holds the files Retrieval keeps for its entries (see [Kept files and share links](#kept-files-and-share-links)). Retrieval manages it: file tools can list and read its files, but `file_write`, `file_update`, and `file_delete` fail there.
 
 Every file carries system fields (`_path`, `_folder`, `_name`, `_mime_type`, `_size`, `_source`, `_agent`, `_run_id`, `_session_id`, `_id`, `_created_at`, `_updated_at`) plus custom metadata. Filters use the `db_find` operators on both. Custom metadata keys must not start with `_`.
 
@@ -304,7 +324,7 @@ for invoice in result["files"]:
     await file_update(invoice["_path"], metadata={"status": "processing"})
 ```
 
-Files are up to 1 GiB through the dashboard and REST API, 100 MiB through the browser tools. Restrict an agent with the `files:` block in agent YAML (see agent-yaml reference).
+Files are up to 1 GiB through the dashboard and REST API, 100 MiB through the browser tools. Restrict an agent with the `files:` block in agent YAML (see agent-yaml reference). The same block decides which files `file_share_link` can share, which files `retrieval_store(file_path=...)` can import, and which `retrieval_query(share_links=True)` results get links.
 
 ## Web
 

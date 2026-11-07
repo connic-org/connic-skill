@@ -229,7 +229,7 @@ Browser code calls these paths on its own host. A request with another `Origin` 
 | `POST /_connic/files/upload` | `{path, size, mime_type?, metadata?}` | 201 `{upload_id, path, size, part_bytes, part_count, upload_url, token, expires_at}` |
 | `POST /_connic/files/update` | `{path, new_path?, metadata?}` (metadata merges; `null` removes a key) | the file |
 | `POST /_connic/files/delete` | `{path}` | `{deleted}` |
-| `POST /_connic/retrieval/search` | `{namespace, query (max 1,000 characters), limit? (default 5, max 20), min_score? (0 to 1, default 0.3)}` | `{results: [{entry_id, namespace, content, score, metadata}]}`, best match first |
+| `POST /_connic/retrieval/search` | `{namespace, query (max 1,000 characters), limit? (default 5, max 20), min_score? (0 to 1, default 0.3)}` | `{results: [{entry_id, namespace, content, score, metadata, file_path?}]}`, best match first |
 | `GET /_connic/runs` | `?agent&status&limit&cursor` | `{runs, next_cursor}` |
 | `GET /_connic/runs/stats` | `?agent&days` (1 to 90, default 7) | `{days, total, statuses, average_duration_ms, daily: [{day, runs}]}` |
 | `GET /_connic/runs/<id>` | | run |
@@ -279,6 +279,8 @@ const stored = await (await fetch(`${upload.upload_url}/complete?token=${token}`
 ```
 
 `POST /_connic/files/download` checks the `read` rule and returns `{url: "/_connic/files/transfer/download?token=...", expires_at}`, a short-lived link to GET (Range requests work), for example as an `href` or `src`.
+
+A Retrieval search result has `file_path` when the entry's file is kept in Files, under `retrieval/<namespace parts>/<entry id>` (see [platform.md](platform.md#retrieval)). To open it, request a link with `files/download`; that needs a `read` rule for the folder, such as `files: {retrieval/help: {read: true}}` next to `retrieval: {help: {search: true}}`.
 
 ## `connic dev`
 
