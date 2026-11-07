@@ -96,7 +96,7 @@ Provide **exactly one** of `delay` or `unix_timestamp`. A delay uses only `d`, `
 
 ## Retrieval
 
-Managed semantic retrieval for each environment, optionally divided into namespaces. Use **dot-separated** names for hierarchy (e.g. `policies.hr.leave`, `products.pricing`), with a maximum depth of 10. Namespace scoping covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use.
+Managed semantic retrieval for each environment, optionally divided into namespaces. Use **dot-separated** names for hierarchy (e.g. `policies.hr.leave`, `products.pricing`), with a maximum depth of 10. Namespace scoping covers the whole subtree: querying `policies` also searches `policies.hr.leave` — the same inclusion rule deletes use. `access.retrieval` rules in agent YAML (`search`, `store`, `delete` per namespace) limit these tools; see the agent-yaml reference.
 
 ```python
 # Search by meaning and exact terms (names, contract numbers); best match first
@@ -147,9 +147,9 @@ Retrieval queries and metadata-filter deletes operate on committed index entries
 
 ### Kept files and share links
 
-`retrieval_store` takes either `content` or `file_path`, never both. `file_path` is a path in project files; the file is extracted like an upload (PDF, Office, images, scans), up to 100 MiB, and the agent needs read access to it through its `files:` config. Without `entry_id`, the entry ID is the file name.
+`retrieval_store` takes either `content` or `file_path`, never both. `file_path` is a path in project files; the file is extracted like an upload (PDF, Office, images, scans), up to 100 MiB, and the agent needs read access to it through its `access.files` rules. Without `entry_id`, the entry ID is the file name.
 
-With `keep_file=True` (the default), the file is also kept in project files at `retrieval/<namespace parts>/<entry id>`, the same place dashboard, REST, and MCP uploads keep theirs (see [platform.md](platform.md#retrieval)). Search results then include `file_path`. `retrieval_query(share_links=True)` adds `file_url`, a link anyone can open, and `file_url_expires_at` to each result whose file is kept and readable under the agent's `files:` access. Default `False`; set it when the agent will show or send the source, such as a help-center answer that links the document it is based on. Links follow the share-link rules under [Files](#files).
+With `keep_file=True` (the default), the file is also kept in project files at `retrieval/<namespace parts>/<entry id>`, the same place dashboard, REST, and MCP uploads keep theirs (see [platform.md](platform.md#retrieval)). Search results then include `file_path`. `retrieval_query(share_links=True)` adds `file_url`, a link anyone can open, and `file_url_expires_at` to each result whose file is kept and readable under the agent's `access.files` rules. Default `False`; set it when the agent will show or send the source, such as a help-center answer that links the document it is based on. Links follow the share-link rules under [Files](#files).
 
 ### Metadata filters on `retrieval_query` and `retrieval_delete`
 
@@ -207,7 +207,7 @@ await retrieval_delete(
 
 ## Database (schemaless document store)
 
-Per-environment, MongoDB-like. Use it for state that needs to persist across runs.
+Per-environment, MongoDB-like. Use it for state that needs to persist across runs. `access.database` rules in agent YAML limit which collections, documents and fields these tools reach; a denied call returns an `error`. See the agent-yaml reference.
 
 ```python
 # Insert (single or batch); the collection is auto-created on first write
@@ -324,7 +324,7 @@ for invoice in result["files"]:
     await file_update(invoice["_path"], metadata={"status": "processing"})
 ```
 
-Files are up to 1 GiB through the dashboard and REST API, 100 MiB through the browser tools. Restrict an agent with the `files:` block in agent YAML (see agent-yaml reference). The same block decides which files `file_share_link` can share, which files `retrieval_store(file_path=...)` can import, and which `retrieval_query(share_links=True)` results get links.
+Files are up to 1 GiB through the dashboard and REST API, 100 MiB through the browser tools. Restrict an agent with `access.files` rules in agent YAML (see agent-yaml reference); `file.session_id == session.id` limits a rule to files of the current session. The same rules decide which files `file_share_link` can share, which files `retrieval_store(file_path=...)` can import, and which `retrieval_query(share_links=True)` results get links.
 
 ## Web
 

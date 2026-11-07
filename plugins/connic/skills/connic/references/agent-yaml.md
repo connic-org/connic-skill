@@ -117,31 +117,48 @@ approval:
   message: "Confirm this action"
   on_rejection: fail                # fail (default) | continue (skip the tool and keep going)
 
-# Access control for the predefined db_*, retrieval and file_* tools
-database:
-  prevent_delete: true              # block db_delete project-wide for this agent
-  prevent_write: false              # block db_insert / db_update / db_upsert (per-collection rules also available)
-  collections:                      # optional allowlist; omit to allow every collection
-    orders:
-      prevent_write: true           # per-collection override
-    audit: {}
-retrieval:
-  prevent_delete: true              # block retrieval_delete
-  prevent_write: false              # block retrieval_store
-  namespaces:                       # optional allowlist; omit to allow every namespace
-    policies:
-      prevent_write: true           # per-namespace override
-    public: {}
-files:                              # also limits file_share_link, retrieval_store(file_path=...), retrieval_query(share_links=True)
-  prevent_delete: true              # block file_delete
-  prevent_write: false              # block file_write / file_update
-  session_only: true                # only files written in the current session; requires session
-  folders:                          # optional allowlist, covers each folder and everything below it
-    uploads: {}
+# Access rules for the built-in db_*, retrieval_* and file_* tools, the same format as apps/<key>.yaml.
+# Omit access for unrestricted access. Once set, anything without a rule is denied.
+lookups:                            # optional, needs access
+  member:
+    collection: members
+    where: doc.email == user.email  # where may use doc, user, context, session
+  teams:
+    collection: memberships
+    where: doc.user_id == user.id
+    values: team_id                 # list of values from every match, max 1000 documents
+access:
+  database:                         # read, insert, update, delete, set, fields
+    "*":                            # every collection without its own entry (quote the key)
+      read: true
+    orders:                         # a named entry wins over "*", even an empty one
+      read: user == null or doc.customer_id == member.customer_id
+      insert: true
+      update: user == null or doc.customer_id == member.customer_id
+      set:
+        source: '"support-agent"'          # plain value: written on insert, callers can't send it
+        updated_by:
+          value: '"support-agent"'
+          writes: [insert, update]
+      fields:
+        internal_notes: user == null       # field hidden from visitor-driven runs
+  files:                            # read, write, update, delete, set; also covers file_share_link,
+    uploads:                        # retrieval_store(file_path=...), retrieval_query share links, browser up/downloads
+      read: file.session_id == session.id  # replaces session_only; requires session
+      write: true
+      update: file.session_id == session.id
     templates:
-      session_only: false           # per-folder override, the most specific folder wins
-      prevent_write: true
+      read: true
+  retrieval:                        # search, store, delete; a search covers the namespaces below it
+    policies:
+      search: true
+    "*":
+      search: true                  # needed for retrieval_query without a namespace
 ```
+
+Agent rules see `user` (the app visitor the run acts for: `id`, `email`, `name`, `groups`, `claims`, `signed_in`; also in agents started with `trigger_agent`; `null` for runs from cron, webhooks, the dashboard), `context` (the run context), `session` (`session.id`, `null` without a session), the lookups, and the record (`doc`, `new`, `file`). Rules on `user` deny runs without a visitor; write `user == null or ...` to let them through. `new` in a database `update` rule is the document after the change: sent fields plus stored values for the rest, used only through its fields (`new.status`), and two fields of `new` can't be compared. Rules apply to every call of the built-in tools, also from custom tools through `connic.tools`. `connic lint` fails when an agent with `access` lists a built-in tool whose resource has no entries. Up to 100 entries per resource. Full rule reference: `https://connic.co/docs/v1/build/access-rules`
+
+The older `database`, `retrieval` and `files` blocks (`collections`/`namespaces`/`folders`, `prevent_write`, `prevent_delete`, `session_only`) are deprecated. They still work, can't be combined with `access`, and `connic lint` prints the `access` block that replaces them. Write new agents with `access`.
 
 ## LLM retries and timeouts
 
@@ -434,7 +451,7 @@ The run pauses at the gated tool call until a reviewer approves or rejects in **
 
 ## Cascading defaults with `_defaults.yaml`
 
-Drop a `_defaults.yaml` into any directory under `agents/` to share configuration with every agent at that directory level and below. Use it for shared models, guardrails, tools, and database collections across families of agents.
+Drop a `_defaults.yaml` into any directory under `agents/` to share configuration with every agent at that directory level and below. Use it for shared models, guardrails, tools, and access rules across families of agents.
 
 ```
 agents/
@@ -464,7 +481,7 @@ The linter rejects defaults files that contain `name` or `description`, pointing
 Applied recursively as the chain is folded together:
 
 - **Scalars** (`model`, `temperature`, `system_prompt`, `timeout`, `reasoning_effort`, …) — deeper layer replaces shallower; the agent file replaces all.
-- **Dicts** (`database`, `retrieval`, `retry_options`, `approval`, `session`, `concurrency`, `guardrails`, `database.collections`, `retrieval.namespaces`, …) — recursive deep merge, per-key. Defaults can supply some collections; an agent can add more without losing the inherited ones.
+- **Dicts** (`access`, `lookups`, `retry_options`, `approval`, `session`, `concurrency`, `guardrails`, `access.database`, `access.files`, …) — recursive deep merge, per-key. Defaults can supply rules for some collections; an agent can add more without losing the inherited ones.
 - **Lists** — concat with dedup, so children **add to** rather than replace inherited lists:
   - `tools`, `discoverable_tools`, `approval.tools` — dedup by tool ref. An agent re-declaring an inherited tool (e.g. with a different condition) overrides the inherited entry.
   - `approval.inputs` — dedup by input-tool name. A deeper declaration replaces the inherited configuration for that name.

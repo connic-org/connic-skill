@@ -116,7 +116,7 @@ Reserved paths on every app host:
 | `/_connic/me` | The visitor: `{user: {id, email, name, groups, signed_in}, app: {key, name}}` |
 | `/_connic/login?return=/path`, `/_connic/logout` | Start sign-in, sign out |
 | `/_connic/c/<connector key>` | The app's connectors |
-| `/_connic/db/...`, `/_connic/files/...`, `/_connic/retrieval/search`, `/_connic/runs...`, `/_connic/sessions/<id>`, `/_connic/approvals...` | [Data endpoints](#data-endpoints) |
+| `/_connic/db/...`, `/_connic/files/...`, `/_connic/retrieval/search`, `/_connic/runs...`, `/_connic/sessions...`, `/_connic/approvals...` | [Data endpoints](#data-endpoints) |
 
 ## Calling agents through connectors
 
@@ -142,7 +142,7 @@ const { result } = await response.json(); // the sync webhook response
 - A connector listed by an app must be deployed to every environment the app is; lint reports a mismatch.
 - WebSocket: ``new WebSocket(`wss://${location.host}/_connic/c/support-chat`)``, with the [websocket message protocol](connectors.md#websocket). An optional last segment, `/_connic/c/<key>/<connection id>`, names the connection; IDs are per end user. A new connection with the ID of an open one replaces it (the older gets `CONNECTION_REPLACED`, close 4009), and answers the visitor missed while disconnected arrive once they reconnect with that ID, e.g. after a phone locks. Keep one ID per tab and see [reconnect](connectors.md#websocket).
 - The connector's `rate_limit` works as on its regular URL, and `per_ip` sees the visitor's IP.
-- Runs started through an app get `context["app"]` (`{"id", "key"}`) and `context["end_user"]` (`{"id", "email", "name", "groups", "signed_in"}`), set by connic from the forwarded request, never from the payload. On public apps `end_user` is the anonymous visitor: the per-app `id` from the visitor cookie, `email` and `name` null, `signed_in` false.
+- Runs started through an app get `context["app"]` (`{"id", "key"}`) and `context["end_user"]` (`{"id", "email", "name", "groups", "signed_in", "claims"}`), set by connic from the forwarded request, never from the payload. `claims` are the visitor's OIDC ID token claims and show in run traces like the rest of the context. On public apps `end_user` is the anonymous visitor: the per-app `id` from the visitor cookie, `email` and `name` null, `groups` and `claims` empty, `signed_in` false. The agent's access rules see the same visitor as `user`, also in agents it starts with `trigger_agent`.
 
 ```python
 # middleware/support-assistant.py
@@ -161,33 +161,56 @@ async def before(content, context):
 
 ## Access rules
 
-`access` lists, per resource, the operations the browser may perform. A missing resource or operation is denied. Each rule is an expression string; YAML `true` and `false` become `"true"` and `"false"`.
+Apps use the same access rules as agents (`access` and `lookups` in agent YAML; see the agent-yaml reference). Docs: `https://connic.co/docs/v1/build/access-rules`.
+
+`access` lists, per resource, the operations the browser may perform. A missing resource or operation is denied. Each rule is an expression string; YAML `true` and `false` become `"true"` and `"false"`. The key `"*"` (quoted) covers every collection, folder, or namespace without its own entry; a named entry wins even when empty (`secrets: {}` next to `"*": {read: true}` denies everything on `secrets`).
 
 | Resource | Operations | Record name |
 | --- | --- | --- |
-| `database.<collection>` | `read`, `insert`, `update`, `delete`, plus `set` | `doc`: stored fields plus `doc.id`, `doc.created_at`, `doc.updated_at` |
-| `files.<folder>` | `read`, `write`, `update`, `delete` | `file`: `path`, `folder`, `name`, `size`, `mime_type`, `metadata.<key>`, `created_at`, `updated_at` |
+| `database.<collection>` | `read`, `insert`, `update`, `delete`, plus `set` and `fields` | `doc`: stored fields plus `doc.id`, `doc.created_at`, `doc.updated_at` |
+| `files.<folder>` | `read`, `write`, `update`, `delete`, plus `set` (metadata) | `file`: `path`, `folder`, `name`, `size`, `mime_type`, `metadata.<key>`, `session_id`, `created_at`, `updated_at` |
 | `runs` | `read`, `cancel` | `run`: `id`, `agent`, `status`, `context`, `input`, `output`, `queued_at`, `ended_at`, `duration_ms` |
 | `sessions` | `read`, `delete` | `session`: `id`, `agent`, `state`, `created_at`, `updated_at` |
 | `approvals` | `read`, `decide` | `approval`: `id`, `agent`, `tool`, `params`, `status`, `context` (its run's), `created_at` |
 | `retrieval.<namespace>` | `search` | none: the rule decides for the whole namespace |
 
-Every rule may use `user` (`id`, `email`, `name`, `groups`, `claims`, `signed_in`) and the lookup names. Database `insert` and `update` and files `write` and `update` may also use `new`: on insert each document the browser sends, on update only the fields in `update`, on upload `{path, size, mime_type, metadata}`, on file update the file after the change. `set` values may use `user` and lookups only. `user.groups` holds the OIDC groups claim or the connic permission group names; `user.claims` holds the OIDC ID token claims (`{}` otherwise).
+Every rule may use `user` (`id`, `email`, `name`, `groups`, `claims`, `signed_in`) and the lookup names. Database `insert` and `update` and files `write` and `update` may also use `new`, always the record after the write including `set` fields: on insert each document the browser sends, on database update each document after the change (the fields in `update` plus the stored values of the rest; a field set to `null` is gone), on upload `{path, size, mime_type, metadata}`, on file update the file after the change. In database `update` rules use `new` only through its fields (`new.status`) and don't compare two fields of `new`. `set` values may use `user` and lookups only. `user.groups` holds the OIDC groups claim or the connic permission group names; `user.claims` holds the OIDC ID token claims (`{}` otherwise).
+
+```yaml
+access:
+  database:
+    tickets:
+      read: doc.author_id == user.id or member.role == "agent"
+      set:
+        author_id: user.id               # plain value: written on insert
+        updated_by:
+          value: user.id
+          writes: [insert, update]
+      fields:
+        internal_notes: member.role == "agent"   # per-field rule over doc
+  files:
+    uploads:
+      set:
+        uploaded_by: user.id             # metadata written on upload
+```
+
+`fields` rules: a field comes back only from documents where its rule holds (checked on the document as returned, so a find's `fields` list must include what the rule reads); a filter, sort, or distinct on a field whose rule doesn't hold for every document is denied; an insert or update that sends the field needs its rule for that document. `set` and `fields` names and each part of a lookup's `values` path must not start with `_` or `$` or contain dots.
 
 Grammar: comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`, `in`, `not in`, and `is`, `is not` with `null`, `true`, or `false` only), `and`, `or`, `not`, parentheses, dot and subscript paths, and string, number, boolean, null, list, and object literals. Comparisons take values, not other conditions. No calls, arithmetic, unary minus, or `_`-prefixed attributes; 2,000 characters max.
 
 How rules apply:
 
 - `read`, `delete`, and the stored-record part of `update`, `cancel`, and `decide` are **filters**. connic evaluates the parts that don't use the record per request and turns the rest into a query filter ANDed with the browser's filter, so results, counts, and paging only ever include allowed records. A rule that is false for every record returns 403 `Access denied`; a single record the rule excludes returns 404.
-- `insert` and files `write` are checked against `new` before the write. `set` fields are written by connic on insert, overriding what the browser sent; if one can't be evaluated the insert is denied. An update that names a `set` field returns 400.
+- `insert` and files `write` are checked against `new` before the write. `set` fields are written by connic, overriding what the browser sent; if one can't be evaluated the write is denied. An update that names a `set` field returns 400, and so does an insert that sends a field `set` writes only on update.
+- `upsert` needs `insert` and `update`: it updates the first document the rules let change or inserts one the insert rule allows, and returns 403 when the filter matches only documents the rules hide.
 - **Three-valued logic.** A comparison whose side is missing or null (a missing field, a null `user.email`, a lookup that found nothing) is unknown. `not` keeps it unknown, `and` and `or` combine it the usual way (`false and unknown` is false, `true or unknown` is true), and a rule that ends unknown denies. Only a comparison with the literal `null` tests for null: `doc.x == null` holds when `x` exists and is null, and `doc.x != "v"` doesn't match documents where `x` is null or missing.
 - **Typed values.** Each JSON type equals only its own (`true` isn't `1`, `"1"` isn't `1`); `<`, `<=`, `>`, `>=` compare two numbers or two texts. `x in [...]` compares typed list items, `x in <object>` checks its keys, and `x in <text>` is exact equality, not a substring test (`"x" in doc.tags` matches a tags array or object key). Timestamps compare as instants, written as ISO 8601 strings. `doc.id`, `run.id`, `approval.id`, and `status` take only `==`, `!=`, `in`, `not in`.
-- **Size.** A rule's database or files filter must stay within depth 10, 100 branches per `and`/`or`, 256 terms, and 1,000 values per `in`. The deploy rejects rules that exceed it; if values known only per request (such as a long `user.groups`) push a filter over, the request fails with 500 and a message naming the limit.
-- Files: folder keys are normalized without slashes (`reports/` is `reports`). A rule covers its folder and everything below; the most specific folder wins. Moving a file also needs the target folder's `write` rule. Uploads never overwrite: a taken path gets a numbered name, and the completed file's `_path` is the real one.
-- File listing is one level deep and shows only subfolders that hold files the visitor can read under their own folder's rule. A folder without a rule of its own, such as the root, can be listed when a rule folder below it is readable; it returns those subfolders with `files: []`. With no readable rule folder at or below it, listing returns 403.
-- Retrieval: a `search` rule covers its namespace and every namespace below it, since a search returns passages from all of them, and the visitor can read the content and metadata of every entry there. A listed namespace can't sit inside another listed one (`help` and `help.internal` fail the deploy); keep content for different audiences in separate namespaces such as `public.help` and `internal.help`. Entries without a namespace can't be searched from an app. Retrieval search stays off the REST API and connic MCP, so apps and agents (`retrieval_query`) are the only ways to search outside the dashboard.
+- **Size.** A rule's database or files filter must stay within depth 10, 100 branches per `and`/`or`, 256 terms, and 1,000 values per `in`. The deploy rejects rules that exceed it; if values known only per request (such as a long `user.groups`) push a filter over, the request fails with 500 `An access rule makes a database filter that is too large: ...`.
+- Files: folder keys are normalized without slashes (`reports/` is `reports`). A rule covers its folder and everything below; the most specific folder wins, and `"*"` covers the whole tree including the root. Moving a file also needs the target folder's `write` rule. Uploads never overwrite: a taken path gets a numbered name, and the completed file's `_path` is the real one.
+- File listing is one level deep and shows only subfolders that hold files the visitor can read under their own folder's rule. A folder no entry covers can be listed when a rule folder below it is readable; it returns those subfolders with `files: []`. With no readable rule folder at or below it, listing returns 403.
+- Retrieval: a namespace follows the most specific entry that holds it, `"*"` covers the rest. A search covers the namespace searched and every namespace below it whatever their own rules (searching `help` also returns `help.internal`), and the visitor can read the content and metadata of every entry there; keep content for different audiences in separate namespaces such as `public.help` and `internal.help`. Entries without a namespace can't be searched from an app. Retrieval search stays off the REST API and connic MCP, so apps and agents (`retrieval_query`) are the only ways to search outside the dashboard.
 
-**Lookups** resolve once per request, only when a rule uses them: the oldest document in `collection` matching `where` (which may use `doc` and `user` only), as its fields plus `id`, `created_at`, `updated_at`, or `null` when nothing matches. Every comparison with a null lookup is unknown, so it denies even under `not`. Names must be identifiers other than `user`, `doc`, `new`, `file`, `run`, `session`, `approval`, `true`, `false`, `null`.
+**Lookups** resolve once per request, only when a rule uses them: the oldest document in `collection` matching `where` (which may use `doc` and `user` only), as its fields plus `id`, `created_at`, `updated_at`, or `null` when nothing matches. With `values: <field path>`, the lookup is instead the list of that field's values in every matching document (`doc.team_id in teams`); more than 1,000 matching documents fail the request with 500 `The lookup <name> found more than 1000 documents. Narrow its where.` Every comparison with a null lookup is unknown, so it denies even under `not`. Names must be identifiers other than `user`, `doc`, `new`, `file`, `run`, `session`, `approval`, `true`, `false`, `null`.
 
 **Public visitors.** On a public app, `user` is `{id, email: null, name: null, groups: [], claims: {}, signed_in: false}`. The `id` is derived per app from a secret visitor cookie, so knowing it doesn't let anyone act as that visitor, but clearing cookies or switching browsers gives a new ID and loses access to records tied to the old one. Rules on `user.email` or `user.name` never match a public visitor, not even documents whose field is null. Sign-in can be switched to public in the dashboard, so state the intent explicitly where it matters: `user.signed_in == true and doc.author_id == user.id`.
 
@@ -204,7 +227,8 @@ How rules apply:
 | `private attribute '_id' isn't allowed` | Use `doc.id`, `doc.created_at`, `doc.updated_at`. |
 | `can't compare two fields of doc` | Compare a record field with a value, `user`, or a lookup. |
 | `can't compare fields of doc with new` | Check `new` and `doc` in separate comparisons. |
-| `access.retrieval.help.internal: help already covers it; declare only one of them` | Move the content into a namespace outside `help`, or drop one of the two. |
+| `compare fields of new, such as new.status` | In database `update` rules, use `new` only through its fields. |
+| `can't compare two fields of new; compare a field with a value` | In database `update` rules, compare each field of `new` with a value. |
 | `compare doc fields with a value, e.g. doc.done == true` | No bare record fields. |
 | `doc.id can only be compared with ==, !=, in and not in` | No ordering on ids or `status`. |
 | `file has no field x; use path, folder, ...` / `compare file.metadata fields, e.g. file.metadata.owner` | Custom file fields live under `file.metadata.<key>`. |
@@ -223,6 +247,7 @@ Browser code calls these paths on its own host. A request with another `Origin` 
 | `POST /_connic/db/<collection>/count` | `{filter?}` | `{count}` |
 | `POST /_connic/db/<collection>/insert` | `{document}` or `{documents}` (max 50) | 201 `{inserted, inserted_count}` |
 | `POST /_connic/db/<collection>/update` | `{filter, update}` (non-empty filter; `null` removes a field) | `{updated}` |
+| `POST /_connic/db/<collection>/upsert` | `{filter, update, insert_only?}` (insert takes filter equalities, `update`, `insert_only`) | `{id, operation: "updated" \| "inserted"}` |
 | `POST /_connic/db/<collection>/delete` | `{filter}` (non-empty) | `{deleted}` |
 | `POST /_connic/files/list` | `{folder?, filter?, limit?, cursor?}` | `{folder, folders, files, count, total, next_cursor}` |
 | `POST /_connic/files/download` | `{path}` | `{url, expires_at}` |
@@ -234,6 +259,7 @@ Browser code calls these paths on its own host. A request with another `Origin` 
 | `GET /_connic/runs/stats` | `?agent&days` (1 to 90, default 7) | `{days, total, statuses, average_duration_ms, daily: [{day, runs}]}` |
 | `GET /_connic/runs/<id>` | | run |
 | `POST /_connic/runs/<id>/cancel` | | run |
+| `GET /_connic/sessions` | `?limit&cursor` (default 25, max 100) | `{sessions, next_cursor}`, most recently updated first, without events; a page can hold fewer than `limit` and still have a `next_cursor` |
 | `GET /_connic/sessions/<id>` | | `{session: {id, agent, state, created_at, updated_at}, events}` |
 | `DELETE /_connic/sessions/<id>` | | `{deleted: true}` |
 | `GET /_connic/approvals` | `?status=pending\|approved\|rejected\|timeout` | `{approvals}` (up to 100, pending first) |
