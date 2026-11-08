@@ -136,7 +136,7 @@ access:
       insert: true
       update: user == null or doc.customer_id == member.customer_id
       set:
-        source: '"support-agent"'          # plain value: written on insert, callers can't send it
+        source: '"support-agent"'          # written on insert, overriding the supplied value
         updated_by:
           value: '"support-agent"'
           writes: [insert, update]

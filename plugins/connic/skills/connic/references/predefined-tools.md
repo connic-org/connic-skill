@@ -141,6 +141,8 @@ children = await retrieval_list_namespaces(parent="policies", depth=1)
 # {"parent": {...}, "namespaces": [...]}
 ```
 
+`relevance_score` is 0–1 and sets the result order when available. If reranking is unavailable, it is null and results use the combined ranking from meaning and exact-term matches.
+
 `retrieval_query` inherits the current run's remaining deadline. If the deadline has already been reached or expires before a response arrives, it returns `{"error": "...", "results": []}` instead of matches.
 
 Retrieval queries and metadata-filter deletes operate on committed index entries. A pending `retrieval_store` job is not searchable; for an existing namespace and `entry_id`, its committed content and metadata remain queryable until the replacement job commits atomically. Agents cannot poll a `job_id`, so schedule dependent cleanup as a later run with `trigger_agent_at` rather than inline.
@@ -324,7 +326,7 @@ for invoice in result["files"]:
     await file_update(invoice["_path"], metadata={"status": "processing"})
 ```
 
-Files are up to 1 GiB through the dashboard and REST API, 100 MiB through the browser tools. Restrict an agent with `access.files` rules in agent YAML (see agent-yaml reference); `file.session_id == session.id` limits a rule to files of the current session. The same rules decide which files `file_share_link` can share, which files `retrieval_store(file_path=...)` can import, and which `retrieval_query(share_links=True)` results get links.
+Files are up to 1 GiB through the dashboard and REST API, 100 MiB through the browser tools. Browser saves evaluate write rules without file size or MIME type and are denied when the folder sets metadata on insert. Restrict an agent with `access.files` rules in agent YAML (see agent-yaml reference); `file.session_id == session.id` limits a rule to files of the current session. The same rules decide which files `file_share_link` can share, which files `retrieval_store(file_path=...)` can import, and which `retrieval_query(share_links=True)` results get links.
 
 ## Web
 
