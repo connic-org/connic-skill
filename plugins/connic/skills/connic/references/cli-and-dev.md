@@ -1,6 +1,6 @@
 # The `connic` CLI and dev workflow
 
-The CLI ships with `connic-composer-sdk`. Install with `pip install connic-composer-sdk` (requires Python 3.10+).
+The CLI ships with `connic-composer-sdk`. Install with `pip install connic-composer-sdk` (requires Python 3.11+).
 
 ## Full command list
 
