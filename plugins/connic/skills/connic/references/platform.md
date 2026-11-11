@@ -24,6 +24,7 @@ For managed inference:
 - Every `connic/*` call stays on EU inference capacity and is not used for model training. Catalog warning labels identify non-EU-native upstream providers or a provider's data-retention policy; those labels do not change the EU inference location. Models without a retention label run only on providers with a zero-data-retention policy.
 - A managed request cancelled by the run timeout or a manual stop settles at zero tokens and releases its reserved Project credit.
 - Models with the Files capability read PDFs natively, including scanned pages; the catalog tooltip lists each model's accepted file types. If an uploaded PDF requires a password to open, the model receives a text note instead of its contents. GPT-5.4 and GPT-5.6 also accept Word, Excel, PowerPoint, RTF, OpenDocument, and EPUB. Text files (txt, csv, tsv, md, html, json, jsonl, xml) reach every model as text. Any other file in the latest message fails the request with `unsupported_file_type`. connic replaces unsupported attachments in earlier messages with text notes so later requests can continue. A request can be up to 48 MiB after base64 encoding, supported files stay in the conversation for later requests in the run, and `fallback_model` should accept the same file types: a fallback that rejects a file in the latest message fails with `unsupported_file_type`, and the deployment log warns about such a pair. Token cost per page differs by model, and scanned pages can cost more than text pages. See [file input](https://connic.co/docs/v1/build/connic-models#file-input).
+- Models with the Audio capability understand voice messages from WhatsApp or Telegram and audio files sent through the API; connic converts formats the model can't read directly, such as OGG, to MP3, and undecodable audio reaches the model as a text note. On every other model, audio in the latest message fails with `unsupported_modality`, and audio in earlier messages becomes a text note. Audio counts as input tokens at the model's input price unless the model lists its own audio input price. Return audio from tools as `ToolFile(data=...)`; audio given only as a URI reaches the model as a text note. See [audio input](https://connic.co/docs/v1/build/connic-models#audio-input).
 
 ## Environments
 
@@ -71,6 +72,10 @@ To require the result before merging:
 - **GitLab:** connic adds `connic/pr-tests` as an external job in the source branch pipeline. Enable **Settings → Merge requests → Merge checks → Pipelines must succeed**.
 
 PR Testing is supported on GitHub and GitLab.
+
+### Changed Tests Only
+
+With **Changed Tests Only** on (per environment, in **Project Settings → Git & Environments**, the REST API or connic MCP as `changed_tests_only`), the deploy gate and PR tests for that environment skip test cases that already passed there and depend on nothing that changed since. A case runs again when its test case or fixtures, its agent's configuration, the code of its tools, middleware, hooks or custom guardrails (and project modules they import), its API spec tools, `requirements.txt`, `assets/`, the test environment, or an agent it runs in sequence or names under `expected_child_agents` changed. Agents the model triggers without a test naming them, variables, connections, data, remote MCP servers and model behavior are not compared. `changed_tests_max_age_days` makes unchanged cases run again after that many days. Skipped cases show as `unchanged` in the deployment's test results. `connic test` always runs every case.
 
 ## Observability
 
