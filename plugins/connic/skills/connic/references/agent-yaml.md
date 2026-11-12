@@ -302,7 +302,7 @@ Use exact `connic/*` IDs from the live [connic model catalog](https://connic.co/
 
 For a custom OpenAI-compatible provider, configure a unique lowercase prefix, the API base URL, and an optional API key. The `connic` prefix is reserved for managed models.
 
-An exact ID ending in `-fast` selects a latency-optimized catalog profile. Some models only have a Fast ID; where both exist, the profiles can differ in output quality, accepted `reasoning_effort` values, context size, or input modalities. Treat each exact ID as distinct and use the limits shown in the model catalog.
+An available catalog ID ending in `-fast` selects a latency-optimized catalog profile. Some models only have a Fast ID; where both exist, the profiles can differ in output quality, accepted `reasoning_effort` values, context size, or input modalities. Treat each exact ID as distinct and use the limits shown in the model catalog.
 
 Managed and BYOK models can be paired as primary and fallback in either direction.
 
