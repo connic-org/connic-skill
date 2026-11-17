@@ -66,7 +66,7 @@ Parameters without type hints are still exposed but default to `{"type": "string
 
 ## Upload size and file types
 
-A deploy or `connic dev` upload can be up to 50 MB, counted unpacked. Outside `tests/files/` and `apps/`, files must be text with one of these extensions: `.py`, `.yaml`, `.txt`, `.json`, `.csv`, `.md`, `.toml`, `.jsonl`. MP3 and WAV audio (`.mp3`, `.wav`) is allowed there too, such as a voice connector's hold audio. `tests/files/` accepts any file type, binary included. Other binary files a tool needs at runtime, such as images or PDFs, belong in [Files](predefined-tools.md#files) (`file_read`, `web_browser_upload(path=...)`), not base64 in the code.
+A deploy or `connic dev` upload can be up to 50 MB, counted unpacked. Python files outside `apps/` are limited to 256 KiB each, including fixtures in `tests/files/`. Outside `tests/files/` and `apps/`, files must be text with one of these extensions: `.py`, `.yaml`, `.txt`, `.json`, `.csv`, `.md`, `.toml`, `.jsonl`. MP3 and WAV audio (`.mp3`, `.wav`) is allowed there too, such as a voice connector's hold audio. `tests/files/` accepts any file type, binary included. Other binary files a tool needs at runtime, such as images or PDFs, belong in [Files](predefined-tools.md#files) (`file_read`, `web_browser_upload(path=...)`), not base64 in the code.
 
 ## Cascading `_defaults.yaml`
 

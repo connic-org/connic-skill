@@ -41,7 +41,7 @@ Database queries address one collection per call. Store rows the app reads toget
 1. **Inventory, read-only.** Walk the whole source tree and list every entry point, model call, prompt, function the model calls, data store, schedule, background job, external integration, secret, and auth check. The [pattern map](#pattern-map) lists what to search for.
 2. **Map every item.** Give each one an outcome: **native** (which connic feature), **external** (which system, and why it passes the keep-or-move test), or **dropped** (replaced by connic, such as the agent loop or the HTTP server). Include the model choice: an exact `connic/*` ID from the [connic model catalog](https://connic.co/docs/v1/build/connic-models), or BYOK to keep the current provider model unchanged. Don't choose silently.
 3. **Show the plan before writing files.** Present the mapping, the kept-external items with reasons, and what the user must do (Variables, Connections, Bridges, data import). Wait for confirmation.
-4. **Build in a new directory.** Leave the old app untouched for comparison. Scaffold with `connic init`, then write agents, tools, middleware, schemas, guardrails, tests, and `connectors/*.yaml` ([connectors in code](connectors.md#connectors-in-code); Slack stays in the dashboard). Migrated agents follow the same [best practices](../SKILL.md#best-practices-apply-these-by-default) as new ones.
+4. **Build in a new directory.** Leave the old app untouched for comparison. Scaffold with `connic init`, then write agents, tools, middleware, schemas, guardrails, tests, and `connectors/*.yaml` ([connectors in code](connectors.md#connectors-in-code); set up Slack Connections in the dashboard first). Migrated agents follow the same [best practices](../SKILL.md#best-practices-apply-these-by-default) as new ones.
 5. **Validate** with `connic lint`. Ask before `connic dev`, `connic deploy`, or a data import; each acts on the user's connic account.
 6. **Move data** into each environment.
 7. **Write `MIGRATION_REPORT.md`.**
@@ -63,7 +63,8 @@ The left column is what to look for in the source; the right column is what repl
 | Phone-call handling (media streams, speech-to-text and text-to-speech glue) | Voice agent (`voice_config`) with a `twilio` or `telnyx` connector |
 | Stripe webhook handler | `stripe` connector |
 | Kafka or SQS consumer script, function triggered by S3 events | `kafka`, `sqs`, or `s3` connector; link a [`tool` agent](agent-yaml.md#tool-agent) when no model is needed |
-| Discord bot, GitHub webhook | `webhook` connector with a forwarder, an MCP server, or a custom tool (no native connector) |
+| GitHub webhook | `github` connector |
+| Discord bot | `webhook` connector with a forwarder, an MCP server, or a custom tool (no native connector) |
 | The app exposes its agent as an MCP server | `mcp` connector |
 | Auth check in the route (API key, JWT, session) | Connector secret for service callers; end-user tokens verified in `before` middleware, with conditional tools gating permissions |
 

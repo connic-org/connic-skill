@@ -1,6 +1,6 @@
 # Apps
 
-Apps are static frontends declared in code. connic builds each one on every deploy, serves it on its own URL (`https://<key>-<8 hex characters>.connic.app`, plus an optional custom domain), signs visitors in, lets the browser call the app's connectors, and gives browser code read and write access to the environment's database, files, runs, sessions, and approvals, plus search in chosen Retrieval namespaces, under access rules declared next to it. Apps are available on pro and enterprise.
+Apps are static frontends declared in code. connic builds each one on every deploy, serves it on its own URL (`https://<key>-<8 hex characters>.connic.app`, plus an optional custom domain), signs visitors in, lets the browser call the app's connectors, and gives browser code read and write access to the environment's database, files, runs, sessions, and approvals, plus search in chosen Retrieval namespaces, under access rules declared next to it. Apps are available on developer, pro, and enterprise.
 
 Apps are unrelated to **OAuth apps**, which hold provider settings for per-user MCP sign-in (see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#per-user-sign-in-oauth-apps)).
 
@@ -234,7 +234,7 @@ How rules apply:
 | `file has no field x; use path, folder, ...` / `compare file.metadata fields, e.g. file.metadata.owner` | Custom file fields live under `file.metadata.<key>`. |
 | `connector 'x' needs apps_only: true in connectors/x.yaml` | Set it, or remove the connector from `connectors`. |
 | `auth.groups: permission group 'x' doesn't exist in this project` | Use an existing permission group name. |
-| `Apps aren't enabled for this project's plan` | Apps need pro or enterprise. |
+| `Apps aren't enabled for this project's plan` | Apps need developer, pro, or enterprise. |
 
 ## Data endpoints
 
@@ -318,13 +318,13 @@ A Retrieval search result has `file_path` when the entry's file is kept in Files
 
 ## Limits
 
-| | pro | enterprise |
-| --- | --- | --- |
-| Apps per environment | 5 | 5 (custom plans can differ) |
-| Build output per app | 25 MB | 25 MB |
-| App build time per deploy | 10 minutes | 10 minutes |
+| | developer | pro | enterprise |
+| --- | --- | --- | --- |
+| Apps per environment | 2 | 5 | 5 (custom plans can differ) |
+| Build output per app | 25 MB | 25 MB | 25 MB |
+| App build time per deploy | 10 minutes | 10 minutes | 10 minutes |
 
-Free and developer plans have no apps; a deploy that declares one fails. Build output is also limited to 20,000 files per deploy. App sources count toward the 50 MB deploy upload, with a 20 MB budget of their own. Custom domains need pro or enterprise. `connic dev` uploads have the same output limit.
+The free plan has no apps; a deploy that declares one fails. Build output is also limited to 20,000 files per deploy. App sources count toward the 50 MB deploy upload, with a 20 MB budget of their own. Custom domains need pro or enterprise. `connic dev` uploads have the same output limit.
 
 ## Bot protection on public apps
 
