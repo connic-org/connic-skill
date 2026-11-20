@@ -314,7 +314,7 @@ Project files: one folder tree per environment that keeps files between runs. Ag
 
 Share links: a link works until the environment's share link lifetime ends (`file_share_link_days`, 1 to 365, default 30, in the environment settings), it is revoked, or the file is replaced or deleted. Sharing the same file version again within a day returns the same link. Downloads through share links count as file downloads. The dashboard Files page lists a file's share links (creator, expiry, status) and revokes them; REST has `POST /v1/projects/{project_id}/files/{environment_id}/share-links/list` (`files.view`) and `.../share-links/revoke` (`files.manage`), connic MCP has `list_file_share_links` and `revoke_file_share_link`.
 
-The `retrieval/` folder holds the files Retrieval keeps for its entries (see [Kept files and share links](#kept-files-and-share-links)). Retrieval manages it: file tools can list and read its files, but `file_write`, `file_update`, and `file_delete` fail there.
+The `retrieval/` folder holds the files Retrieval keeps for its entries (see [Kept files and share links](#kept-files-and-share-links)). Retrieval manages it: file tools can list and read its files, but `file_write`, `file_update`, and `file_delete` fail there. The `apps/` folder works the same way for the copies of published app instances (see [Apps](#apps)).
 
 Every file carries system fields (`_path`, `_folder`, `_name`, `_mime_type`, `_size`, `_source`, `_agent`, `_run_id`, `_session_id`, `_id`, `_created_at`, `_updated_at`) plus custom metadata. Filters use the `db_find` operators on both. Custom metadata keys must not start with `_`.
 
@@ -441,6 +441,23 @@ The browser closes when its run ends. With sessions enabled, `session.browser` d
 For sites that accept passkeys, add a passkey per environment in **Settings → OAuth & Passkeys** and list its name in the agent's `browser.passkeys`. Every page, tab, and popup then answers that domain's passkey prompts, so the agent signs in by clicking the site's passkey button, and sites with passkey autofill sign in when the page loads. `web_browser_open` returns `passkeys` with each name, domain, and `status`. A `pending` passkey stores the first passkey that the browser registers on its domain (the action's result lists it in `passkeys_saved`); existing passkeys are imported in the dashboard with credential ID, private key, and optional user handle. Private keys never appear in tool results, traces, or logs. The REST API and MCP list, create pending, reset, and delete passkeys but cannot import keys.
 
 Errors are returned in `error`. If an action returns `outcome_unknown`, observe the browser before deciding whether to act again.
+
+## Apps
+
+`app_publish` and `app_preview` are never listed under `tools:`. An LLM agent gets them in every run where one of its `apps:` entries applies (see [agent-yaml.md](agent-yaml.md) and [apps.md](apps.md#instances-published-by-agents)).
+
+- `app_publish(app, folder, instance=None)` publishes the static files in a Files folder (with `index.html` at its top) as an instance of the app at `https://<app host>/i/<instance id>/`, or replaces the files of `instance` and keeps its URL. Returns `{"instance", "url", "version", "expires_at", "embed_url"?}`; `embed_url` comes when the entry sets `user` and the context holds one. The model only sees the apps whose `condition` holds. The tool's description includes a guide to each of those apps as deployed (Content-Security-Policy, accepted files and limits, data API endpoints, the app's access rules, lookups and connectors), so the agent's prompt only covers what the pages are for and any shared files of the app's own build.
+- `app_preview(instance, full_page=False)` (model-facing only) opens a page published in the same run in the run's browser, through its `embed_url` when there is one, and returns a screenshot with `{"instance", "console_messages", "page_errors"}`: the page's logged errors and warnings (including files its CSP blocked) and uncaught script errors. Counts as browser usage.
+- `app_embed_link(app, user, instance=None, expires_in_days=None)` (custom code only) returns `{"url", "expires_at"}`: a link that opens the app, or only that instance, signed in as `user` (an ID, or `{"id", "email"?, "name"?, "groups"?}`), also inside an iframe. Whole-app links default to 30 days, instance links to the instance's lifetime.
+
+`app_publish` and `app_embed_link` work from custom tools and middleware through `connic.tools` for apps listed under the agent's `apps:`.
+
+```python
+from connic.tools import app_embed_link, app_publish
+
+result = await app_publish("reports", "reports/drafts/q3")
+link = await app_embed_link("reports", context["user"], instance=result["instance"])
+```
 
 ## When to use predefined tools vs custom wrappers
 

@@ -152,7 +152,7 @@ Available providers vary by type: `moderation` supports `openai` and `perspectiv
 | Type | Direction | Important `config` fields |
 | --- | --- | --- |
 | `prompt_injection` | input | `sensitivity: low \| medium \| high` (default `medium`); optional `provider: lakera` |
-| `pii` | input | `entities`: any of `email`, `phone`, `ssn`, `credit_card`, `iban`, `ip_address`, `api_key` (default all) |
+| `pii` | input | `entities`: any of `email`, `phone`, `ssn`, `credit_card`, `iban`, `ip_address`, `api_key`, `de_tax_id`, `de_vat_id`, `de_social_security`, `de_id_card`, `de_passport` (default all). Card, IBAN, tax ID, VAT ID and social security numbers must pass their check digit; tax IDs, ID card and passport numbers, and digit-only phone numbers need a context word before them (`Steuer-ID`, `Ausweis`, `Tel.`) |
 | `moderation` | input/output | `categories`; external-provider `threshold` (default `0.7`); optional `provider: openai \| perspective` |
 | `topic_restriction` | input | `allowed_topics` or `blocked_topics`; `off_topic_message`; optional `model` (default agent model) |
 | `regex` | input/output | `patterns`: a list of `{pattern, message}` objects |

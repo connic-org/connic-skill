@@ -16,7 +16,7 @@ apps/
 ```
 
 - One `apps/<key>.yaml` per app, directly in `apps/`, with the `.yaml` extension. The key starts with a letter or digit and uses letters, digits, `-` and `_` (100 characters max); it can't be set inside the file.
-- `apps/<key>/` must exist with a `package.json` and a lockfile. A folder without a matching `.yaml` fails lint.
+- `apps/<key>/` must exist with a `package.json` and a lockfile, unless the file has no `build` (only with `instances_only: true`); then the folder must not exist. A folder without a matching `.yaml` fails lint.
 - Deploys upload the sources without `node_modules`, hidden files, and `dist`, `build`, `out`, and `coverage` folders at the top of each app. Allowed source types: `.js .mjs .cjs .jsx .ts .mts .cts .tsx .vue .svelte .astro .html .htm .css .scss .sass .less .json .jsonc .md .mdx .txt .yaml .yml .toml .svg .xml .webmanifest .graphql .gql .lock` (UTF-8 text) and `.png .jpg .jpeg .gif .webp .avif .ico .woff .woff2 .ttf .otf .mp3 .mp4 .webm .pdf`. Anything else, including files without an extension, fails with `File type '...' not allowed in apps/`.
 
 ## `apps/<key>.yaml`
@@ -38,6 +38,8 @@ auth:                               # optional; omit to manage sign-in in the da
   allowed_groups: [support]         # optional, matched against groups_claim
 connectors: [support-chat]          # apps_only connectors the browser may call
 domain: portal.example.com          # optional active custom domain of the project
+embed:                              # optional; sites that may show the app in an iframe
+  origins: [https://app.example.com, https://*.example.com]
 lookups:                            # documents resolved once per request
   member:
     collection: members
@@ -72,6 +74,7 @@ dev:                                # connic dev environments the list doesn't n
 | Field | Rules |
 | --- | --- |
 | `name` | 1 to 200 characters, no `${VAR}`. |
+| `build` | Required unless `instances_only: true`. |
 | `build.command` | Required, one line, no `${VAR}`. |
 | `build.output` | Required folder inside the app, such as `dist`. It must contain `index.html`. |
 | `build.install` | Defaults to `npm ci`, `pnpm install --frozen-lockfile`, or `yarn install --frozen-lockfile` by lockfile. |
@@ -80,8 +83,10 @@ dev:                                # connic dev environments the list doesn't n
 | `connectors` | Keys of `connectors/*.yaml` files with `apps_only: true`. See [Calling agents](#calling-agents-through-connectors). |
 | `domain` | Hostname or ID of an active custom domain of the project that no connector or other app uses. |
 | `content_security_policy` | One line, up to 4,000 characters; replaces the default policy. |
+| `instances_only` | `true` serves only the instances agents publish; every other page answers 404. See [Instances](#instances-published-by-agents). |
+| `embed.origins` | Up to 20 origins that may frame the app: `https://host[:port]`, `https://*.example.com`, or `http://localhost`, `http://127.0.0.1`, `http://<name>.localhost`. Omit `embed` to manage them in the dashboard. See [Embedding](#embedding-and-embed-links). |
 | `lookups`, `access` | See [Access rules](#access-rules). |
-| `environments` | Environment names, matched exactly; a name that doesn't exist fails the deploy. An override replaces the whole top-level value of `name`, `auth`, `connectors`, `domain`, `content_security_policy`, `lookups`, or `access`; `null` removes a top-level `domain`, `content_security_policy`, `lookups`, or `access`. `build` is the same everywhere. |
+| `environments` | Environment names, matched exactly; a name that doesn't exist fails the deploy. An override replaces the whole top-level value of `name`, `auth`, `connectors`, `domain`, `content_security_policy`, `embed`, `lookups`, or `access`; `null` removes a top-level `domain`, `content_security_policy`, `lookups`, or `access`. `build` and `instances_only` are the same everywhere. |
 | `dev` | Same fields as an override, for every `connic dev` environment that `environments` doesn't name (quick tests included). With `environments`, those get the app only when `dev` is set; `dev: {}` keeps the top of the file. Dev environments have their own Variables (quick tests start without any), so put Variable-based sign-in overrides and `domain: null` here. |
 
 `${VAR}` works only in `domain` and in `auth.issuer`, `auth.client_id`, and `auth.client_secret`, resolved at deploy from the target environment's Variables; `client_secret` must be a variable.
@@ -92,7 +97,7 @@ dev:                                # connic dev environments the list doesn't n
 - A deploy installs with the install command in a clean Node environment, runs `build.command`, checks for `<output>/index.html`, and fails with the build output in the deployment log otherwise. A rollback serves the older build again.
 - Builds get no Variables. The app reads its settings at runtime from `/_connic/config.json`, so one build serves every environment.
 - Paths without an extension try `<path>.html`, `<path>/index.html`, then `index.html`, so client-side routing works. A missing file with an extension gets the build's `404.html` when it has one.
-- Default `Content-Security-Policy`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'`. Calls to other origins, third-party scripts, or frames need `content_security_policy`; Next.js static exports need `script-src 'self' 'unsafe-inline'`.
+- Default `Content-Security-Policy`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'`. Calls to other origins, third-party scripts, or frames need `content_security_policy`; Next.js static exports need `script-src 'self' 'unsafe-inline'`. The app's embed origins are added to `frame-ancestors` of the default; with `content_security_policy`, set `frame-ancestors` there.
 
 ## Sign-in
 
@@ -142,7 +147,7 @@ const { result } = await response.json(); // the sync webhook response
 - A connector listed by an app must be deployed to every environment the app is; lint reports a mismatch.
 - WebSocket: ``new WebSocket(`wss://${location.host}/_connic/c/support-chat`)``, with the [websocket message protocol](connectors.md#websocket). An optional last segment, `/_connic/c/<key>/<connection id>`, names the connection; IDs are per end user. A new connection with the ID of an open one replaces it (the older gets `CONNECTION_REPLACED`, close 4009), and answers the visitor missed while disconnected arrive once they reconnect with that ID, e.g. after a phone locks. Keep one ID per tab and see [reconnect](connectors.md#websocket).
 - The connector's `rate_limit` works as on its regular URL, and `per_ip` sees the visitor's IP.
-- Runs started through an app get `context["app"]` (`{"id", "key"}`) and `context["end_user"]` (`{"id", "email", "name", "groups", "signed_in", "claims"}`), set by connic from the forwarded request, never from the payload. `claims` are the visitor's OIDC ID token claims and show in run traces like the rest of the context. On public apps `end_user` is the anonymous visitor: the per-app `id` from the visitor cookie, `email` and `name` null, `groups` and `claims` empty, `signed_in` false. The agent's access rules see the same visitor as `user`, also in agents it starts with `trigger_agent`.
+- Runs started through an app get `context["app"]` (`{"id", "key"}`) and `context["end_user"]` (`{"id", "email", "name", "groups", "signed_in", "claims"}`), set by connic from the forwarded request, never from the payload. `claims` are the visitor's OIDC ID token claims and show in run traces like the rest of the context. On public apps `end_user` is the anonymous visitor: the per-app `id` from the visitor cookie, `email` and `name` null, `groups` and `claims` empty, `signed_in` false. The agent's access rules see the same visitor as `user`. Agents it starts with `trigger_agent` get the same `end_user` in their context and as `user`.
 
 ```python
 # middleware/support-assistant.py
@@ -359,11 +364,59 @@ async def before(content, context):
 
 Webhook runs carry the request in `context["request"]` with lowercase header names; see [verifying the sender](connectors.md#webhook).
 
+## Instances published by agents
+
+Agents publish pages (a report with charts, a dashboard for one question) as instances of an app. Each instance is served at `https://<app host>/i/<instance id>/` with the app's sign-in, data access rules, connectors, and CSP.
+
+```yaml
+# agents/analyst.yaml (LLM agents only)
+apps:
+  - app: reports                        # key of apps/reports.yaml; each app once
+    condition: context.user.role != null   # optional, conditional-tools grammar
+    max_age_days: 90                    # optional; default: kept until deleted
+    user: context.user                  # optional; ID or {id, email?, name?, groups?} from middleware
+```
+
+```yaml
+# apps/reports.yaml
+instances_only: true    # pages outside /i/<id>/ answer 404; base files stay reachable
+build:                  # optional with instances_only: components, styles, chart libraries
+  command: npm run build
+  output: dist
+auth:
+  mode: connic
+```
+
+- Every app an agent lists must exist in `apps/` and be deployed to the agent's environment, or lint/deploy fails.
+- The agent gets the `app_publish` and `app_preview` tools automatically in each run where at least one entry's `condition` holds; `app_publish`'s `app` argument only offers those apps. Don't list either under `tools`.
+- Flow: the agent writes static files with `file_write` into a folder (with `index.html` at its top), then calls `app_publish(app, folder, instance=None)`. Result: `{"instance", "url", "version", "expires_at", "embed_url"?}`. `embed_url` is there when the entry sets `user` and the context holds one.
+- Publishing again with `instance` replaces all files and keeps the URL; `version` increments. The instance must belong to the same app.
+- `app_preview(instance, full_page=False)` opens a page published in the same run (through its `embed_url` when there is one) in the run's browser and returns `{"instance", "console_messages", "page_errors"}` plus a screenshot: the errors and warnings the page logged, including files its CSP blocked, and uncaught script errors. The agent fixes the files and publishes the same instance again. It counts as browser usage. Prefer it over `web_browser_*` for checking published pages.
+- The agent can only publish files its file access rules let it read. Allowed file types are the app source types; the total size is capped by the plan's build output per app, each file by 16 MiB, and the count by 20,000 files. Errors come back as the tool's error.
+- Instance pages load the base build's files by absolute path (`/assets/...`), so put shared components and styles in the app's build and let the agent write only the page. The default CSP keeps instance pages on the app's own host.
+- Lifetime: kept until deleted, or `max_age_days` after the first publish (republishing doesn't extend it). Instances outlive their run and session. Deleting one removes its files and ends its embed links. Retired apps stop serving their instances; deleting the environment deletes them.
+- No limit on the number of instances. A copy of each instance's files lives in Files under `apps/<key>/<instance id>/` and counts as Files storage; agents and Files can read `apps/` but never write, move, or delete there.
+- Custom code: `from connic.tools import app_publish` works for apps listed under `apps`, same arguments and result.
+
+## Embedding and embed links
+
+- `embed.origins` (or **Settings → Embedding** in the dashboard when the file omits `embed`) decides which sites may show the app in an iframe.
+- An embed link opens the app, or one instance, signed in as a user you name (`id` required; `email`, `name`, `groups` optional), on any sign-in mode, also inside an iframe. Rules see that user as `user`; runs started from the app get it as `context.end_user` with `signed_in: True`.
+- Lifetime: whole-app links 30 days, instance links as long as the instance; `expires_in_days` overrides. Links are reusable until they expire or are revoked; each opening starts a 12-hour session. A revoked link's sessions end at the next renewal (within 10 minutes).
+- An instance link opens only that instance; other pages of the app answer 404 for that visitor.
+- The session lives in the `__Host-connic_app_embed` cookie (`SameSite=None; Partitioned`). Browsers that refuse cookies in iframes get an "Open in new tab" page.
+- Ways to create one:
+  - Agent: `user: context.<path>` on the `apps` entry; `app_publish` returns `embed_url`. The user always comes from the context, never from the model.
+  - Custom code: `from connic.tools import app_embed_link`; `await app_embed_link(app, user, instance=None, expires_in_days=None)` returns `{"url", "expires_at"}` for apps listed under `apps`.
+  - Backend: `POST /v1/projects/{project_id}/apps/{app_id}/embed-links` with an API key that has `apps.embed`; body `{"user": {...}, "instance_id"?, "expires_in_days"?}`; returns `{"id", "url", "expires_at"}`. `GET` on the same path lists links (`apps.view`, optional `?instance_id=`); `DELETE .../embed-links/{link_id}` revokes (`apps.embed`).
+  - connic MCP: `create_app_embed_link`, `list_app_embed_links`, `revoke_app_embed_link`.
+- A link signs in whoever holds it: create it when it's shown and keep `expires_in_days` short for whole-app links.
+
 ## Managing apps
 
-The dashboard's **Apps** page lists each environment's apps with their URL, sign-in, and last-7-day stats; **Details** has **Settings** (custom domain, sign-in), **Stats**, and **Access** (the deployed rules). Viewing needs `apps.view`; changing settings needs `apps.manage`. connic MCP has `list_apps`, `get_app`, `update_app`, and `get_app_stats` (see [platform-mcp.md](platform-mcp.md)). There is no public REST route for apps.
+The dashboard's **Apps** page lists each environment's apps with their URL, sign-in, and last-7-day stats; **Details** has **Settings** (custom domain, sign-in, embedding origins), **Instances**, **Embed links** (list and revoke), **Stats**, and **Access** (the deployed rules). Viewing needs `apps.view`; changing settings and deleting instances needs `apps.manage`; creating and revoking embed links needs `apps.embed`. connic MCP has `list_apps`, `get_app`, `update_app` (including `embed_origins`), `get_app_stats`, `list_app_instances`, `delete_app_instance`, `create_app_embed_link`, `list_app_embed_links`, and `revoke_app_embed_link` (see [platform-mcp.md](platform-mcp.md)). The only public REST routes for apps are the embed-link routes.
 
 Two per-app settings live only in **Details → Settings** and `update_app`, never in `apps/<key>.yaml`:
 
 - `default_url` (default `true`): an app with a custom domain answers on both its `connic.app` address and the domain. `false` redirects the `connic.app` address to the custom domain, keeping path and query. It needs an active custom domain, and removing the domain turns it back to `true`.
-- `powered_by` (default `true`): every HTML page the app serves ends with a small "Powered by connic" line in the page's own font and color. `false` turns it off for that app.
+- `powered_by` (default `true`): every HTML page the app serves ends with a small "Powered by connic" line in the page's own font and color, except pages shown in an iframe. `false` turns it off for that app.

@@ -80,6 +80,12 @@ mcp_servers:                        # max 50 servers per agent
 browser:
   passkeys: [insurer]               # max 10 passkey names from Settings → OAuth & Passkeys; deploy fails if one is missing
 
+apps:                               # LLM agents only; adds app_publish and app_preview when an entry applies (see apps.md)
+  - app: reports                    # key of apps/reports.yaml, deployed to this environment; each app once
+    condition: context.user != null # optional; offer the app only when true (conditional-tool grammar)
+    max_age_days: 90                # optional; delete published instances N days after first publish
+    user: context.user              # optional; ID or {id, email?, name?, groups?}; app_publish adds embed_url
+
 session:                           # true = one shared session; false/null/omitted = off
   key: context.chat_id              # optional context.* or input.* path; omitted/null = shared
   ttl: 86400                        # inactivity seconds, min 60; omitted/null = no expiry
@@ -340,6 +346,8 @@ Use `discoverable_tools` for tools the agent should find by natural-language sea
 Reference by bare name in `tools:`:
 
 `trigger_agent`, `trigger_agent_at`, `retrieval_query`, `retrieval_store`, `retrieval_delete`, `retrieval_list_namespaces`, `web_search`, `web_read_page`, `web_browser_open`, `web_browser_observe`, `web_browser_read`, `web_browser_act`, `web_browser_close`, `web_browser_screenshot`, `web_browser_mouse`, `web_browser_tabs`, `web_browser_dialog`, `web_browser_eval`, `web_browser_console`, `web_browser_network`, `web_browser_upload`, `web_browser_download`, `web_browser_pdf`, `db_find`, `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, `db_list_collections`, `file_list`, `file_read`, `file_write`, `file_update`, `file_delete`, `file_share_link`.
+
+`app_publish` and `app_preview` are not in this list: they come from the agent's `apps:` entries, never from `tools:` (see [apps.md](apps.md#instances-published-by-agents)).
 
 See [predefined-tools.md](predefined-tools.md) for full signatures. Per [SKILL.md](../SKILL.md#best-practices-apply-these-by-default) best practice 1, prefer wrapping these in purpose-driven custom tools rather than handing them to the LLM raw.
 
