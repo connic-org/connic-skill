@@ -24,7 +24,7 @@ Everything the app owns moves.
 
 Ask: **does anything besides this app read or write this store?**
 
-- **No: it is app data, so move it.** Records go to the connic database through wrapped `db_*` tools. Documents the app searches by meaning go to Retrieval. Conversation history goes to [`session:`](agent-yaml.md#sessions). Load existing data once (see [Moving existing data](#moving-existing-data)).
+- **No: it is app data, so move it.** Records go to the connic database through wrapped `db_*` tools. Documents the app searches by meaning go to Retrieval. Conversation history is two separate things: the agent's memory of earlier turns comes from [`session:`](agent-yaml.md#sessions), and conversations users see again (a chat list, titles, earlier messages) are app data in a database collection. Load existing data once (see [Moving existing data](#moving-existing-data)).
 - **Yes: it is a system of record, so keep it.** Reach it from a custom tool with its driver in `requirements.txt`. If the app reacted to changes in it, use the `postgres` connector (LISTEN/NOTIFY) or a queue connector. Use a [Bridge](platform.md#bridge) only when the store runs on always-on private infrastructure such as a VPC or an on-prem network.
 
 These are never valid outcomes:
@@ -99,7 +99,8 @@ The left column is what to look for in the source; the right column is what repl
 | In the source | On connic |
 | --- | --- |
 | `sqlite3`, an ORM on a local file, `lowdb`, JSON or pickle files, module-level dicts holding records | Database collections through wrapped `db_*` tools; limit each agent's collections with the `database:` block |
-| Chat history in a list, table, or Redis | `session:` with a `key` such as `input.conversation_id` |
+| Chat history the model reads on the next turn, in a list, table, or Redis | `session:` with a `key` such as `input.conversation_id` |
+| Conversations users see again: chat list, titles, earlier messages | Database collection keyed by the conversation ID; `after` middleware writes each turn as the user saw it, and a tool lists, reads, and deletes them |
 | Vector store the app owns (Chroma, FAISS, LanceDB, its own pgvector table) plus chunking and embedding code | Retrieval namespaces behind a wrapped `retrieval_query`; the chunking and embedding code is dropped |
 | Content pulled from Notion, Confluence, Zendesk, SharePoint, OneDrive, or a website | Retrieval sources with scheduled sync |
 | A database other systems use | Stays; custom tool, plus a bridge if it is private |
@@ -142,6 +143,7 @@ The left column is what to look for in the source; the right column is what repl
 
 - **Records.** Export each app-owned table or file as a JSON array of objects or as JSONL, one file per collection, already shaped as documents. connic assigns its own `_id`, `_created_at`, and `_updated_at`, so keep old IDs and references between rows in a regular field such as `legacy_id`. Each collection is imported once, all or nothing, into a new or empty collection. An import into a collection that already has documents fails with 409, so an import cannot be split into chunks; to redo one, delete the collection and import again.
 - **Import path.** With connic MCP connected, `import_database_documents` takes up to 512 KiB of documents per collection. Larger files, up to 25 MB, go through **Import** on the dashboard's Database page or a multipart `file` upload to `POST /v1/projects/{project_id}/database/{environment_id}/collections/{name}/import`. All three paths share a limit of 50 import requests per environment in any rolling 24 hours, failed ones included; beyond it the response is 429 with `Retry-After` in seconds. Check every export file is a valid JSON array or JSONL before importing rather than retrying failed imports.
+- **Conversations.** Sessions can't be imported, so the agent starts without memory of old chats. Old conversations users still see go into their database collection like other records.
 - **Documents.** Upload the original files to Retrieval, or connect a Retrieval source. Don't carry over stored vectors.
 - **Environments.** Import into one environment, then use the Database and Retrieval copy drawers to copy into others that need the same data. Staging usually gets test data rather than production records.
 
@@ -162,7 +164,7 @@ A FastAPI app: `POST /chat` calls a model and keeps history in SQLite, with a `t
 | Source | connic |
 | --- | --- |
 | `POST /chat` | `connectors/chat.yaml` (webhook, Sync) linked to `agents/assistant.yaml` |
-| `messages` table | `session` with `key: input.conversation_id` on `assistant` |
+| `messages` table | `session` with `key: input.conversation_id` on `assistant` for the model's memory; if the frontend lists past chats, also a `conversations` collection written in `after` middleware |
 | `tickets` table | Database collection `tickets`, `tools/tickets.py` with `find_open_tickets` and `create_ticket`, imported once per environment |
 | APScheduler nightly job | `connectors/nightly-digest.yaml` (cron, UTC) linked to `agents/digest.yaml` |
 | Slack webhook post | Slack outbound connector on `digest`, created in the dashboard |

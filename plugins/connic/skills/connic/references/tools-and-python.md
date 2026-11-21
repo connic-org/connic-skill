@@ -272,18 +272,6 @@ await record_cost("ocr", Decimal("0.0015"), "USD", description="Invoice scan", q
 
 `record_cost(source, amount, currency, description=None, quantity=None, unit=None, external_id=None)`: `currency` is `"EUR"` or `"USD"`, amounts take up to 12 decimal places (pass a string or `Decimal`, not a float). Recording an `external_id` the run already holds replaces that item. Costs known only after the run go through `POST /v1/projects/{project_id}/runs/{run_id}/cost-items` (permission `runs.costs.record`) or the MCP tool `record_run_costs`. A run holds up to 1,000 items.
 
-### Cancelling and deleting an agent session
-
-When a user deletes a conversation, custom code can stop its turn and delete it:
-
-```python
-from connic.tools import session_cancel_runs, session_delete
-
-await session_cancel_runs("support-bot", chat_id)                    # {"cancelled_count": int}
-await session_delete("support-bot", chat_id, delete_runs=True)       # {"session_deleted", "runs_deleted", "runs_pending"}
-```
-
-Both take the agent name and the value its `session.key` resolved to (`"default"` for an agent without a key). `session_cancel_runs` cancels the session's started runs (running or waiting for approval), never the calling run; a queued run names its session only when it starts. `session_delete` deletes the session and its history; with `delete_runs=True` it also deletes the content of the session's finished runs (input, output, run context, trace), and runs that haven't finished yet count in `runs_pending`, so call it again later. A run of an agent with `session` stores its context as soon as it attaches the session, so for such agents `GET /runs` and `POST /runs/bulk-cancel` with `search=context.<key> == "..."` also find running runs; other runs store their context when they end.
 
 ### When middleware re-runs
 
