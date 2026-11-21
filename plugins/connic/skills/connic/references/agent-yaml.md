@@ -88,7 +88,7 @@ apps:                               # LLM agents only; adds app_publish and app_
 
 session:                           # true = one shared session; false/null/omitted = off
   key: context.chat_id              # optional context.* or input.* path; omitted/null = shared
-  ttl: 86400                        # inactivity seconds, min 60; omitted/null = no expiry
+  ttl: 86400                        # inactivity seconds, min 60; expired sessions are deleted; omitted/null = no expiry
   history: true                     # retain conversation history across runs
   files: true                       # false = files from earlier runs become short notes in the history
   browser: true                     # retain browser cookies and local storage across runs

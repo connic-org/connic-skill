@@ -8,6 +8,8 @@ Tools are plain Python functions. connic uses their type hints and docstrings to
 
 A type-hinted parameter without a default is required. A parameter with a default, including `Optional[T] = None`, is optional.
 
+A parameter typed as a Pydantic model, dataclass, TypedDict, or Enum (also inside `list[...]`, `dict[str, ...]` or `Optional[...]`) gets that type's JSON schema, field descriptions included, and the tool receives an instance, not the raw JSON. Arguments that fail the type's validation return the validation error to the model. A union of several types becomes `anyOf`; `Any` becomes an unconstrained schema. Types Pydantic can't describe fall back to `{"type": "string"}`.
+
 ```python
 def lookup_invoice(invoice_id: str) -> dict:
     """Look up the status and amount of an invoice.
@@ -270,6 +272,19 @@ await record_cost("ocr", Decimal("0.0015"), "USD", description="Invoice scan", q
 
 `record_cost(source, amount, currency, description=None, quantity=None, unit=None, external_id=None)`: `currency` is `"EUR"` or `"USD"`, amounts take up to 12 decimal places (pass a string or `Decimal`, not a float). Recording an `external_id` the run already holds replaces that item. Costs known only after the run go through `POST /v1/projects/{project_id}/runs/{run_id}/cost-items` (permission `runs.costs.record`) or the MCP tool `record_run_costs`. A run holds up to 1,000 items.
 
+### Cancelling and deleting an agent session
+
+When a user deletes a conversation, custom code can stop its turn and delete it:
+
+```python
+from connic.tools import session_cancel_runs, session_delete
+
+await session_cancel_runs("support-bot", chat_id)                    # {"cancelled_count": int}
+await session_delete("support-bot", chat_id, delete_runs=True)       # {"session_deleted", "runs_deleted", "runs_pending"}
+```
+
+Both take the agent name and the value its `session.key` resolved to (`"default"` for an agent without a key). `session_cancel_runs` cancels the session's started runs (running or waiting for approval), never the calling run; a queued run names its session only when it starts. `session_delete` deletes the session and its history; with `delete_runs=True` it also deletes the content of the session's finished runs (input, output, run context, trace), and runs that haven't finished yet count in `runs_pending`, so call it again later. A run of an agent with `session` stores its context as soon as it attaches the session, so for such agents `GET /runs` and `POST /runs/bulk-cancel` with `search=context.<key> == "..."` also find running runs; other runs store their context when they end.
+
 ### When middleware re-runs
 
 By default `before` runs once. On `type: tool` and `type: sequential` operation retries, it only re-runs when `retry_options.rerun_middleware: true`; each retry rebuilds content from the original payload, while the same `context` accumulates state and exposes the zero-based attempt as `context.get("retry_attempt", 0)`. `after` runs once after all attempts, unless `before` raised `StopProcessing`. LLM model-request, fallback, and tool-reflection retries stay inside the existing run, so they never re-run middleware and the option is ignored for `type: llm`. Any ordinary exception in `before` or `after` fails the entire request.
@@ -392,7 +407,7 @@ async def after(tool_name: str, params: dict, result, context: dict):
 
 Scope: hooks fire for local tools, predefined connic tools, API-spec tools, and tools exposed via `mcp_servers`, whether loaded upfront or found through `discoverable_tools` or `discoverable: true`. For a tool the agent calls through `use_tool`, the hook gets that tool's own name and arguments, never `use_tool`, and `AbortTool`, `StopProcessing`, `approval.tools`, and tool conditions work as for tools loaded upfront. `search_tools` and `use_tool` fire no hooks. For an MCP tool, `tool_name` is the server's tool name, `AbortTool` skips the server call, and `after` receives the raw MCP result dict (`content`, `structuredContent`, `isError`), already validated against the tool's output schema. Returning a dict with a `content` list keeps the MCP format (text, files, `isError`); any other value replaces the result as with local tools.
 
-Both hook phases may be synchronous or asynchronous and may omit `context`. `before` can return a dict whose keys are merged into the original tool parameters; returning `None` leaves the parameters unchanged. `after` returns the value passed back to the LLM; returning `None` preserves the original result. `AbortTool` skips execution but marks that tool trace as an error. An ordinary hook exception fails the tool call and is returned to the LLM.
+Both hook phases may be synchronous or asynchronous and may omit `context`. `before` can return a dict whose keys are merged into the original tool parameters; returning `None` leaves the parameters unchanged. To remove or rename a parameter, return `ReplaceParams(params)` (`from connic import ReplaceParams`): its dict replaces all parameters. For `tools/` functions and API-spec tools, connic checks the parameters against the tool's schema after `before`, so a hook can rename a required parameter. `after` returns the value passed back to the LLM; returning `None` preserves the original result. `AbortTool` skips execution but marks that tool trace as an error. An ordinary hook exception fails the tool call and is returned to the LLM.
 
 ## Custom guardrails (`guardrails/<name>.py`)
 
