@@ -257,6 +257,19 @@ async def after(response, context):
 
 Pass `idempotency_key="stable-call-id"` when middleware may retry the same send. Reusing that key within the run returns the existing connector delivery instead of creating another one.
 
+### Recording external costs on the run
+
+When a tool or middleware pays for something outside connic (a translation API, an OCR service), record it on the current run with `record_cost`. The item shows on the run and counts in its cost, Token Usage, dashboards, and token-cost alerts and limits; connic never bills it.
+
+```python
+from decimal import Decimal
+from connic.tools import record_cost
+
+await record_cost("ocr", Decimal("0.0015"), "USD", description="Invoice scan", quantity=1, unit="pages", external_id=job_id)
+```
+
+`record_cost(source, amount, currency, description=None, quantity=None, unit=None, external_id=None)`: `currency` is `"EUR"` or `"USD"`, amounts take up to 12 decimal places (pass a string or `Decimal`, not a float). Recording an `external_id` the run already holds replaces that item. Costs known only after the run go through `POST /v1/projects/{project_id}/runs/{run_id}/cost-items` (permission `runs.costs.record`) or the MCP tool `record_run_costs`. A run holds up to 1,000 items.
+
 ### When middleware re-runs
 
 By default `before` runs once. On `type: tool` and `type: sequential` operation retries, it only re-runs when `retry_options.rerun_middleware: true`; each retry rebuilds content from the original payload, while the same `context` accumulates state and exposes the zero-based attempt as `context.get("retry_attempt", 0)`. `after` runs once after all attempts, unless `before` raised `StopProcessing`. LLM model-request, fallback, and tool-reflection retries stay inside the existing run, so they never re-run middleware and the option is ignored for `type: llm`. Any ordinary exception in `before` or `after` fails the entire request.

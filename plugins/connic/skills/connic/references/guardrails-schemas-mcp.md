@@ -227,7 +227,7 @@ mcp_servers:
     bridge: ${INTERNAL_BRIDGE_ID}                # tunnel through connic bridge for private endpoints
 ```
 
-If a server requires authentication, use credentials issued for that server and configure them in **Project Settings → Variables** before referencing them in its required headers. If it requires each end user to sign in with their own account, use [per-user sign-in](#per-user-sign-in-oauth-apps).
+If a server requires authentication, use credentials issued for that server and configure them in **Project Settings → Variables** before referencing them in its required headers. If it requires each end user's own account, use [per-user credentials](#per-user-credentials).
 
 The optional `tools:` field **inside** the `mcp_servers[]` block filters which of the server's tools the agent sees. There is no `api:` prefix for MCP tools — that prefix is reserved for API-spec tools (next section). MCP tools appear in the agent's tool list under their own names.
 
@@ -285,32 +285,38 @@ async def after(response, context):
 
 A discovery failure on a server without `optional: true` fails the run, so `after` does not run for it.
 
-### Per-user sign-in (OAuth apps)
+### Per-user credentials
 
-Use this when the server acts for one person and accepts only that person's OAuth token, with no shared API key. An OAuth app holds the provider settings per environment in **Settings → OAuth & Passkeys**: authorization URL, token URL, client ID and secret, client authentication (request body or basic header), scopes, optional `resource`, return URLs, and an optional bridge for token URLs inside a private network. Register the client with the provider first, using the redirect URL shown on that page; connic does not discover authorization servers or register clients automatically.
+Use this when a service acts for one person and accepts only that person's token, with no shared API key. A user credential, set per environment in **Settings → User Credentials & Passkeys**, has one of two kinds:
+
+- **OAuth sign-in (`oauth`):** authorization URL, token URL, client ID and secret, client authentication (request body or basic header), scopes, optional `resource`, return URLs, and an optional bridge for token URLs inside a private network. Register the client with the provider first, using the redirect URL shown on that page; connic does not discover authorization servers or register clients automatically.
+- **API token (`token`):** only return URLs. End users paste a token they created in the service, or the customer's backend stores it.
 
 ```yaml
 mcp_servers:
   - name: sisense
     url: https://bi.example.com/mcp
-    oauth:
-      app: sisense            # OAuth app name in the deployment's environment
+    credential:
+      name: sisense           # user credential name in the deployment's environment
       user: context.user_id   # context.* path set by before middleware after verifying the user
       connect_tool: true      # only for agents with a person who can open a link
 ```
 
-`oauth` cannot be combined with an `Authorization` header. Deploying fails when a referenced app is missing from the environment.
+`credential` cannot be combined with an `Authorization` header; connic sends `Authorization: Bearer <token>`. Deploying fails when a referenced credential is missing from the environment. The former `oauth: {app, user, connect_tool}` still works; `connic lint` warns and prints the `credential` replacement.
 
-Users connect in one of two ways:
+Users connect in one of three ways:
 
-- **From the customer's application:** `POST /v1/projects/{project_id}/oauth-apps/{app_id}/connect-links` with a project API key and `{"user_id": "...", "return_url": "..."}` returns a single-use `url` valid for 10 minutes. `user_id` must be the value middleware later puts at the `user` path. `return_url` must match one of the app's return URLs; the browser returns there with `connic_oauth=connected`, `denied`, or `failed`. Without it, connic shows a confirmation page. `GET` and `DELETE` on `/oauth-apps/{app_id}/users?user_id=...` check and disconnect a user. connic MCP exposes the same operations.
-- **From a conversation:** with `connect_tool: true`, a user without a token gets a `connect_<server name>` tool instead of the server's tools. It returns `{url, expires_at}`; the agent shares the link and the user's next message (a new run) can use the server. Voice agents never get the tool. Agents without a person in the loop, such as Kafka or cron consumers, should leave it off and rely on users who already signed in.
+- **Connect link from the customer's application:** `POST /v1/projects/{project_id}/user-credentials/{credential_id}/connect-links` with a project API key and `{"user_id": "...", "return_url": "..."}` returns a single-use `url` valid for 10 minutes. The user signs in with the provider (`oauth`) or pastes their API token (`token`). `user_id` must be the value middleware later puts at the `user` path. `return_url` must match one of the credential's return URLs; the browser returns there with `connic_oauth=connected`, `denied`, or `failed`. Without it, connic shows a confirmation page. `GET` and `DELETE` on `/user-credentials/{credential_id}/users?user_id=...` check and disconnect a user. connic MCP exposes the same operations. The `/oauth-apps` paths still work.
+- **Token from the customer's backend (`token` only):** `PUT /v1/projects/{project_id}/user-credentials/{credential_id}/users` with `{"user_id": "...", "token": "...", "expires_at": "..."}` stores the token; `expires_at` is optional. connic MCP has no tool for this, so tokens never pass through a model.
+- **From a conversation:** with `connect_tool: true`, a user without a token gets a `connect_<server name>` tool instead of the server's tools. It returns `{url, expires_at}`; the agent shares the link and the user's next message (a new run) can use the server. Voice agents never get the tool. Agents without a person in the loop, such as Kafka or cron consumers, should leave it off and rely on users who already connected.
+
+Custom tools read the token with `connic.tools.user_credential(name, user)`, which returns the current token or `None` and masks it in traces. After the service rejects it, call `user_credential(name, user, rejected=token)`: connic refreshes an OAuth token, or deletes a pasted one so the user connects again.
 
 At run time:
 
 - No value at the `user` path, or no stored token for that user: the server is left out of the run, like a false `condition`.
-- Tokens expiring within five minutes are refreshed first when the provider issued a refresh token.
-- On a 401 from the server, connic refreshes once and retries. Without a refresh token the stored token is deleted, `mcp_errors` records the 401, and the user has to sign in again.
+- OAuth tokens expiring within five minutes are refreshed first when the provider issued a refresh token. Tokens past their `expires_at` count as missing.
+- On a 401 from the server, connic refreshes once and retries. Without a refresh token the stored token is deleted, `mcp_errors` records the 401, and the user has to connect again.
 - A failure to load the token follows `optional`.
 - Refresh tokens never reach the runner, and tokens are not logged or traced.
 
@@ -320,7 +326,7 @@ Notes:
 - The server's host and port must be present in the bridge agent's `ALLOWED_HOSTS`.
 - A single agent can declare up to 50 MCP servers.
 - MCP is supported only on LLM agents. External servers must use remote Streamable HTTP; stdio is not supported. connic consumes tools only, not standalone resources, prompts, subscriptions, Tasks, or MCP Apps extensions.
-- Authentication uses static or interpolated headers, or `oauth` for per-user sign-in through an environment OAuth app. Automatic OAuth discovery and dynamic client registration are not supported.
+- Authentication uses static or interpolated headers, or `credential` for per-user OAuth sign-in or API tokens through an environment user credential. Automatic OAuth discovery and dynamic client registration are not supported.
 - Tools are listed at the start of every run. If a server can't be reached or rejects the request, the run fails unless the server sets `optional: true`. A later MCP tool error is traced and returned to the LLM in the current run; connic does not replay the agent or blindly retry a tool that may have produced side effects.
 - Tool calls are traced. MCP tool annotations, structured results, and UI resource metadata attached to tools are preserved.
 

@@ -114,7 +114,7 @@ The left column is what to look for in the source; the right column is what repl
 | Web search API client | `web_search` |
 | Scraping (requests with BeautifulSoup, Playwright, Selenium) | `web_read_page`, `web_browser_*` |
 | Public REST API with an OpenAPI spec | API spec tools |
-| Third-party tools available as an MCP server | `mcp_servers:`; per-user tokens through OAuth apps |
+| Third-party tools available as an MCP server | `mcp_servers:`; per-user tokens through user credentials |
 | Private internal API | Custom tool through a bridge |
 
 ### Safety, quality, and operations

@@ -2,7 +2,7 @@
 
 Apps are static frontends declared in code. connic builds each one on every deploy, serves it on its own URL (`https://<key>-<8 hex characters>.connic.app`, plus an optional custom domain), signs visitors in, lets the browser call the app's connectors, and gives browser code read and write access to the environment's database, files, runs, sessions, and approvals, plus search in chosen Retrieval namespaces, under access rules declared next to it. Apps are available on developer, pro, and enterprise.
 
-Apps are unrelated to **OAuth apps**, which hold provider settings for per-user MCP sign-in (see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#per-user-sign-in-oauth-apps)).
+Apps are unrelated to **user credentials**, which let MCP servers and tools use each end user's own OAuth sign-in or API token (see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#per-user-credentials)).
 
 ## Files
 
@@ -162,7 +162,7 @@ async def before(content, context):
     return content
 ```
 
-`session: {key: context.end_user.id}` keeps one conversation per visitor, and `oauth.user: context.end_user.id` in `mcp_servers` uses the visitor's own OAuth token for an MCP server.
+`session: {key: context.end_user.id}` keeps one conversation per visitor, and `credential.user: context.end_user.id` in `mcp_servers` uses the visitor's own token for an MCP server.
 
 ## Access rules
 
