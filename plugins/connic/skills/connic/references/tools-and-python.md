@@ -352,6 +352,8 @@ async def before(content, context):
     return content
 ```
 
+On a sync `webhook`, these stops answer HTTP 200 with the message as output. To answer 401 or 403, stop with a JSON message such as `json.dumps({"status": 401, "message": "Missing auth token."})` and set the connector's `http_status_field` to `status` (see [connectors.md](connectors.md)).
+
 ```yaml
 # agents/support-assistant.yaml — gate tools by the permissions hydrated above
 tools:

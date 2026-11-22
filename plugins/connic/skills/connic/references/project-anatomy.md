@@ -58,7 +58,7 @@ These are how files wire up. There is no central manifest — the layout *is* th
 | `schemas/<name>.json` | Reference as `output_schema: <name>` in an agent. Valid JSON Schema (subset — see [guardrails-schemas-mcp.md](guardrails-schemas-mcp.md#output-schemas)). |
 | `guardrails/<name>.py` | Reference as `name: <name>` inside a `guardrails: - type: custom` block — filename must match exactly. |
 | `connectors/<key>.yaml` | Declares one connector; the file name is its key and identity. Deploys create, update, or retire it per environment. See [Connectors in code](connectors.md#connectors-in-code). |
-| `apps/<key>.yaml` with `apps/<key>/` | Declares one app, built from `apps/<key>/` and served on its own URL; the file name is its key. See [Apps](apps.md). |
+| `apps/<key>.yaml` | Declares one app; the file name is its key. `build` requires sources in `apps/<key>/`; with `instances_only: true`, both can be omitted. See [Apps](apps.md). |
 
 connic skips `_`-prefixed **files** and **functions** during tool discovery. So `tools/_helpers.py` is not exposed, and neither is `tools/utils.py::_internal_fn`. Use the leading underscore for module-private helpers. `__init__.py` is one example of a `_`-prefixed file; do not put tools there.
 
