@@ -224,7 +224,7 @@ result = await db_find(
     sort={"amount": -1},
     limit=10,                          # default 100, max 1000
     skip=0,
-    fields=["customer", "amount"],     # include only these fields (list, not dict)
+    fields=["customer", "amount"],     # include only these fields (list, not dict); "a.b" comes back as {"a": {"b": ...}}
     distinct="customer",               # unique values of this field
 )
 # {"documents": [...], "count": N}
@@ -245,6 +245,13 @@ await db_upsert(
 )
 # {"upserted_id": "<uuid>", "operation": "inserted" | "updated"}
 
+# Upsert many — up to 500 items per call, written together (one invalid item writes none)
+await db_upsert("orders", items=[
+    {"filter": {"order_id": "ORD-1"}, "update": {"status": "shipped"}},
+    {"filter": {"order_id": "ORD-2"}, "update": {"status": "pending"}, "insert_only": {"source": "etl"}},
+])
+# {"results": [{"upserted_id": ..., "operation": ...}, ...], "inserted_count": N, "updated_count": N}
+
 # Delete (filter MUST be non-empty — no accidental drop-all)
 await db_delete("orders", filter={"status": "cancelled"})
 # {"deleted_ids": [...], "deleted_count": N}
@@ -262,7 +269,7 @@ System fields on every document (read-only): `_id` (UUID), `_created_at`, `_upda
 
 Collection names are at most 50 characters, start with a lowercase letter, and contain only lowercase letters, digits, and underscores. `db_upsert` requires non-empty `filter` and `update` dicts and updates only the first match. On insert, it merges top-level equality fields from `filter`, then `update`, then `insert_only` (later values win). Operator, logical, and dotted filter fields are not copied into the inserted document. A `None` value in `update` removes the field on the update branch and is omitted from an inserted document. `update` keys in `db_update` and `db_upsert` are top-level field names: keys that start with `$` or contain `.` are rejected, so change a nested value by writing its whole top-level field.
 
-Upserts on the same collection run one at a time, so concurrent runs that upsert the same `filter` never create two documents, and `operation` tells each call whether it inserted. Use `db_upsert` with a natural key for deduplication; `db_insert` has no uniqueness check. On failure, database tools return an `error` key with an empty result instead of raising, so Python code must check `error` before using the result. `db_find`, `db_count`, and `db_list_collections` retry timeouts and temporary storage errors twice; writes are not retried.
+Upserts on the same collection run one at a time, so concurrent runs that upsert the same `filter` never create two documents, and `operation` tells each call whether it inserted. Use `db_upsert` with a natural key for deduplication; `db_insert` has no uniqueness check. On failure, database tools return an `error` key with an empty result instead of raising, so Python code must check `error` before using the result. `db_find`, `db_count`, and `db_list_collections` retry timeouts and temporary storage errors twice. `db_upsert` retries too when a repeat can't add a second document: the filter only compares top-level fields to plain values, and `update` and `insert_only` keep those values. Other writes are not retried.
 
 ### Filter operators and shorthand
 
