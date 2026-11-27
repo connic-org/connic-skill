@@ -32,7 +32,7 @@ output_schema: sentiment-result   # schemas/sentiment-result.json
 }
 ```
 
-Schemas follow the JSON Schema standard. connic honors the keywords the model needs to produce conforming output and validates the parsed response against them — invalid output causes the run to fail with a `ValidationError`. Supported:
+Schemas follow the JSON Schema standard. connic honors the keywords the model needs to produce conforming output and validates the parsed response against them. If the final answer contains invalid JSON or fails schema validation, connic can ask the model to correct it once. The correction counts toward `max_iterations`. The run fails if the corrected answer is still invalid.
 
 | Category | Keywords |
 | --- | --- |

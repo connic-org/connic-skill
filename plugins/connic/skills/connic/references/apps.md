@@ -164,6 +164,8 @@ async def before(content, context):
 
 `session: {key: context.end_user.id}` keeps one conversation per visitor, and `credential.user: context.end_user.id` in `mcp_servers` uses the visitor's own token for an MCP server.
 
+In the Playground, enable **Run as app visitor**, select an app in the environment, and enter the visitor details. The visitor's `claims` are empty. This option requires `apps.embed`. A rerun keeps the original visitor and app when it runs in the same environment and the caller has `apps.embed`. Test cases set the app and visitor with [`app` and `end_user`](cli-and-dev.md#connic-test).
+
 ## Access rules
 
 Apps use the same access rules as agents (`access` and `lookups` in agent YAML; see the agent-yaml reference). Docs: `https://connic.co/docs/v1/build/access-rules`.

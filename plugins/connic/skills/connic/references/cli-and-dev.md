@@ -80,7 +80,7 @@ Catches:
 - Middleware/hooks modules that cannot be parsed or discovered, and guardrails that fail to import.
 - Connector files in `connectors/`: shape, types and modes, `config` values (five-field cron or macro, `rate_limit.key` with `per_key`, numeric Telegram IDs, outbound webhook URL without a bridge on `https://` port 443 without credentials, `files_required` only on types that receive files), generated fields, `${VAR}` syntax, linked agents and outbound `source` keys that don't exist, and name clashes between files. It warns about deprecated settings, such as `bridge` on a Kafka, SQS, S3, Postgres, or email connector (the bridge belongs on the Connection). Environment names, Connections, Bridges, Variables, and phone-number availability are only checked when a deploy starts. See [Connectors in code](connectors.md#connectors-in-code).
 - App files in `apps/`: shape, build settings, sign-in fields, `${VAR}` placement, access-rule syntax and the names each rule may use, lookup names, a `package.json` and lockfile in each `apps/<key>/`, folders without a `.yaml`, and listed connectors that aren't `apps_only` or aren't deployed to the app's environments. Whether each rule can be enforced, environment names, Variables, permission groups, domains, and plan limits are checked when a deploy or `connic dev` upload starts. See [Apps](apps.md).
-- Test suites in `tests/` that don't match the suite schema or target an agent that doesn't exist, whether named by `agent:` or by the file name. The error names the file and suggests close agent names.
+- Test suites in `tests/` that don't match the suite schema or target an agent that doesn't exist, whether named by `agent:` or by the file name. An unknown-agent error names the file and suggests close agent names. Lint also reports test cases that reference an app missing from `apps/`.
 
 Run this before every deploy. There is no `--json` flag — `lint` only takes `--verbose` / `-v`.
 
@@ -185,6 +185,8 @@ If `payload` is a JSON object (or comes from a `builder` that returns a dict), i
 Per-case overrides for `runs`, `success_threshold`, and `timeout_s` are allowed.
 
 Case execution controls (not assertions) include `mocks` (a `tests/mocks/<name>.py` module that can replace custom file tools and lifecycle phases), the independent `strict_mocks`, `strict_hook_mocks`, `strict_middleware_mocks`, and `strict_guardrail_mocks` booleans (all also settable in `defaults`), `approval_decisions` (scripted HITL responses), and `strict_approval_decisions` (bool, also settable in `defaults`). See "Testing approvals" and "Mocking tools" below.
+
+Set `app` and `end_user` together to run a case as an app visitor. `app` is the key from `apps/<key>.yaml`. `end_user` requires `id` and accepts `email`, `name`, `groups`, and `signed_in` (defaults to `true`). The run gets `context["app"]` and `context["end_user"]` with empty visitor `claims`. Agent access rules see the visitor as `user`. A deployment test can have a null app ID if the app does not exist in the environment yet.
 
 ### What `expected_result` can and cannot do
 
