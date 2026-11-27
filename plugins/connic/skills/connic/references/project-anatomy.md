@@ -32,6 +32,8 @@ my-project/
 │   └── order-events.yaml
 ├── assets/                    # optional MP3 and WAV audio, such as hold audio
 │   └── hold.mp3
+├── retrieval/                 # optional documents deploys sync into the environment's Retrieval
+│   └── policies/hr/leave.pdf  # entry leave.pdf in namespace policies.hr
 ├── apps/                      # static frontends, built and served by deploys
 │   ├── portal.yaml            # declares the app; the file name is its key
 │   └── portal/                # its sources: package.json, lockfile, src/
@@ -42,7 +44,7 @@ my-project/
     └── mocks/                  # *.py — custom-code replacements referenced by mocks:
 ```
 
-`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/`, `connectors/`, `assets/`, `apps/` as you need them.
+`connic init` creates `agents/`, `tools/`, `middleware/`, `schemas/`, plus `.gitignore`, `requirements.txt`, and a `README.md` containing an example agent. It does **not** create a `.connic` file (that's `connic login`'s job) and it does **not** drop a stub agent on disk. Add `--skill` to install the connic skill under `.agents/skills/connic/` and `.claude/skills/connic/`. Add `hooks/`, `guardrails/`, `tests/`, `connectors/`, `assets/`, `retrieval/`, `apps/` as you need them.
 
 ## Auto-discovery rules
 
@@ -59,6 +61,7 @@ These are how files wire up. There is no central manifest — the layout *is* th
 | `guardrails/<name>.py` | Reference as `name: <name>` inside a `guardrails: - type: custom` block — filename must match exactly. |
 | `connectors/<key>.yaml` | Declares one connector; the file name is its key and identity. Deploys create, update, or retire it per environment. See [Connectors in code](connectors.md#connectors-in-code). |
 | `apps/<key>.yaml` | Declares one app; the file name is its key. `build` requires sources in `apps/<key>/`; with `instances_only: true`, both can be omitted. See [Apps](apps.md). |
+| `retrieval/<folders>/<file>` | One Retrieval entry per file: folders form the namespace, the file name is the entry ID. Activations and rollbacks sync the environment's entries from code to the deployment's files. See [Retrieval in code](platform.md#retrieval-in-code). |
 
 connic skips `_`-prefixed **files** and **functions** during tool discovery. So `tools/_helpers.py` is not exposed, and neither is `tools/utils.py::_internal_fn`. Use the leading underscore for module-private helpers. `__init__.py` is one example of a `_`-prefixed file; do not put tools there.
 
@@ -66,7 +69,7 @@ Parameters without type hints are still exposed but default to `{"type": "string
 
 ## Upload size and file types
 
-A deploy or `connic dev` upload can be up to 50 MB, counted unpacked. Python files outside `apps/` are limited to 256 KiB each, including fixtures in `tests/files/`. Outside `tests/files/` and `apps/`, files must be text with one of these extensions: `.py`, `.yaml`, `.txt`, `.json`, `.csv`, `.md`, `.toml`, `.jsonl`. MP3 and WAV audio (`.mp3`, `.wav`) is allowed there too, such as a voice connector's hold audio. `tests/files/` accepts any file type, binary included. Other binary files a tool needs at runtime, such as images or PDFs, belong in [Files](predefined-tools.md#files) (`file_read`, `web_browser_upload(path=...)`), not base64 in the code.
+A deploy or `connic dev` upload can be up to 50 MB, counted unpacked. Python files outside `apps/` are limited to 256 KiB each, including fixtures in `tests/files/`. Outside `tests/files/`, `retrieval/`, and `apps/`, files must be text with one of these extensions: `.py`, `.yaml`, `.txt`, `.json`, `.csv`, `.md`, `.toml`, `.jsonl`. MP3 and WAV audio (`.mp3`, `.wav`) is allowed there too, such as a voice connector's hold audio. `tests/files/` accepts any file type, binary included. `retrieval/` accepts the file types of Retrieval uploads, binary included. Other binary files a tool needs at runtime, such as images or PDFs, belong in [Files](predefined-tools.md#files) (`file_read`, `web_browser_upload(path=...)`), not base64 in the code.
 
 ## Cascading `_defaults.yaml`
 

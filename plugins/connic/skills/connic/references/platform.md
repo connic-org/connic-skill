@@ -125,6 +125,16 @@ Retrieval has no fixed entry-count cap. Stored content contributes to project st
 
 A SharePoint and OneDrive source (`type: sharepoint`) keeps document libraries searchable without custom sync code against the Retrieval REST API. It signs in with the customer's Microsoft Entra ID app registration: `tenant_id`, `client_id`, and `client_secret`, plus `site_urls` (one per line) and/or `onedrive_users` (sign-in emails), optionally `library_names`, `folder_paths` (one per line from the top of each library or OneDrive, such as `Sales/Offers`; only files in these folders and their subfolders sync, and a listed folder missing from every selected library fails the sync), `modified_since` (`YYYY-MM-DD`), and `include_images` (default `false`). The app needs a Microsoft Graph application permission with admin consent: `Sites.Selected` with a read grant on each site, or `Files.Read.All` for OneDrive and every site. After the first sync, a run only downloads files that changed; a large first sync continues over several runs automatically. Files Retrieval cannot ingest are skipped and counted in the run's `file_issues`.
 
+### Retrieval in code
+
+Files under `retrieval/` deploy with the agents, so knowledge the agents rely on is versioned and reviewed with the code. Each file becomes one entry: its folders form the namespace and its file name is the entry ID (`retrieval/policies/hr/leave.pdf` is entry `leave.pdf` in `policies.hr`; files directly in `retrieval/` have no namespace). Allowed types are those of file uploads; folder names can't contain dots and nest up to 10 levels. The files count toward the 50 MB deploy upload.
+
+- Activating a deployment, including a rollback, syncs the environment's entries from code to that deployment's files: new files are added, changed ones indexed again, removed ones deleted. Unchanged files are skipped and not charged again. A deployment without `retrieval/` removes every entry from code. Indexing runs after activation; **Retrieval → Sources** shows the syncs under the source `retrieval/ in code` (type `code`), which can be synced again but not edited or deleted.
+- Entries from code have `from_code: true` in entry listings and keep their files in Files like uploads. The dashboard, REST API, connic MCP, and the `retrieval_store`/`retrieval_delete` tools refuse to change or delete them (409), including namespace deletes that would match them. Other entries can share their namespaces. Environment copy skips them.
+- A deploy fails when an entry not created from code already has a file's namespace and entry ID. Delete that entry or rename the file.
+- When deploy tests, `connic test`, or PR tests run in a separate test environment, connic first syncs the deployment's files into it and waits until they are indexed; a file that can't be indexed fails the tests. Tests that run in the environment being deployed see its current content. `connic dev` syncs the folder into its dev environment after each save. With Changed Tests Only, a change under `retrieval/` re-runs every case.
+- Content maintained by people without access to the code belongs in a synced source instead; both can feed one environment in separate namespaces.
+
 ## Database
 
 **Per-environment** schemaless document store. Used via `db_find` (including distinct-value queries), `db_insert`, `db_update`, `db_upsert`, `db_delete`, `db_count`, and `db_list_collections` (see [predefined-tools.md](predefined-tools.md)).
@@ -264,7 +274,7 @@ Use the interface that matches the job:
 | Connector configuration | Dashboard (linked to agents), REST API, connic MCP, or on-disk `connectors/*.yaml` applied by deploys |
 | Connections (reusable connector credentials) | Dashboard (Project Settings → Connections), REST API, or connic MCP |
 | API spec imports | Dashboard |
-| Retrieval content | Dashboard or via `retrieval_store` tool |
+| Retrieval content | Dashboard, `retrieval_store` tool, synced sources, or on-disk `retrieval/` synced by deploys |
 | Database collections | Dashboard or via `db_*` tools |
 | Judges, A/B tests, approvals queue | Dashboard |
 | Team members and permission groups | Dashboard |
