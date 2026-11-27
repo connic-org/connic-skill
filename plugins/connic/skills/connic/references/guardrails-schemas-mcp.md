@@ -360,7 +360,7 @@ tools:
 
 Each API spec lives in its own namespace — `api:stripe.charge_create` and `api:internal.charge_create` are independent tools.
 
-After import, individual tools can be enabled or disabled and given custom names or descriptions. Disabled tools do not resolve through exact references or wildcards. Refreshing a URL-sourced spec synchronizes operations by HTTP method and path while retaining custom names, descriptions, and enabled states for matching operations. Redeploy agents that use the spec after editing or refreshing it.
+After import, individual tools can be enabled or disabled and given custom names or descriptions. Disabled tools do not resolve through exact references or wildcards. Refreshing a URL-sourced spec synchronizes operations by HTTP method and path while retaining custom names, descriptions, and enabled states for matching operations. Redeploy agents in standard environments after editing or refreshing a spec they use. A `connic dev` session reads API spec tool configuration from its dev environment when it loads agent files.
 
 Tool hooks in `hooks/<agent>.py` fire for local custom tools, predefined connic tools, `api:` tools, and tools served by MCP servers. See [tools-and-python.md](tools-and-python.md#tool-hooks-hooksagent-namepy) for what `after` receives and can return.
 

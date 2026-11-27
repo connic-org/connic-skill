@@ -176,6 +176,18 @@ Switching to a fallback is immediate. Retrying the same model honors `Retry-Afte
 
 For `type: tool` and `type: sequential`, `attempts`, `initial_delay`, `max_delay`, and `rerun_middleware` control operation-level retries. `attempts` includes the first attempt; `attempt_timeout` is ignored.
 
+## Model per run
+
+`model` also takes a list. Before every model call the agent uses the first `{model: condition}` entry whose condition is true, else the last entry, which must be a plain model name without a condition. Conditions use the conditional-tool grammar (`context.*`, `input.*`).
+
+```yaml
+model:
+  - connic/claude-opus-5.5: context.is_premium
+  - connic/claude-sonnet-5.5
+```
+
+Set the context value in `before` middleware. A tool that changes it (`context["is_premium"] = True`) switches the model from the next call on; no predefined tool is needed. Each call is billed and traced with the model it used; the first call after a switch sends the whole history to the new model without prompt cache. `fallback_model` applies to whichever model is picked. Voice agents reject a list. In the agent filter, `agent.model` is the default and `agent.models` lists every model.
+
 ## Voice LLM agent
 
 connic voice is in beta. Add `voice_config` to an LLM agent that uses a native realtime audio model. An empty `voice_config: {}` enables voice with default settings.

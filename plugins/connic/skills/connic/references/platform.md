@@ -35,7 +35,7 @@ Every project starts with one default environment and can have more standard env
 - Separate database and Retrieval data.
 - Separate run history.
 
-Configure under **Project Settings → Git & Environments**. Variable keys must be uppercase; sensitive values can be marked **Sensitive**, and the raw editor accepts `KEY=VALUE` lines. Map a Git branch to each environment for auto-deploy on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
+Configure under **Project Settings → Git & Environments**. Variable keys must be uppercase; sensitive values can be marked **Sensitive**, and the raw editor accepts `KEY=VALUE` lines. Map a Git branch to a standard environment to deploy automatically on push. Each environment also has an optional "Test environment" pointer — when set, the deploy gate runs `connic test` against that environment instead of the target, so production deploys can validate with stub credentials.
 
 The environment drawer also has **On-demand deployments** and **Copy from this env** group selectors. Both default to **All groups** for existing and new environments until a restriction is saved. On-demand deployment groups restrict manual deployments in addition to the existing project and API-key permissions. Owners retain access; when specific groups are selected, administrators must also belong to one. For either selector, **All groups** adds no group restriction, selected groups limit access to those groups, and an empty selection permits owners only. The same group restrictions apply to manual test uploads, dev-session updates, activation, redeployment, and overriding failed deployment tests. Automatic branch deployments and PR workflows are unaffected. **Copy from this env** controls copying from a normal source environment to other normal or dev environments in the same project. The Retrieval, Database, and API Tools copy drawers select an allowed source and items in a tree, then copy into the current environment. On Variables, select rows in an allowed normal source environment and choose **Copy to other envs** to copy to one or more other normal or dev environments in the same project. Database supports a JSON document filter per selected collection; Retrieval supports content type, entry ID substring, and metadata filters. Existing items are skipped by default; choose **Replace** to overwrite matching items. Existing resource permissions still apply, including update permission for replacing variables or API tools. Sensitive variable values and API authentication credentials stay on the server. API tools retain customized names, descriptions, and enabled selections.
 
@@ -56,7 +56,7 @@ A deployment includes agents, tools, middleware, hooks, schemas, guardrails, tes
 
 connic reviews the submitted deployment files before the build. A deployment stopped by this review is marked **Blocked**. connic does not build, test, or activate it, and the deployment details show instructions for contacting support.
 
-Environment variables are injected at deploy time. Changing a variable requires re-deploying for new runs to pick it up.
+Standard deployments receive environment variable values at build time. Redeploy to apply changes to a standard environment. For a dev environment, stop and restart `connic dev`.
 
 ### PR Testing
 

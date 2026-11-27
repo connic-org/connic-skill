@@ -117,4 +117,4 @@ Runs routed to variants show a test pill in run history and can be filtered by v
 - A manually paused Confidence test can resume with its locked plan.
 - A Confidence test stopped by a decision boundary, safety rule, allocation mismatch, or analysis error cannot resume.
 - Started Confidence tests retain assumptions, judge snapshots, assignments, and completed looks; they cannot be deleted or assigned a manual winner.
-- If a deployment removes the variant used by a running or paused test, the test becomes `Failed` and traffic returns to control.
+- If a deployment or a dev-session upload removes the variant used by a running or manually paused test, the test becomes `Failed` and traffic returns to control.
